@@ -243,7 +243,6 @@ inline FCL_QUATERNION QuaternionSlerp(FCL_QUATERNION a, FCL_QUATERNION b, double
         s0 * a.Z + s1 * b.Z};
 }
 
-}  // namespace fclmusa::geom
 inline FCL_QUATERNION QuaternionFromAxisAngle(const FCL_VECTOR3& axis, float angle) noexcept {
     const float halfAngle = angle * 0.5f;
     const float sinHalf = static_cast<float>(sin(halfAngle));
@@ -314,3 +313,5 @@ inline FCL_MATRIX3X3 RotationMatrixFromAxisAngle(const FCL_VECTOR3& axis, float 
     rotation.M[2][2] = c + z * z * t;
     return rotation;
 }
+
+}  // namespace fclmusa::geom

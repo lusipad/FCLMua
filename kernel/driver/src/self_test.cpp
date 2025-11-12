@@ -539,7 +539,10 @@ NTSTATUS RunDriverVerifierScenario(_Out_ PBOOLEAN isActive) noexcept {
         return STATUS_INVALID_PARAMETER;
     }
 #if (NTDDI_VERSION >= NTDDI_WIN7)
-    *isActive = MmIsDriverVerifierActive() ? TRUE : FALSE;
+    using MmIsDriverVerifierActiveFn = LOGICAL(NTAPI*)(VOID);
+    UNICODE_STRING routineName = RTL_CONSTANT_STRING(L"MmIsDriverVerifierActive");
+    auto routine = reinterpret_cast<MmIsDriverVerifierActiveFn>(MmGetSystemRoutineAddress(&routineName));
+    *isActive = (routine != nullptr && routine()) ? TRUE : FALSE;
 #else
     *isActive = FALSE;
 #endif

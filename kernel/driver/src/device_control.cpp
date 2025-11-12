@@ -2,9 +2,12 @@
 
 #include "fclmusa/distance.h"
 #include "fclmusa/driver.h"
+#include "fclmusa/geometry/math_utils.h"
 #include "fclmusa/ioctl.h"
 #include "fclmusa/logging.h"
 #include "fclmusa/self_test.h"
+
+using fclmusa::geom::IdentityTransform;
 
 namespace {
 

@@ -20,7 +20,7 @@
 #define EIGEN_DONT_ALIGN
 #define EIGEN_DONT_VECTORIZE
 #define EIGEN_HAS_C99_MATH 1
-#define EIGEN_MAX_ALIGN_BYTES 16
+#define EIGEN_MAX_ALIGN_BYTES 0
 #define EIGEN_MPL2_ONLY
 
 #include <Eigen/Core>

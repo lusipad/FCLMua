@@ -6,8 +6,11 @@
 #include "fclmusa/math/self_test.h"
 #include "fclmusa/collision/self_test.h"
 #include "fclmusa/geometry.h"
+#include "fclmusa/geometry/math_utils.h"
 #include "fclmusa/memory/pool_allocator.h"
 #include "fclmusa/runtime/musa_runtime_adapter.h"
+
+using fclmusa::geom::IdentityTransform;
 
 // Compatibility helpers for PushLock APIs
 #ifndef ExEnterCriticalRegionAndAcquirePushLockExclusive
