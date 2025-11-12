@@ -1,0 +1,33 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{73F0572D-CC8D-4C33-BA1A-60E3C7A3ED14}</ProjectGuid>
+    <ProjectName>Musa.Runtime.Math</ProjectName>
+    <RootNamespace>Musa</RootNamespace>
+    <MileProjectType>StaticLibrary</MileProjectType>
+    <MileProjectUseKernelMode>true</MileProjectUseKernelMode>
+    <MileProjectUseWindowsDriverKit>true</MileProjectUseWindowsDriverKit>
+  </PropertyGroup>
+  <!--
+  <Import Sdk="Mile.Project.Configurations" Project="Mile.Project.Platform.x86.props" />
+  -->
+  <Import Sdk="Mile.Project.Configurations" Project="Mile.Project.Platform.x64.props" />
+  <Import Sdk="Mile.Project.Configurations" Project="Mile.Project.Platform.ARM64.props" />
+  <Import Sdk="Mile.Project.Configurations" Project="Mile.Project.Cpp.Default.props" />
+  <Import Sdk="Mile.Project.Configurations" Project="Mile.Project.Cpp.props" />
+  <PropertyGroup Label="Configuration">
+    <OutDir>$(MileProjectBinariesPath)$(Configuration)\$(Platform)\</OutDir>
+    <IntDir>$(MileProjectObjectsPath)$(Configuration)\$(MSBuildProjectName)\$(Platform)\</IntDir>
+    <GeneratedFilesDir>$(IntDir)Generated Files\</GeneratedFilesDir>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TargetLibraryName Condition="'$(Configuration)'=='Debug'">libucrtd.lib</TargetLibraryName>
+    <TargetLibraryName Condition="'$(Configuration)'=='Release'">libucrt.lib</TargetLibraryName>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <PostBuildEvent>
+      <Command >$(MSBuildProjectDirectory)\Build.Microsoft.VisualC.Library.bat $(PlatformTarget) -lib=$(TargetLibraryName) -out=$(TargetPath) -exclusion_list=$(MSBuildProjectDirectory)\Musa.Runtime.Math.Exclusion.txt</Command>
+    </PostBuildEvent>
+  </ItemDefinitionGroup>
+  <Import Sdk="Mile.Project.Configurations" Project="Mile.Project.Cpp.targets" />
+</Project>
