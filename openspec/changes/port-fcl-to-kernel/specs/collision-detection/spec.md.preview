@@ -1,0 +1,40 @@
+# 规范：内核态碰撞检测（Collision Detection）
+
+本文档定义了 FCL+Musa 驱动的内核态 3D 碰撞检测功能规范。
+
+## ADDED Requirements
+
+### Requirement: 驱动初始化和清理
+
+驱动 **SHALL** 提供初始化和清理函数，用于设置和释放全局资源。
+
+#### Scenario: 驱动加载成功
+
+- **WHEN** 驱动加载时调用 `FclInitialize()`
+- **THEN** 函数返回 `STATUS_SUCCESS`
+- **AND** 驱动已准备好处理请求
+
+#### Scenario: 驱动卸载清理
+
+- **WHEN** 驱动卸载时调用 `FclCleanup()`
+- **THEN** 所有分配的资源被释放
+- **AND** 无内存泄漏
+
+#### Scenario: 重复初始化
+
+- **WHEN** 多次调用 `FclInitialize()`
+- **THEN** 函数返回 `STATUS_ALREADY_INITIALIZED`
+- **AND** 不影响已有的初始化状态
+
+---
+
+### Requirement: 几何对象创建
+
+驱动 **SHALL** 支持创建多种几何对象类型，包括三角网格、包围盒、球体等。
+
+#### Scenario: 创建三角网格对象
+
+- **WHEN** 调用 `FclCreateGeometry()` 并指定 `FCL_GEOMETRY_MESH` 类型
+- **AND** 提供有效的顶点和三角形数据
+- **THEN** 函数返回 `STATUS_SUCCESS`
+- **AND** 返回有效的几何对象句柄
