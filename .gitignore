@@ -1,0 +1,25 @@
+# 构建输出
+*.log
+build_output.log
+build_driver.log
+build_run.log
+
+# 临时文件
+temp.txt
+nul
+
+# 驱动输出目录
+kernel/*/out/
+kernel/*/x64/
+kernel/*/Debug/
+kernel/*/Release/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.sdf
+*.opensdf
+
+# 工具构建输出
+tools/build/
