@@ -1,0 +1,144 @@
+#pragma once
+
+#include <ntddk.h>
+
+#include "fclmusa/collision.h"
+#include "fclmusa/geometry.h"
+#include "fclmusa/memory/pool_allocator.h"
+#include "fclmusa/version.h"
+
+#define IOCTL_FCL_PING CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_SELF_TEST CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_QUERY_COLLISION CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_QUERY_DISTANCE CTL_CODE(FILE_DEVICE_UNKNOWN, 0x803, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_CREATE_SPHERE CTL_CODE(FILE_DEVICE_UNKNOWN, 0x804, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_DESTROY_GEOMETRY CTL_CODE(FILE_DEVICE_UNKNOWN, 0x805, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_SPHERE_COLLISION CTL_CODE(FILE_DEVICE_UNKNOWN, 0x806, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_CONVEX_CCD CTL_CODE(FILE_DEVICE_UNKNOWN, 0x807, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+
+typedef struct _FCL_PING_RESPONSE {
+    FCL_DRIVER_VERSION Version;
+    BOOLEAN IsInitialized;
+    BOOLEAN IsInitializing;
+    ULONG Reserved;
+    NTSTATUS LastError;
+    LARGE_INTEGER Uptime100ns;
+    FCL_POOL_STATS Pool;
+} FCL_PING_RESPONSE, *PFCL_PING_RESPONSE;
+
+static_assert((sizeof(FCL_PING_RESPONSE) % sizeof(ULONG)) == 0, "Ping response must align to ULONG");
+
+typedef struct _FCL_CONTACT_SUMMARY {
+    FCL_VECTOR3 PointOnObject1;
+    FCL_VECTOR3 PointOnObject2;
+    FCL_VECTOR3 Normal;
+    float PenetrationDepth;
+} FCL_CONTACT_SUMMARY, *PFCL_CONTACT_SUMMARY;
+
+typedef struct _FCL_SELF_TEST_RESULT {
+    FCL_DRIVER_VERSION Version;
+    NTSTATUS InitializeStatus;
+    NTSTATUS GeometryCreateStatus;
+    NTSTATUS CollisionStatus;
+    NTSTATUS DestroyStatus;
+    NTSTATUS DistanceStatus;
+    NTSTATUS BroadphaseStatus;
+    NTSTATUS MeshGjkStatus;
+    NTSTATUS SphereMeshStatus;
+    NTSTATUS MeshBroadphaseStatus;
+    NTSTATUS ContinuousCollisionStatus;
+    NTSTATUS GeometryUpdateStatus;
+    NTSTATUS SphereObbStatus;
+    NTSTATUS MeshComplexStatus;
+    NTSTATUS BoundaryStatus;
+    NTSTATUS DriverVerifierStatus;
+    BOOLEAN DriverVerifierActive;
+    NTSTATUS LeakTestStatus;
+    NTSTATUS StressStatus;
+    NTSTATUS PerformanceStatus;
+    ULONGLONG StressDurationMicroseconds;
+    ULONGLONG PerformanceDurationMicroseconds;
+    NTSTATUS OverallStatus;
+    BOOLEAN Passed;
+    BOOLEAN PoolBalanced;
+    BOOLEAN CollisionDetected;
+    BOOLEAN BoundaryPassed;
+    USHORT Reserved;
+    NTSTATUS InvalidGeometryStatus;
+    NTSTATUS DestroyInvalidStatus;
+    NTSTATUS CollisionInvalidStatus;
+    ULONGLONG PoolBytesDelta;
+    float DistanceValue;
+    ULONG BroadphasePairCount;
+    ULONG MeshBroadphasePairCount;
+    FCL_POOL_STATS PoolBefore;
+    FCL_POOL_STATS PoolAfter;
+    FCL_CONTACT_SUMMARY Contact;
+} FCL_SELF_TEST_RESULT, *PFCL_SELF_TEST_RESULT;
+
+static_assert((sizeof(FCL_SELF_TEST_RESULT) % sizeof(ULONG)) == 0, "Self test response must align to ULONG");
+
+typedef struct _FCL_COLLISION_QUERY {
+    FCL_GEOMETRY_HANDLE Object1;
+    FCL_TRANSFORM Transform1;
+    FCL_GEOMETRY_HANDLE Object2;
+    FCL_TRANSFORM Transform2;
+} FCL_COLLISION_QUERY, *PFCL_COLLISION_QUERY;
+
+typedef struct _FCL_COLLISION_RESULT {
+    UCHAR IsColliding;
+    UCHAR Reserved[3];
+    FCL_CONTACT_INFO Contact;
+} FCL_COLLISION_RESULT, *PFCL_COLLISION_RESULT;
+
+typedef struct _FCL_COLLISION_IO_BUFFER {
+    FCL_COLLISION_QUERY Query;
+    FCL_COLLISION_RESULT Result;
+} FCL_COLLISION_IO_BUFFER, *PFCL_COLLISION_IO_BUFFER;
+
+typedef struct _FCL_DISTANCE_QUERY {
+    FCL_GEOMETRY_HANDLE Object1;
+    FCL_TRANSFORM Transform1;
+    FCL_GEOMETRY_HANDLE Object2;
+    FCL_TRANSFORM Transform2;
+} FCL_DISTANCE_QUERY, *PFCL_DISTANCE_QUERY;
+
+typedef struct _FCL_DISTANCE_OUTPUT {
+    float Distance;
+    FCL_VECTOR3 ClosestPoint1;
+    FCL_VECTOR3 ClosestPoint2;
+} FCL_DISTANCE_OUTPUT, *PFCL_DISTANCE_OUTPUT;
+
+typedef struct _FCL_DISTANCE_IO_BUFFER {
+    FCL_DISTANCE_QUERY Query;
+    FCL_DISTANCE_OUTPUT Result;
+} FCL_DISTANCE_IO_BUFFER, *PFCL_DISTANCE_IO_BUFFER;
+
+typedef struct _FCL_CREATE_SPHERE_INPUT {
+    FCL_SPHERE_GEOMETRY_DESC Desc;
+} FCL_CREATE_SPHERE_INPUT, *PFCL_CREATE_SPHERE_INPUT;
+
+typedef struct _FCL_CREATE_SPHERE_OUTPUT {
+    FCL_GEOMETRY_HANDLE Handle;
+} FCL_CREATE_SPHERE_OUTPUT, *PFCL_CREATE_SPHERE_OUTPUT;
+
+typedef struct _FCL_DESTROY_INPUT {
+    FCL_GEOMETRY_HANDLE Handle;
+} FCL_DESTROY_INPUT, *PFCL_DESTROY_INPUT;
+
+typedef struct _FCL_SPHERE_COLLISION_BUFFER {
+    FCL_SPHERE_GEOMETRY_DESC SphereA;
+    FCL_SPHERE_GEOMETRY_DESC SphereB;
+    FCL_COLLISION_RESULT Result;
+} FCL_SPHERE_COLLISION_BUFFER, *PFCL_SPHERE_COLLISION_BUFFER;
+
+typedef struct _FCL_CONVEX_CCD_BUFFER {
+    FCL_GEOMETRY_HANDLE Object1;
+    FCL_INTERP_MOTION Motion1;
+    FCL_GEOMETRY_HANDLE Object2;
+    FCL_INTERP_MOTION Motion2;
+    FCL_CONTINUOUS_COLLISION_RESULT Result;
+} FCL_CONVEX_CCD_BUFFER, *PFCL_CONVEX_CCD_BUFFER;
+
+static_assert((sizeof(FCL_COLLISION_IO_BUFFER) % sizeof(ULONG)) == 0, "Collision IO buffer must align to ULONG");
+static_assert((sizeof(FCL_DISTANCE_IO_BUFFER) % sizeof(ULONG)) == 0, "Distance IO buffer must align to ULONG");
