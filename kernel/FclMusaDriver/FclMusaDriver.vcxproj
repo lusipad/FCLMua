@@ -69,7 +69,7 @@
       <WarningLevel>Level4</WarningLevel>
       <TreatWarningAsError>false</TreatWarningAsError>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\driver\include;$(ProjectDir)..\driver\include\third_party\libccd;$(ProjectDir)..\..\external\Eigen;$(ProjectDir)..\..\external\libccd\src;$(ProjectDir)..\..\external\libccd\src\ccd;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\driver\include;$(ProjectDir)..\driver\include\third_party\libccd;$(ProjectDir)..\..\external\Eigen;$(ProjectDir)..\..\external\libccd\src;$(ProjectDir)..\..\external\libccd\src\ccd;$(ProjectDir)..\..\fcl-source\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Disabled</Optimization>
     </ClCompile>
     <Link>
@@ -87,7 +87,7 @@
       <WarningLevel>Level4</WarningLevel>
       <TreatWarningAsError>false</TreatWarningAsError>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\driver\include;$(ProjectDir)..\driver\include\third_party\libccd;$(ProjectDir)..\..\external\Eigen;$(ProjectDir)..\..\external\libccd\src;$(ProjectDir)..\..\external\libccd\src\ccd;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\driver\include;$(ProjectDir)..\driver\include\third_party\libccd;$(ProjectDir)..\..\external\Eigen;$(ProjectDir)..\..\external\libccd\src;$(ProjectDir)..\..\external\libccd\src\ccd;$(ProjectDir)..\..\fcl-source\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Full</Optimization>
     </ClCompile>
     <Link>
@@ -102,7 +102,6 @@
     <ClCompile Include="..\driver\src\collision\collision_self_test.cpp" />
     <ClCompile Include="..\driver\src\collision\collision.cpp" />
     <ClCompile Include="..\driver\src\collision\continuous_collision.cpp" />
-    <ClCompile Include="..\driver\src\narrowphase\gjk.cpp" />
     <ClCompile Include="..\driver\src\distance\distance.cpp" />
     <ClCompile Include="..\driver\src\device_control.cpp" />
     <ClCompile Include="..\driver\src\driver_entry.cpp" />
@@ -114,6 +113,7 @@
     <ClCompile Include="..\driver\src\memory\pool_allocator.cpp" />
     <ClCompile Include="..\driver\src\runtime\musa_runtime_adapter.cpp" />
     <ClCompile Include="..\driver\src\self_test.cpp" />
+    <ClCompile Include="..\driver\src\upstream\upstream_bridge.cpp" />
     <ClCompile Include="..\driver\src\narrowphase\libccd_memory.cpp" />
     <ClCompile Include="..\..\external\libccd\src\ccd.c">
       <PreprocessorDefinitions>CCD_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>

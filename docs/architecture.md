@@ -23,3 +23,7 @@ FCL+Musa 架构说明
 ## 安全/性能策略
 - 全面使用 NonPagedPool，`FCL_POOL_STATS` 可实时监控。
 - Driver Verifier 结果通过自测结构暴露；自测脚本可检测泄漏、性能退化、连续碰撞准确性。
+## Upstream 集成说明
+- 通过 upstream_bridge.cpp 将 upstream FCL (fcl-source) 算法移植到内核，仅保留内存/日志/NTSTATUS hook。
+- FclCollisionDetect / FclDistanceCompute / FclContinuousCollision 统一调用 FCL collide、distance、continuousCollide，结果与原库保持一致。
+- Mesh 在运行时根据快照即时构建 FCL BVHModel，确保与 upstream OBBRSS 结构一致。

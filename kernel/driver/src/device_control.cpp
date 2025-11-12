@@ -1,4 +1,5 @@
 #include <ntddk.h>
+#include <ntintsafe.h>
 
 #include "fclmusa/distance.h"
 #include "fclmusa/driver.h"
@@ -172,6 +173,61 @@ NTSTATUS HandleSphereCollisionDemo(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION sta
     return status;
 }
 
+NTSTATUS HandleCreateMesh(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
+    if (stack->Parameters.DeviceIoControl.InputBufferLength < sizeof(FCL_CREATE_MESH_BUFFER) ||
+        stack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(FCL_CREATE_MESH_BUFFER)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    auto* buffer = reinterpret_cast<FCL_CREATE_MESH_BUFFER*>(irp->AssociatedIrp.SystemBuffer);
+    if (buffer->VertexCount == 0 || buffer->IndexCount < 3 || (buffer->IndexCount % 3) != 0) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    size_t verticesSize = 0;
+    NTSTATUS status = RtlSizeTMult(buffer->VertexCount, sizeof(FCL_VECTOR3), &verticesSize);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    size_t indicesSize = 0;
+    status = RtlSizeTMult(buffer->IndexCount, sizeof(UINT32), &indicesSize);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    size_t requiredSize = 0;
+    status = RtlSizeTAdd(sizeof(FCL_CREATE_MESH_BUFFER), verticesSize, &requiredSize);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+    status = RtlSizeTAdd(requiredSize, indicesSize, &requiredSize);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    if (stack->Parameters.DeviceIoControl.InputBufferLength < requiredSize) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    auto* vertices = reinterpret_cast<FCL_VECTOR3*>(reinterpret_cast<BYTE*>(buffer) + sizeof(FCL_CREATE_MESH_BUFFER));
+    auto* indices = reinterpret_cast<UINT32*>(reinterpret_cast<BYTE*>(vertices) + verticesSize);
+
+    FCL_MESH_GEOMETRY_DESC desc = {};
+    desc.Vertices = vertices;
+    desc.VertexCount = buffer->VertexCount;
+    desc.Indices = indices;
+    desc.IndexCount = buffer->IndexCount;
+
+    FCL_GEOMETRY_HANDLE handle = {};
+    status = FclCreateGeometry(FCL_GEOMETRY_MESH, &desc, &handle);
+    if (NT_SUCCESS(status)) {
+        buffer->Handle = handle;
+        irp->IoStatus.Information = sizeof(FCL_CREATE_MESH_BUFFER);
+    }
+    return status;
+}
+
 NTSTATUS HandleConvexCcdDemo(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
     if (stack->Parameters.DeviceIoControl.InputBufferLength < sizeof(FCL_CONVEX_CCD_BUFFER) ||
         stack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(FCL_CONVEX_CCD_BUFFER)) {
@@ -233,6 +289,9 @@ FclDispatchDeviceControl(_In_ PDEVICE_OBJECT deviceObject, _Inout_ PIRP irp) {
             break;
         case IOCTL_FCL_CONVEX_CCD:
             status = HandleConvexCcdDemo(irp, stack);
+            break;
+        case IOCTL_FCL_CREATE_MESH:
+            status = HandleCreateMesh(irp, stack);
             break;
         default:
             FCL_LOG_WARN("Unsupported IOCTL: 0x%X", stack->Parameters.DeviceIoControl.IoControlCode);

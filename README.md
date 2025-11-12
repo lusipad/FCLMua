@@ -1,65 +1,90 @@
 # FCL+Musa Driver
 
-在 Windows 内核 (Ring 0) 中移植 FCL（Flexible Collision Library），配合 Musa.Runtime/Eigen/libccd，实现 Sphere/OBB/Mesh 碰撞、连续碰撞 (CCD)、BVH/OBBRSS 支持以及内置自检。
+�� Windows �ں� (Ring?0) ����ֲ FCL��Flexible Collision Library������� Musa.Runtime/Eigen/libccd��ʵ�� Sphere/OBB/Mesh ��ײ��������ײ (CCD)��BVH/OBBRSS ֧���Լ������Լ졣
 
-## 构建
+## ����
 
 ```powershell
-PS> git clone … FCL+Musa
+PS> git clone �� FCL+Musa
 PS> cd FCL+Musa
-PS> .\build_driver.cmd         # 生成 kernel/FclMusaDriver/out/x64/Debug/FclMusaDriver.sys
+PS> .\build_driver.cmd         # ���� kernel/FclMusaDriver/out/x64/Debug/FclMusaDriver.sys
 ```
 
-依赖：WDK 10.0.26100.0、Visual Studio 2022、Musa.Runtime（仓库已包含）。
+������WDK 10.0.26100.0��Visual Studio 2022��Musa.Runtime���ֿ��Ѱ�������
 
-## 安装 / 启动
+����ɹ���Ժ󣬽ű����Զ�ִ�� `tools/sign_driver.ps1`��
+- ��� `CN=FclMusaTestCert` ��ǩ��֤�����ڱ��أ��ű����Զ������Զ����� SHA-256 ǩ��֤����
+- �Զ�ʹ�� `signtool` ���� `FclMusaDriver.sys` ���¼���ǩ������������ `kernel/FclMusaDriver/out/x64/Debug/` �� `FclMusaTestCert.pfx` �� `FclMusaTestCert.cer` ��
+
+���ƽ����ɵ� `.cer` �ļ�����Ŀ�������ϣ���� `Trusted Root Certification Authorities` �� `Trusted Publishers` �����У�
+
+```cmd
+certutil -addstore Root kernel\FclMusaDriver\out\x64\Debug\FclMusaTestCert.cer
+certutil -addstore TrustedPublisher kernel\FclMusaDriver\out\x64\Debug\FclMusaTestCert.cer
+```
+
+## ��װ / ����
 
 ```cmd
 sc create FclMusa type= kernel binPath= C:\path\FclMusaDriver.sys
 sc start FclMusa
 ```
 
-> 需测试签名或自签证书。
+> ǩ�����Ѿ�ʹ�� `CN=FclMusaTestCert` ����ǩ�������ڲ��Ի���������򽫶�Ӧ `.cer` ���뵽 Trusted Root �� Trusted Publisher ���档
 
-## IOCTL 功能
+## IOCTL ����
 
-| IOCTL | 说明 |
+| IOCTL | ˵�� |
 |-------|------|
-| `IOCTL_FCL_PING` | 查询版本、初始化状态、内存统计 |
-| `IOCTL_FCL_SELF_TEST` | 执行自检（几何/碰撞/CCD/压力/Verifier 等） |
-| `IOCTL_FCL_CREATE_SPHERE` / `IOCTL_FCL_DESTROY_GEOMETRY` | 管理几何句柄 |
-| `IOCTL_FCL_SPHERE_COLLISION` | Demo：驱动内部创建球体并返回碰撞结果 |
-| `IOCTL_FCL_CONVEX_CCD` | Demo：使用 InterpMotion 进行连续碰撞 |
-| `IOCTL_FCL_QUERY_COLLISION` / `IOCTL_FCL_QUERY_DISTANCE` | 通用碰撞/距离查询 |
+| `IOCTL_FCL_PING` | ��ѯ�汾����ʼ��״̬���ڴ�ͳ�� |
+| `IOCTL_FCL_SELF_TEST` | ִ���Լ죨����/��ײ/CCD/ѹ��/Verifier �ȣ� |
+| `IOCTL_FCL_CREATE_SPHERE` / `IOCTL_FCL_DESTROY_GEOMETRY` | �������ξ�� |
+| `IOCTL_FCL_SPHERE_COLLISION` | Demo�������ڲ��������岢������ײ��� |
+| `IOCTL_FCL_CONVEX_CCD` | Demo��ʹ�� InterpMotion ����������ײ |
+| `IOCTL_FCL_QUERY_COLLISION` / `IOCTL_FCL_QUERY_DISTANCE` | ͨ����ײ/�����ѯ |
+| `IOCTL_FCL_CREATE_MESH` | ���� OBJ ��Դ����������� (FCL_GEOMETRY_MESH) |
 
-更多结构/字段见 `docs/api.md`、`docs/demo.md`。
+����ṹ/�ֶμ� `docs/api.md`��`docs/demo.md`��
 
-## 用户态示例
+## �û�̬ʾ��
 
 ```powershell
 PS> tools\build_demo.cmd
 PS> tools\build\fcl_demo.exe
 ```
 
-程序会依次演示球体碰撞、连续碰撞 IOCTL。
+���� CLI ���ṩ������ʵʱ����/���� IOCTL ʾ����
+- `load <name> <obj>`���� OBJ �����������
+- `sphere <name> <radius> [x y z]`�����̶�����
+- `move` / `collide` / `distance`������������λ�úͲ��Ի���
+- `simulate` �� `ccd`�������ڲ���λ�ƶ��������ܡ�
+- `destroy` �� `list` ���������ջ�
+- ���� CLI ���ڵ� `tools\build`  Ŀ¼��ֱ�� `run scenes\two_spheres.txt` ������������
+  - `scenes\two_spheres.txt`��˫Բ������
+  - `scenes\mesh_probe.txt`���� `assets\cube.obj` ��Կ�� + ����ҩ���
+  - `scenes\arena_mix.txt`����ܺ���� + ˫Բ�໥����
 
-## 内核示例
+## �ں�ʾ��
 
-在 Driver 代码中（PASSIVE_LEVEL）可参考 `docs/demo.md`，直接调用 `FclCreateGeometry`、`FclCollideObjects`、`FclContinuousCollision` 等 API。使用前确保 `FclInitialize()` 成功，卸载前调用 `FclCleanup()`。
+�� Driver �����У�PASSIVE_LEVEL���ɲο� `docs/demo.md`��ֱ�ӵ��� `FclCreateGeometry`��`FclCollideObjects`��`FclContinuousCollision` �� API��ʹ��ǰȷ�� `FclInitialize()` �ɹ���ж��ǰ���� `FclCleanup()`��
 
-## 文档
+## �ĵ�
 
-- `docs/api.md`：API 说明
-- `docs/usage.md`：使用指南
-- `docs/architecture.md`：架构概述
-- `docs/testing.md`：测试报告
-- `docs/known_issues.md`：已知问题
-- `docs/release_notes.md`：发布说明
-- `docs/deployment.md`：部署流程
-- `docs/demo.md`：Ring0/Ring3 示例
+- `docs/api.md`��API ˵��
+- `docs/usage.md`��ʹ��ָ��
+- `docs/architecture.md`���ܹ�����
+- `docs/testing.md`�����Ա���
+- `docs/known_issues.md`����֪����
+- `docs/release_notes.md`������˵��
+- `docs/deployment.md`����������
+- `docs/demo.md`��Ring0/Ring3 ʾ��
 
-## 现状
+## ��״
 
-- Debug 驱动已实现 BVH/OBBRSS、GJK/EPA、InterpMotion/ScrewMotion、Conservative Advancement CCD。
-- 自测覆盖几何更新、Sphere/OBB、复杂 Mesh、边界、连续碰撞、Driver Verifier、压力/性能等路径（可通过 `IOCTL_FCL_SELF_TEST` 获取结果）。
-- TODO：搭建 WinDbg 调试链路、准备 Release 签名、完善 WinDbg/Verifier 操作手册等（详见 `docs/known_issues.md`）。
+- Debug ������ʵ�� BVH/OBBRSS��GJK/EPA��InterpMotion/ScrewMotion��Conservative Advancement CCD��
+- �Բ⸲�Ǽ��θ��¡�Sphere/OBB������ Mesh���߽硢������ײ��Driver Verifier��ѹ��/���ܵ�·������ͨ�� `IOCTL_FCL_SELF_TEST` ��ȡ�������
+- TODO��� WinDbg ������·��׼�� Release ǩ�������� WinDbg/Verifier �����ֲ�ȣ���� `docs/known_issues.md`����
+### Upstream FCL 版本
+- 仓库内置 upstream FCL 源码 (目录 fcl-source/)，当前使用的 commit 为 5f7776e2101b8ec95d5054d732684d00dac45e3d。
+- 驱动碰撞/距离/CCD 接口通过 upstream_bridge.cpp 直接调用 FCL 的 collide、distance、continuousCollide，内核仅保留内存与日志 hook。
+- 打包/部署时同步 fcl-source/ 目录即可保持与上游一致，如需升级请显式记录新的 commit。
