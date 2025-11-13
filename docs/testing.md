@@ -1,43 +1,79 @@
-FCL+Musa 测试报告
-=================
+# 测试与验证指引
 
-日期：2025-11-12
-目标：验证内核态 FCL+Musa 驱动实现的碰撞/CCD/自测能力。
+目标：通过自检、回归、压力与对比测试，验证 FCL+Musa 驱动的稳定性与正确性。
 
-## 构建环境
-- Windows 11 x64 + WDK 10.0.26100.0
-- Visual Studio 2022 Enterprise
-- Musa.Runtime (内核适配版)
-- Eigen、libccd 本地源
+## 1. 构建与部署
 
-## 执行步骤
-1. 运行 `tools/manual_build.cmd`（或 `build_driver.cmd`，Debug x64）
-2. 加载 `FclMusaDriver.sys`，执行 `IOCTL_FCL_SELF_TEST` 与 `IOCTL_FCL_PING`
-3. 解析 `FCL_SELF_TEST_RESULT`
+1. 运行 `tools/manual_build.cmd`（或 `build_driver.cmd`）生成 Debug|x64 驱动  
+   产物：`kernel/FclMusaDriver/out/x64/Debug/FclMusaDriver.sys`
+2. 按 `docs/deployment.md` 将驱动加载到目标测试机
+3. 确认设备名 `\\.\FclMusa` 可被打开
 
-## 自测覆盖
-- 初始化/几何创建/销毁
-- Sphere/OBB/Mesh 静态碰撞与距离计算
-- Mesh BVH 增量更新
-- Sphere↔OBB、Mesh↔Mesh、Boundary 交界测试
-- 连续碰撞（Conservative Advancement + fallback）
-- Broadphase Mesh 对检测
-- Driver Verifier 探测（是否启用）
-- 内存泄漏检查（池统计比对）
-- 压力/性能循环（记录耗时）
+## 2. 内置自检（IOCTL）
 
-## 结果摘要
-- 所有自测项返回 `STATUS_SUCCESS`；若 Driver Verifier 未启用，则 `DriverVerifierActive=FALSE` 但 `DriverVerifierStatus=STATUS_SUCCESS`。
-- 压力测试（256 次碰撞/距离）完成时间约 `StressDurationMicroseconds`（IOCTL 输出）。
-- 性能测试（128 次 Mesh ↔ Mesh）完成时间 `PerformanceDurationMicroseconds`。
-- Pool 统计在测试前后保持一致，`LeakTestStatus=STATUS_SUCCESS`。
+### 2.1 Ping
 
-## 结论
-- Debug 构建及自测通过，可进入进一步验证（WinDbg KD、Driver Verifier 标准规则、发布签名）。
-- 推荐定期运行 `IOCTL_FCL_SELF_TEST` 监控健康状态。
+```powershell
+PS> tools\fcl-self-test.ps1 -DevicePath \\.\FclMusa -PingOnly
+```
+- 返回 `FCL_PING_RESPONSE`：版本号、初始化状态、池统计等
 
-## Upstream 对比脚本
+### 2.2 Self Test
 
-- `tools/verify_upstream.ps1` 会通过 IOCTL 创建两组球体场景，对碰撞、分离、距离、CCD 的驱动输出与 upstream FCL（commit `5f7776e2101b8ec95d5054d732684d00dac45e3d`）记录的期望结果逐一比对。
-- 默认容差 `1e-4`，可通过 `-Tolerance` 调整精度；加上 `-Json` 可输出机器可读结果，适合 CI。
-- 示例：`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\verify_upstream.ps1" -DevicePath "\\.\FclMusa"`，若任一场景偏离预期即返回退出码 `200`。
+```powershell
+PS> tools\fcl-self-test.ps1 -DevicePath \\.\FclMusa
+```
+输出字段包含：
+- `InitializeStatus / GeometryCreateStatus / CollisionStatus`…
+- `DriverVerifierActive`、`LeakTestStatus`、`StressDurationMicroseconds` 等
+- `Passed = TRUE` 说明所有子测试成功，`PoolBytesDelta` 应为 0
+
+## 3. 场景验证
+
+### 3.1 用户态 CLI
+
+1. `tools\build_demo.cmd`
+2. `tools\build\fcl_demo.exe` 连接驱动，执行以下命令：
+   ```text
+   > sphere a 0.5
+   > sphere b 0.5 1 0 0
+   > collide a b
+   > distance a b
+   > simulate a b 0.1 0 0 10 50
+   > ccd a b 2 0 0
+   ```
+3. 观察输出是否与预期一致（碰撞/距离/TOI）
+
+### 3.2 自动回归脚本
+
+```powershell
+PS> tools\verify_upstream.ps1 -DevicePath \\.\FclMusa -Tolerance 1e-4
+```
+- 将驱动输出与 upstream FCL 记录的 JSON 数据逐条比较
+- 适用于 CI，可加 `-Json` 获得机器可读结果
+
+## 4. 压力与稳定性
+
+| 项目 | 步骤 |
+|------|------|
+| Pool 泄漏检查 | 自检前后对比 `PoolBefore/PoolAfter` |
+| Driver Verifier | `verifier /standard /driver FclMusaDriver.sys`，再运行自检 |
+| 长时间运行 | 编写循环脚本反复创建/销毁几何、发起碰撞/距离 IOCTL |
+| WinDbg 监控 | 使用 `!poolused 2 FCL`、`!verifier 0xA` 等命令观察状态 |
+
+## 5. 输出信息收集
+
+1. 将 `FCL_SELF_TEST_RESULT` 序列化保存，便于对比
+2. 驱动日志可在 WinDbg 中查看（`DbgPrint` 输出）
+3. 若发生异常，保留 `MEMORY.DMP` 与 `FclMusaDriver.pdb` 以便分析
+
+## 6. 回归基线
+
+每次合入前建议至少完成：
+
+- `tools/manual_build.cmd` 构建成功
+- `tools\fcl-self-test.ps1` 全部通过
+- `tools\verify_upstream.ps1` 无偏差
+- 关键 IOCTL（Create/Destroy/Collide/CCD）在 CLI 或脚本中验证
+
+根据需求可叠加 WinDbg/Verifier/长时间压力测试，保证驱动在目标场景下稳定运行。

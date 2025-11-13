@@ -1,100 +1,94 @@
-# Hyper-V 测试虚拟机与 WinDbg 调试指南
+# Hyper-V + WinDbg 调试指南
 
-## 目标
-- 提供可重复的 Hyper-V 虚拟机环境（静态网络 + NAT）用于加载 `FclMusaDriver.sys`
-- 固化 WinDbg KDNET 调试链路，确保随时可捕获 BSOD、池统计与 IOCTL 交互日志
-- 与 `tools/fcl-self-test.ps1`、`tools/manual_build.cmd`（或 `build_driver.cmd`）协同，实现最小可执行验证闭环
+用于快速搭建可调试的测试虚拟机，并与主机 WinDbg 建立 KDNET 连接。
 
-## 先决条件
-- Windows 10/11 专业版或更高版本，已启用 Hyper-V
-- PowerShell 5.1+ 管理员会话（脚本自动调用 Hyper-V 与网络命令）
-- 已安装 WDK 10.0.26100 + WinDbg（`C:\Program Files (x86)\Windows Kits\10\Debuggers\x64`）
-- 可用的 Windows 10/11 安装 ISO，或现成基础 VHD（可选）
+## 1. 适用环境
 
-## 自动化脚本：`tools/setup-hyperv-lab.ps1`
-1. 以管理员身份打开 PowerShell，运行：
-   ```
-   pwsh -File tools/setup-hyperv-lab.ps1 `
-     -VmName FclKernelTest `
-     -Subnet 192.168.251.0/24 `
-     -IsoPath "D:/ISO/Win11_24H2_English_x64.iso"
-   ```
-2. 脚本行为：
-   - 检查 Hyper-V 特性与模块
-   - 创建内部交换机 + NAT（默认 `FclKernelLabSwitch` / `FclKernelLabNat`）
-   - 为 host 端 `vEthernet (FclKernelLabSwitch)` 配置静态 IP（默认 `192.168.251.1/24`）
-   - 生成 64GB 动态 VHD（或基于 `-ParentVhdPath` 创建差分盘）
-   - 创建/更新 VM（Generation 2、4GB RAM、4 vCPU、固定启动内存、禁用自动快照）
-   - 配置调试串口命名管道、（可选）加载 ISO，并输出 KDNET `bcdedit` 与 WinDbg 命令
-3. 常用参数：
-   - `-VmRoot`：VHD/快照输出根目录（默认 `%PUBLIC%\Documents\FclKernelLab`）
-   - `-VhdPath`：自定义 VHD 位置
-   - `-ParentVhdPath`：使用现有基础盘时传入
-   - `-MemoryStartupBytes` / `-ProcessorCount`：资源配额
-   - `-DebugPort` / `-DebugKey`：自定义 KDNET 监听参数
-   - `-Force`：需要覆盖已有 NAT、网卡 IP 或强制关闭正在运行的 VM 时使用
+- 主机：Windows 10/11 专业版（启用 Hyper-V）
+- 需要管理员 PowerShell
+- 已安装 WDK/WinDbg（`C:\Program Files (x86)\Windows Kits\10\Debuggers\x64`）
 
-## Guest 配置流程
-1. 安装 Windows：
-   - 首次启动从 ISO 引导完成系统安装
-   - 安装后建议启用增强会话并更新到最新补丁
-2. 静态网络（以脚本默认输出为例）：
-   - IP：`192.168.251.10`
-   - Mask：`255.255.255.0`
-   - Gateway：`192.168.251.1`
-   - DNS：`1.1.1.1` 或企业 DNS
-3. 启用 KDNET（管理员 CMD）：
-   ```
+## 2. 自动创建虚拟机
+
+执行脚本：
+```powershell
+pwsh -File tools\setup-hyperv-lab.ps1 `
+    -VmName FclKernelTest `
+    -Subnet 192.168.251.0/24 `
+    -IsoPath "D:\ISO\Win11_24H2_Chinese(Simplified)_x64.iso"
+```
+
+脚本能力：
+
+1. 检查 Hyper-V 组件与权限
+2. 创建内部交换机与 NAT（默认 `FclKernelLabSwitch`/`FclKernelLabNat`）
+3. 为 host 端 vEthernet 配置静态 IP（示例 `192.168.251.1/24`）
+4. 生成动态 VHD（或基于 `-ParentVhdPath` 创建差分盘）
+5. 创建 VM（Gen2、4GB RAM、4vCPU，可通过参数调整）
+6. 配置调试端口、命名管道、虚拟 DVD（ISO）等
+7. 输出 KDNET `bcdedit` 命令与 WinDbg 启动示例
+
+常用参数：
+
+- `-VmRoot`：存放 VHD/快照 的根目录
+- `-MemoryStartupBytes`、`-ProcessorCount`
+- `-DebugPort`、`-DebugKey` 自定义 KDNET 端口与密钥
+- `-Force`：再次运行时覆盖现有配置
+
+## 3. Guest 配置
+
+1. 安装 Windows（从 ISO 启动）
+2. 设置固定 IP（脚本输出 `192.168.251.10` 等）
+3. 启用 KDNET：
+   ```cmd
    bcdedit /debug on
-   bcdedit /dbgsettings net hostip=192.168.251.1 port=50000 key=<脚本输出的Key>
+   bcdedit /dbgsettings net hostip=192.168.251.1 port=50000 key=<脚本输出的key>
    ```
-   - 重启 Guest 后会自动开始网络内核调试监听
-4. 安装必备工具：
-   - 安装 WDK runtime 组件（可选，用于 WinDbg 扩展）
-   - 部署 WinDbg 证书、Driver Verifier 等调试工具
+4. 安装 WDK 运行库/工具（可选）
+5. 复制 `FclMusaDriver.sys` 并按 `docs/deployment.md` 加载驱动
 
-## WinDbg 附加
-- Host 端运行脚本输出的命令，例如：
-  ```
-  "C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\windbgx.exe" -k "net:port=50000,key=ABCDEF..."
-  ```
-- 建议保存 WorkSpace，开启下列自动化：
-  - `!sym noisy; .sympath srv*C:\Symbols*https://msdl.microsoft.com/download/symbols`
-  - `!analyze -f`、`!poolused 2 FCL`、`!drvobj FclMusaDriver 7`
-- 若 Guest 侧已配置命名管道串口，可在 WinDbg 中额外添加 `com:pipe,port=\\.\pipe\FclKernelTest-kd,resets=0` 作为备份路径
+## 4. WinDbg 附加
 
-## 驱动部署与验证
-1. 构建：
-   ```
-   tools\manual_build.cmd
-   # ���ߣ�.\build_driver.cmd
-   ```
-   输出 `kernel/FclMusaDriver/out/x64/Debug/FclMusaDriver.sys`
-2. 复制驱动与 INF 至 Guest（`\\tsclient\`、`robocopy` 或 ISO 挂载）
-3. 安装与加载：
-   ```
-   pnputil /add-driver FclMusaDriver.inf /install
-   sc start FclMusaDriver
-   ```
-4. 自检：
-   ```
-   pwsh -File tools/fcl-self-test.ps1 -DevicePath \\.\FclMusa
-   ```
-   或在 WinDbg 中直接执行 `!ioctl`、`!irpfind` 观察 IOCTL 结果
-5. 驱动卸载：
-   ```
-   sc stop FclMusaDriver
-   pnputil /delete-driver FclMusaDriver.inf /uninstall /force
-   ```
-6. Pool 泄漏确认：`!poolused 2 FCL` 应为 0；若脚本输出 `PoolBytesDelta != 0`，需重新跑 `FclCleanup`
+在主机运行：
+```cmd
+"C:\Program Files (x86)\Windows Kits\10\Debuggers\x64\windbgx.exe" -k "net:port=50000,key=<key>"
+```
 
-## 常见问题
-- **脚本提示网卡/IP 冲突**：已有 `vEthernet (SwitchName)` 配置，重新执行并附加 `-Force`
-- **WinDbg 无法连接**：确认 host firewall 放行 `DebugPort`，Guest `bcdedit /dbgsettings` 是否使用最新 key
-- **Guest 无法访问外网**：运行 `Get-NetNatStaticMapping` 确认 NAT 存在；必要时使用 `New-NetNat` 重新初始化
-- **构建产物无法复制**：启用增强会话共享或使用 `Set-VMIntegrationService -Name "Guest Services" -Enabled $true`
+建议在 WinDbg 中设置：
 
-## 维护建议
-- 使用 Hyper-V Checkpoint 记录“基础镜像”“安装驱动前”“BSOD 捕获”等关键节点
-- `Driver Verifier` 建议在单独快照中开启，避免影响常规调试
-- 通过 `tools/setup-hyperv-lab.ps1 -Force` 可重复同步最新网络/调试配置，脚本保持幂等
+```text
+!sym noisy
+.sympath srv*C:\Symbols*https://msdl.microsoft.com/download/symbols
+.reload
+```
+
+常用命令：`!analyze -v`、`!poolused 2 FCL`、`!verifier 0xA`、`!drvobj FclMusaDriver 7` 等。
+
+## 5. Driver Verifier
+
+在 Guest：
+```cmd
+verifier /standard /driver FclMusaDriver.sys
+```
+
+- 重启后 Driver Verifier 生效
+- 运行 `IOCTL_FCL_SELF_TEST` 检查 `DriverVerifierActive = TRUE`
+- 使用 WinDbg 观察内存/IRQL 问题
+
+## 6. 常见问题
+
+| 问题 | 解决方案 |
+|------|----------|
+| WinDbg 无法连接 | 检查防火墙、`bcdedit /dbgsettings` 是否使用最新 key；可尝试 `bcdedit /dbgsettings net hostip=<hostIP> port=<port> key=<key>` 重置 |
+| Guest 无法访问网络 | 确认 NAT/内部交换机存在，必要时重新运行脚本并带 `-Force` |
+| KDNET 连接后立即断开 | 关闭 VM 的自动休眠/节能设置，确保调试端口未被占用 |
+| 需要串口备用链路 | 在 VM 设置中开启命名管道：`\\.\pipe\FclKernelTest-kd`，WinDbg 启动 `-k com:pipe,port=\\.\pipe\FclKernelTest-kd,resets=0` |
+
+## 7. 建议流程
+
+1. 创建基础 VM 快照（系统干净、已装调试工具）
+2. 每次驱动验证前恢复快照，重新部署 `.sys`
+3. 保留“出现 BSOD”快照便于复现与分析
+4. 在长时间运行/压力测试前开启 Driver Verifier，以便提前发现资源泄漏
+
+通过以上步骤，即可快速在 Hyper-V 环境中对 FCL+Musa 驱动进行可重复的调试与验证。

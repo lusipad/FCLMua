@@ -1,30 +1,32 @@
-FCL+Musa 发布说明
-=================
+# 发布说明
 
-版本：v0.1 (内核移植原型)
-日期：2025-11-12
+## v0.1 – 内核移植原型（2025-11-12）
 
-主要特性
---------
-- BVHModel/OBBRSS Mesh 支持与 NonPagedPool 封装
-- Sphere/OBB/Mesh 碰撞、距离与连续碰撞 (Conservative Advancement)
-- Mesh 几何增量更新 API (`FclUpdateMeshGeometry`)
-- 自测覆盖几何/碰撞/CCD/压力/Verifier 状态
-- IOCTL：Ping、SelfTest、Collision、Distance
+### 亮点
 
-构建与部署
-----------
-1. `tools/manual_build.cmd`（或 `build_driver.cmd`，Debug x64）
-2. 使用 sc 或 VS 驱动部署加载 `FclMusaDriver.sys`
-3. 建议在测试模式或自签证书下运行
+- **几何支持**：Sphere / OBB / Mesh，内置 BVHModel + OBBRSS，支持增量更新
+- **碰撞**：静态碰撞（GJK/EPA + 窄相调度）、宽相（DynamicAABBTree），Demo IOCTL 支持球体快速验证
+- **连续碰撞（CCD）**：InterpMotion + ScrewMotion + Conservative Advancement
+- **距离查询**：输出最近点、距离值，可用于安全监控或规划
+- **自检框架**：`IOCTL_FCL_SELF_TEST` 覆盖初始化、几何创建/销毁、碰撞/CCD/压力/Verifier/泄漏等
+- **运行时**：整合 Musa.Runtime，自带 NonPagedPool 分配器与 STL 适配器，提供最小 CRT stub
 
-已知问题
---------
-- WinDbg 调试链路尚未配置（参见 docs/known_issues.md）
-- 尚无 Release 构建/签名
+### 构建与部署
 
-后续计划
---------
-- 完成 WinDbg/Driver Verifier 标准流程
-- 编写更详尽的 API/示例/架构文档
-- 启动 WHQL 或内部签名流程
+1. `tools/manual_build.cmd`（或 `build_driver.cmd`）
+2. 导入 `FclMusaTestCert.cer`（若启用测试签名）
+3. `sc create` + `sc start`
+4. `tools\fcl-self-test.ps1` 验证驱动状态
+
+### 已知限制
+
+- 尚未提供 Release 构建/正式签名流程
+- WinDbg/Hyper-V 调试流程需参考 `docs/VM_DEBUG_SETUP.md` 手动配置
+- 未针对多核/高并发场景进行长时间压力测试
+
+### 后续计划
+
+- 完成 WinDbg/KD 自动化配置脚本
+- 进一步裁剪上游 FCL，减少内存占用
+- 扩展 R3 Demo（Mesh 编辑、场景脚本化）
+- 如需发布版本，请补充 Release 构建流水线与签名材料
