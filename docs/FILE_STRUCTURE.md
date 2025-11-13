@@ -268,7 +268,7 @@ include/
 | **collision.h** | 碰撞检测 API | `FCL_CONTACT_INFO`, `FclCollisionDetect()`, `FclCollideObjects()` |
 | **distance.h** | 距离计算 API | `FCL_DISTANCE_RESULT`, `FclDistanceCompute()` |
 | **broadphase.h** | 宽相检测 API | `FclBroadphaseDetect()` |
-| **ioctl.h** | IOCTL 定义 | `IOCTL_FCL_PING` (0x800), `IOCTL_FCL_CREATE_MESH` (0x808) 等 |
+| **ioctl.h** | IOCTL 定义 | `IOCTL_FCL_PING` (0x800), `IOCTL_FCL_CREATE_MESH` (0x814) 等 |
 | **self_test.h** | 自测 API | `FCL_SELF_TEST_RESULT`, `FclRunSelfTest()` |
 
 ---
@@ -569,4 +569,5 @@ FCL+Musa 项目采用清晰的分层架构：
 6. **openspec** - 变更管理系统
 
 每个模块职责明确，通过 `upstream_bridge` 实现内核与 FCL 的无缝集成，确保算法与原版 FCL 100% 一致。
+
 
