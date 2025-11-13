@@ -6,16 +6,18 @@ FCL+Musa ����ָ��
 - Windows 10/11 x64 ���Ի�
 - �����ԱȨ�ޣ�Ҫ�ܵ��� `signtool` �� `certutil`
 - ��װ WDK/VS �Ա���루��ֱ��ʹ�ñ���õ� .sys�����Թ���
-- `build_driver.cmd` �Զ����� `tools/sign_driver.ps1`����Ҫ `New-SelfSignedCertificate` �� `signtool` �����ã�
+- `tools/manual_build.cmd` ���Զ���ʼ�� VsDevCmd + WDK ����������������Σ������ٻ�；`build_driver.cmd` �ڲ���¿�ѯ����֤����Ȼ���øýű���ɵ���룬����Ҫ�û����롣
 
 2. ����
 --------
 ```powershell
 PS> cd D:\Repos\FCL+Musa
+PS> tools\manual_build.cmd
+# ���ߣ�
 PS> .\build_driver.cmd
 ```
 - ���`kernel/FclMusaDriver/out/x64/Debug/FclMusaDriver.sys`
-- ͬʱ������������� `FclMusaTestCert.pfx` �� `FclMusaTestCert.cer`��������ǩ��֤��
+- ʹ�� `build_driver.cmd` ���з���ʱ���Զ����� `tools/sign_driver.ps1` ������ `FclMusaTestCert.pfx` �� `FclMusaTestCert.cer`；ε�� `tools/manual_build.cmd` ʱ����Ҫ�ֶ�������ﴦ��ǩ����
 
 3. ���뾫��֤��
 ----------------

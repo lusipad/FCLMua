@@ -3,7 +3,7 @@
 ## 目标
 - 提供可重复的 Hyper-V 虚拟机环境（静态网络 + NAT）用于加载 `FclMusaDriver.sys`
 - 固化 WinDbg KDNET 调试链路，确保随时可捕获 BSOD、池统计与 IOCTL 交互日志
-- 与 `tools/fcl-self-test.ps1`、`build_driver.cmd` 协同，实现最小可执行验证闭环
+- 与 `tools/fcl-self-test.ps1`、`tools/manual_build.cmd`（或 `build_driver.cmd`）协同，实现最小可执行验证闭环
 
 ## 先决条件
 - Windows 10/11 专业版或更高版本，已启用 Hyper-V
@@ -66,7 +66,8 @@
 ## 驱动部署与验证
 1. 构建：
    ```
-   build_driver.cmd
+   tools\manual_build.cmd
+   # ���ߣ�.\build_driver.cmd
    ```
    输出 `kernel/FclMusaDriver/out/x64/Debug/FclMusaDriver.sys`
 2. 复制驱动与 INF 至 Guest（`\\tsclient\`、`robocopy` 或 ISO 挂载）

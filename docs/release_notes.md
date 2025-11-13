@@ -14,7 +14,7 @@ FCL+Musa 发布说明
 
 构建与部署
 ----------
-1. `build_driver.cmd`（Debug x64）
+1. `tools/manual_build.cmd`（或 `build_driver.cmd`，Debug x64）
 2. 使用 sc 或 VS 驱动部署加载 `FclMusaDriver.sys`
 3. 建议在测试模式或自签证书下运行
 

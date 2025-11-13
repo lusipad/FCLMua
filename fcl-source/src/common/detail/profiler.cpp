@@ -37,6 +37,12 @@
 
 #include "fcl/common/detail/profiler.h"
 
+#if FCL_ENABLE_PROFILING
+
+#if FCL_ENABLE_STD_LOGGING
+#include <iostream>
+#endif
+
 namespace fcl {
 namespace detail {
 
@@ -58,8 +64,12 @@ Profiler::Profiler(bool printOnDestroy, bool autoStart)
 //==============================================================================
 Profiler::~Profiler()
 {
+#if FCL_ENABLE_STD_LOGGING
   if (printOnDestroy_ && !data_.empty())
-    status();
+    status(std::cerr);
+#else
+  printOnDestroy_ = false;
+#endif
 }
 
 //==============================================================================
@@ -397,3 +407,74 @@ Profiler::ScopedBlock::~ScopedBlock()
 
 } // namespace detail
 } // namespace fcl
+
+#else  // !FCL_ENABLE_PROFILING
+
+namespace fcl {
+namespace detail {
+
+Profiler& Profiler::Instance(void)
+{
+  static Profiler instance(false, false);
+  return instance;
+}
+
+Profiler::Profiler(bool printOnDestroy, bool autoStart)
+  : running_(false), printOnDestroy_(printOnDestroy)
+{
+  (void)autoStart;
+}
+
+Profiler::~Profiler() = default;
+
+void Profiler::Start() {}
+void Profiler::Stop() {}
+void Profiler::Clear() {}
+
+void Profiler::start(void) {}
+void Profiler::stop(void) {}
+void Profiler::clear(void) {}
+
+void Profiler::Event(const std::string&, const unsigned int) {}
+void Profiler::event(const std::string&, const unsigned int) {}
+
+void Profiler::Average(const std::string&, const double) {}
+void Profiler::average(const std::string&, const double) {}
+
+void Profiler::Begin(const std::string&) {}
+void Profiler::End(const std::string&) {}
+void Profiler::begin(const std::string&) {}
+void Profiler::end(const std::string&) {}
+
+void Profiler::Status(std::ostream&, bool) {}
+void Profiler::status(std::ostream&, bool) {}
+
+bool Profiler::running(void) const { return false; }
+bool Profiler::Running(void) { return false; }
+
+Profiler::TimeInfo::TimeInfo()
+  : total(), shortest(), longest(), parts(0)
+{
+}
+
+void Profiler::TimeInfo::set() {}
+void Profiler::TimeInfo::update() {}
+
+Profiler::ScopedBlock::ScopedBlock(const std::string& name, Profiler& prof)
+  : name_(name), prof_(prof)
+{
+}
+
+Profiler::ScopedBlock::~ScopedBlock() = default;
+
+Profiler::ScopedStart::ScopedStart(Profiler& prof)
+  : prof_(prof), wasRunning_(false)
+{
+}
+
+Profiler::ScopedStart::~ScopedStart() = default;
+
+} // namespace detail
+} // namespace fcl
+
+#endif  // FCL_ENABLE_PROFILING

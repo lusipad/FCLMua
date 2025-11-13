@@ -4,7 +4,7 @@ FCL+Musa 使用指南
 1. 安装/构建
 ------------
 - 安装 WDK 10.0.26100.0、VS 2022（已完成）。
-- 在仓库根目录运行 `build_driver.cmd`，生成 `kernel/FclMusaDriver/out/x64/Debug/FclMusaDriver.sys`。
+- 在仓库根目录运行 `tools/manual_build.cmd`（或 `build_driver.cmd`），生成 `kernel/FclMusaDriver/out/x64/Debug/FclMusaDriver.sys`。`manual_build.cmd` ��װ VsDevCmd/WDK �����Ժ��޽�����，`build_driver.cmd` ���Զ�����������ǩ��，��Ҫ�û����롣
 
 2. 驱动加载
 ------------

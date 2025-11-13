@@ -54,8 +54,11 @@ struct FCL_SPHERE_GEOMETRY_DESC {
     float Radius;
 };
 
-struct FCL_CREATE_SPHERE_BUFFER {
+struct FCL_CREATE_SPHERE_INPUT {
     FCL_SPHERE_GEOMETRY_DESC Desc;
+};
+
+struct FCL_CREATE_SPHERE_OUTPUT {
     FCL_GEOMETRY_HANDLE Handle;
 };
 
@@ -160,9 +163,23 @@ FCL_TRANSFORM IdentityTransform() {
     return t;
 }
 
-bool SendIoctl(HANDLE device, DWORD code, void* buffer, DWORD inSize, DWORD outSize) {
+bool SendIoctl(
+    HANDLE device,
+    DWORD code,
+    const void* inputBuffer,
+    DWORD inSize,
+    void* outputBuffer,
+    DWORD outSize) {
     DWORD bytesReturned = 0;
-    if (!DeviceIoControl(device, code, buffer, inSize, buffer, outSize, &bytesReturned, nullptr)) {
+    if (!DeviceIoControl(
+            device,
+            code,
+            const_cast<void*>(inputBuffer),
+            inSize,
+            outputBuffer,
+            outSize,
+            &bytesReturned,
+            nullptr)) {
         printf("DeviceIoControl failed (code=0x%08lX, error=0x%08lX)\n", code, GetLastError());
         return false;
     }
@@ -170,7 +187,7 @@ bool SendIoctl(HANDLE device, DWORD code, void* buffer, DWORD inSize, DWORD outS
 }
 
 bool SendIoctl(HANDLE device, DWORD code, void* buffer, DWORD size) {
-    return SendIoctl(device, code, buffer, size, size);
+    return SendIoctl(device, code, buffer, size, buffer, size);
 }
 
 std::vector<std::string> Tokenize(const std::string& line) {
@@ -303,13 +320,20 @@ bool LoadObjMesh(const std::filesystem::path& path,
 }
 
 bool CreateSphere(HANDLE device, float radius, const FCL_VECTOR3& center, FCL_GEOMETRY_HANDLE& handle) {
-    FCL_CREATE_SPHERE_BUFFER buffer = {};
-    buffer.Desc.Center = center;
-    buffer.Desc.Radius = radius;
-    if (!SendIoctl(device, IOCTL_FCL_CREATE_SPHERE, &buffer, sizeof(buffer))) {
+    FCL_CREATE_SPHERE_INPUT input = {};
+    input.Desc.Center = center;
+    input.Desc.Radius = radius;
+    FCL_CREATE_SPHERE_OUTPUT output = {};
+    if (!SendIoctl(
+            device,
+            IOCTL_FCL_CREATE_SPHERE,
+            &input,
+            sizeof(input),
+            &output,
+            sizeof(output))) {
         return false;
     }
-    handle = buffer.Handle;
+    handle = output.Handle;
     return handle.Value != 0;
 }
 
@@ -355,6 +379,7 @@ bool CreateMesh(HANDLE device,
                    IOCTL_FCL_CREATE_MESH,
                    buffer.data(),
                    static_cast<DWORD>(buffer.size()),
+                   buffer.data(),
                    sizeof(FCL_CREATE_MESH_BUFFER))) {
         return false;
     }

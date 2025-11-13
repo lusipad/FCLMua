@@ -11,7 +11,7 @@ FCL+Musa 测试报告
 - Eigen、libccd 本地源
 
 ## 执行步骤
-1. 运行 `build_driver.cmd`（Debug x64）
+1. 运行 `tools/manual_build.cmd`（或 `build_driver.cmd`，Debug x64）
 2. 加载 `FclMusaDriver.sys`，执行 `IOCTL_FCL_SELF_TEST` 与 `IOCTL_FCL_PING`
 3. 解析 `FCL_SELF_TEST_RESULT`
 
@@ -35,3 +35,9 @@ FCL+Musa 测试报告
 ## 结论
 - Debug 构建及自测通过，可进入进一步验证（WinDbg KD、Driver Verifier 标准规则、发布签名）。
 - 推荐定期运行 `IOCTL_FCL_SELF_TEST` 监控健康状态。
+
+## Upstream 对比脚本
+
+- `tools/verify_upstream.ps1` 会通过 IOCTL 创建两组球体场景，对碰撞、分离、距离、CCD 的驱动输出与 upstream FCL（commit `5f7776e2101b8ec95d5054d732684d00dac45e3d`）记录的期望结果逐一比对。
+- 默认容差 `1e-4`，可通过 `-Tolerance` 调整精度；加上 `-Json` 可输出机器可读结果，适合 CI。
+- 示例：`powershell -NoProfile -ExecutionPolicy Bypass -File "tools\verify_upstream.ps1" -DevicePath "\\.\FclMusa"`，若任一场景偏离预期即返回退出码 `200`。
