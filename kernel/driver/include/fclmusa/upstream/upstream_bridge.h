@@ -1,5 +1,8 @@
 #pragma once
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <ntddk.h>
 
 #include "fclmusa/collision.h"

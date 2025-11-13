@@ -295,9 +295,13 @@ S IVector3<S>::volumn() const
 template <typename S>
 void IVector3<S>::print() const
 {
+#if FCL_ENABLE_STD_LOGGING
   std::cout << "[" << i_[0][0] << "," << i_[0][1] << "]" << std::endl;
   std::cout << "[" << i_[1][0] << "," << i_[1][1] << "]" << std::endl;
   std::cout << "[" << i_[2][0] << "," << i_[2][1] << "]" << std::endl;
+#else
+  (void)i_;
+#endif
 }
 
 //==============================================================================

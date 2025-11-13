@@ -317,6 +317,7 @@ const Vector3<S>& Convex<S>::findExtremeVertex(const Vector3<S>& v_C) const {
 template <typename S>
 std::string Convex<S>::representation(int precision) const {
   const char* S_str = detail::ScalarRepr<S>::value();
+#if FCL_ENABLE_STD_LOGGING
   std::stringstream ss;
   ss << std::setprecision(precision);
   ss << "Convex<" << S_str << ">("
@@ -345,6 +346,13 @@ std::string Convex<S>::representation(int precision) const {
      << "\n    " << std::boolalpha << throw_if_invalid_ << ");";
 
   return ss.str();
+#else
+  (void)precision;
+  std::string repr = "Convex<";
+  repr += S_str;
+  repr += ">";
+  return repr;
+#endif
 }
 
 //==============================================================================
@@ -361,7 +369,7 @@ void Convex<S>::ValidateTopology(bool throw_on_error) {
   // Computing the vertex neighbors is a pre-requisite to determining validity.
   assert(neighbors_.size() > vertices_->size());
 
-  std::stringstream ss;
+  logging::StringBuilder ss;
   ss << "Found errors in the Convex mesh:";
 
   // To simplify the code, we define an edge as a pair of ints (A, B) such that

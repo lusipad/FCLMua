@@ -47,6 +47,7 @@
 #include <Eigen/Dense>
 #include <Eigen/StdVector>
 #include "fcl/export.h"
+#include "fcl/logging.h"
 
 namespace fcl
 {

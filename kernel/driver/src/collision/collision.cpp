@@ -5,7 +5,7 @@
 #include "fclmusa/collision.h"
 #include "fclmusa/geometry/math_utils.h"
 #include "fclmusa/logging.h"
-#include "fclmusa/upstream_bridge.h"
+#include "fclmusa/upstream/upstream_bridge.h"
 
 namespace {
 

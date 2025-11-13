@@ -395,7 +395,11 @@ Interval<S>& Interval<S>::bound(const Interval<S>& other)
 template <typename S>
 void Interval<S>::print() const
 {
+#if FCL_ENABLE_STD_LOGGING
   std::cout << "[" << i_[0] << ", " << i_[1] << "]" << std::endl;
+#else
+  (void)i_;
+#endif
 }
 
 //==============================================================================

@@ -331,7 +331,12 @@ TaylorModel<S> TaylorModel<S>::operator - () const
 template <typename S>
 void TaylorModel<S>::print() const
 {
+#if FCL_ENABLE_STD_LOGGING
   std::cout << coeffs_[0] << "+" << coeffs_[1] << "*t+" << coeffs_[2] << "*t^2+" << coeffs_[3] << "*t^3+[" << r_[0] << "," << r_[1] << "]" << std::endl;
+#else
+  (void)coeffs_;
+  (void)r_;
+#endif
 }
 
 //==============================================================================

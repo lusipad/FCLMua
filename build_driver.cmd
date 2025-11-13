@@ -9,6 +9,29 @@ echo FCL+Musa Driver Build Script
 echo ========================================
 echo.
 
+set "FCL_EXPECTED_COMMIT=5f7776e2101b8ec95d5054d732684d00dac45e3d"
+set "FCL_SOURCE_DIR=%SCRIPT_DIR%fcl-source"
+
+if not exist "%FCL_SOURCE_DIR%" (
+    echo ERROR: δ�ҵ� %FCL_SOURCE_DIR% ��Ŀ¼���޷���֤ FCL Դ������
+    exit /b 1
+)
+
+for /f "usebackq delims=" %%i in (`git -C "%FCL_SOURCE_DIR%" rev-parse HEAD 2^>nul`) do (
+    set "FCL_ACTUAL_COMMIT=%%i"
+)
+
+if not defined FCL_ACTUAL_COMMIT (
+    echo ERROR: �޷���ȡ fcl-source �ύ�����鿴 git �Ƿ�ͨ������Ŀ¼�Ƿ��� git �ֿ⡣
+    exit /b 1
+)
+
+if /i not "%FCL_ACTUAL_COMMIT%"=="%FCL_EXPECTED_COMMIT%" (
+    echo ERROR: fcl-source ��ǰ�ύ %FCL_ACTUAL_COMMIT% ��δƥ��ָ��� commit %FCL_EXPECTED_COMMIT%��
+    echo        ��ͬ��ָ����ύ�󽫽���ܹ���
+    exit /b 1
+)
+
 REM ���� Visual Studio 2022 ����
 echo [1/5] ��ʼ�� Visual Studio 2022 ����...
 call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=amd64 -host_arch=amd64

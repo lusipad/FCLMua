@@ -129,10 +129,18 @@ std::vector<Vector3<S>> Cylinder<S>::getBoundVertices(
 template <typename S>
 std::string Cylinder<S>::representation(int precision) const {
   const char* S_str = detail::ScalarRepr<S>::value();
+#if FCL_ENABLE_STD_LOGGING
   std::stringstream ss;
   ss << std::setprecision(precision);
   ss << "Cylinder<" << S_str << ">(" << radius << ", " << lz << ");";
   return ss.str();
+#else
+  (void)precision;
+  std::string repr = "Cylinder<";
+  repr += S_str;
+  repr += ">";
+  return repr;
+#endif
 }
 
 } // namespace fcl

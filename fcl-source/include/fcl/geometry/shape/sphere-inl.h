@@ -123,10 +123,18 @@ std::vector<Vector3<S>> Sphere<S>::getBoundVertices(
 template <typename S>
 std::string Sphere<S>::representation(int precision) const {
   const char* S_str = detail::ScalarRepr<S>::value();
+#if FCL_ENABLE_STD_LOGGING
   std::stringstream ss;
   ss << std::setprecision(precision);
   ss << "Sphere<" << S_str << ">(" << radius << ");";
   return ss.str();
+#else
+  (void)precision;
+  std::string repr = "Sphere<";
+  repr += S_str;
+  repr += ">";
+  return repr;
+#endif
 }
 
 } // namespace fcl

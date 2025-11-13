@@ -138,11 +138,19 @@ NODE_TYPE Halfspace<S>::getNodeType() const
 template <typename S>
 std::string Halfspace<S>::representation(int precision) const {
   const char* S_str = detail::ScalarRepr<S>::value();
+#if FCL_ENABLE_STD_LOGGING
   std::stringstream ss;
   ss << std::setprecision(precision);
   ss << "Halfspace<" << S_str << ">(" << n[0] << ", " << n[1] << ", " << n[2]
      << ", " << d << ");";
   return ss.str();
+#else
+  (void)precision;
+  std::string repr = "Halfspace<";
+  repr += S_str;
+  repr += ">";
+  return repr;
+#endif
 }
 
 //==============================================================================

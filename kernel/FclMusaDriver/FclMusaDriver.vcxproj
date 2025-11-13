@@ -63,9 +63,10 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PreprocessorDefinitions>FCL_MUSA_ENABLE_LOGGING=1;_HAS_EXCEPTIONS=1;CCD_STATIC_DEFINE;CCD_DISABLE_DEBUG_IO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>FCL_MUSA_ENABLE_LOGGING=1;_HAS_EXCEPTIONS=1;CCD_STATIC_DEFINE;CCD_DISABLE_DEBUG_IO;FCL_STATIC_DEFINE;FCL_ENABLE_STD_LOGGING=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level4</WarningLevel>
       <TreatWarningAsError>false</TreatWarningAsError>
       <ExceptionHandling>Sync</ExceptionHandling>
@@ -81,9 +82,10 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
+      <AdditionalOptions>/bigobj %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PreprocessorDefinitions>FCL_MUSA_ENABLE_LOGGING=1;_HAS_EXCEPTIONS=1;CCD_STATIC_DEFINE;CCD_DISABLE_DEBUG_IO;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>FCL_MUSA_ENABLE_LOGGING=1;_HAS_EXCEPTIONS=1;CCD_STATIC_DEFINE;CCD_DISABLE_DEBUG_IO;FCL_STATIC_DEFINE;FCL_ENABLE_STD_LOGGING=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level4</WarningLevel>
       <TreatWarningAsError>false</TreatWarningAsError>
       <ExceptionHandling>Sync</ExceptionHandling>
@@ -112,7 +114,9 @@
     <ClCompile Include="..\driver\src\math\eigen_self_test.cpp" />
     <ClCompile Include="..\driver\src\memory\pool_allocator.cpp" />
     <ClCompile Include="..\driver\src\runtime\musa_runtime_adapter.cpp" />
-    <ClCompile Include="..\driver\src\self_test.cpp" />
+    <ClCompile Include="..\driver\src\runtime\c_runtime_stubs.cpp" />
+    <ClCompile Include="..\driver\src\testing\self_test.cpp" />
+    <ClCompile Include="..\driver\src\upstream\geometry_bridge.cpp" />
     <ClCompile Include="..\driver\src\upstream\upstream_bridge.cpp" />
     <ClCompile Include="..\driver\src\narrowphase\libccd_memory.cpp" />
     <ClCompile Include="..\..\external\libccd\src\ccd.c">
@@ -137,11 +141,18 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\fcl-source\src\**\*.cpp">
+      <ObjectFileName>$(IntDir)fcl\%(RelativeDir)%(Filename).obj</ObjectFileName>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
     <ClInclude Include="..\driver\include\fclmusa\broadphase.h" />
     <ClInclude Include="..\driver\include\fclmusa\collision.h" />
     <ClInclude Include="..\driver\include\fclmusa\distance.h" />
     <ClInclude Include="..\driver\include\fclmusa\geometry.h" />
     <ClInclude Include="..\driver\include\fclmusa\self_test.h" />
+    <ClInclude Include="..\driver\include\fclmusa\upstream\geometry_bridge.h" />
+    <ClInclude Include="..\driver\include\fclmusa\upstream\upstream_bridge.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="..\driver\README.md" />

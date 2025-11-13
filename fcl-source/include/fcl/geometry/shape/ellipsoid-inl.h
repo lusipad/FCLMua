@@ -151,11 +151,19 @@ std::vector<Vector3<S>> Ellipsoid<S>::getBoundVertices(
 template <typename S>
 std::string Ellipsoid<S>::representation(int precision) const {
   const char* S_str = detail::ScalarRepr<S>::value();
+#if FCL_ENABLE_STD_LOGGING
   std::stringstream ss;
   ss << std::setprecision(precision);
   ss << "Ellipsoid<" << S_str << ">(" << radii[0] << ", " << radii[1] << ", "
      << radii[2] << ");";
   return ss.str();
+#else
+  (void)precision;
+  std::string repr = "Ellipsoid<";
+  repr += S_str;
+  repr += ">";
+  return repr;
+#endif
 }
 
 } // namespace fcl

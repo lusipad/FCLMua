@@ -326,6 +326,7 @@ typename HierarchyTree<BV>::NodeType*& HierarchyTree<BV>::getRoot()
 template<typename BV>
 void HierarchyTree<BV>::print(NodeType* root, int depth)
 {
+#if FCL_ENABLE_STD_LOGGING
   for(int i = 0; i < depth; ++i)
     std::cout << " ";
   std::cout << " (" << root->bv.min_[0] << ", " << root->bv.min_[1] << ", " << root->bv.min_[2] << "; " << root->bv.max_[0] << ", " << root->bv.max_[1] << ", " << root->bv.max_[2] << ")" << std::endl;
@@ -337,6 +338,10 @@ void HierarchyTree<BV>::print(NodeType* root, int depth)
     print(root->children[0], depth+1);
     print(root->children[1], depth+1);
   }
+#else
+  (void)root;
+  (void)depth;
+#endif
 }
 
 //==============================================================================

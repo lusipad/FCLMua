@@ -5,188 +5,106 @@
 #include <ntddk.h>
 #include <wdm.h>
 
-#include <algorithm>
-#include <cmath>
+#include <memory>
 #include <vector>
 
+#include <fcl/broadphase/broadphase_dynamic_AABB_tree.h>
+
 #include "fclmusa/broadphase.h"
-#include "fclmusa/geometry/bvh_model.h"
 #include "fclmusa/geometry/math_utils.h"
-#include "fclmusa/geometry/obb.h"
-#include "fclmusa/geometry/obbrss.h"
-#include "fclmusa/logging.h"
+
+#include "fclmusa/upstream/geometry_bridge.h"
 
 namespace {
 
-using namespace fclmusa::geom;
+using fclmusa::upstream::CombineTransforms;
+using fclmusa::upstream::GeometryBinding;
+using fclmusa::upstream::ToEigenTransform;
+using fclmusa::upstream::BuildGeometryBinding;
 
-struct Aabb {
-    FCL_VECTOR3 Min;
-    FCL_VECTOR3 Max;
+struct ManagedObject {
+    FCL_GEOMETRY_HANDLE Handle = {};
+    FCL_GEOMETRY_REFERENCE Reference = {};
+    GeometryBinding Binding = {};
+    fcl::Transform3d WorldTransform = fcl::Transform3d::Identity();
+    std::unique_ptr<fcl::CollisionObjectd> CollisionObject;
 };
 
-struct ObjectEntry {
-    FCL_GEOMETRY_HANDLE Handle;
-    FCL_GEOMETRY_REFERENCE Reference;
-    FCL_GEOMETRY_SNAPSHOT Snapshot;
-    FCL_TRANSFORM Transform;
-    Aabb Bounds;
+struct PairCollector {
+    PFCL_BROADPHASE_PAIR Buffer;
+    ULONG Capacity;
+    ULONG Count;
 };
 
-bool Overlaps(const Aabb& lhs, const Aabb& rhs) noexcept {
-    if (lhs.Max.X < rhs.Min.X || rhs.Max.X < lhs.Min.X) {
+bool CollisionCallback(
+    fcl::CollisionObjectd* objectA,
+    fcl::CollisionObjectd* objectB,
+    void* context) {
+    if (objectA == nullptr || objectB == nullptr || context == nullptr) {
         return false;
     }
-    if (lhs.Max.Y < rhs.Min.Y || rhs.Max.Y < lhs.Min.Y) {
+    auto* collector = static_cast<PairCollector*>(context);
+    auto* managedA = static_cast<ManagedObject*>(objectA->getUserData());
+    auto* managedB = static_cast<ManagedObject*>(objectB->getUserData());
+    if (managedA == nullptr || managedB == nullptr) {
         return false;
     }
-    if (lhs.Max.Z < rhs.Min.Z || rhs.Max.Z < lhs.Min.Z) {
-        return false;
+    if (collector->Buffer != nullptr && collector->Count < collector->Capacity) {
+        collector->Buffer[collector->Count].A = managedA->Handle;
+        collector->Buffer[collector->Count].B = managedB->Handle;
     }
-    return true;
+    ++collector->Count;
+    return false;
 }
 
-Aabb SphereAabb(const FCL_SPHERE_GEOMETRY_DESC& desc, const FCL_TRANSFORM& transform) noexcept {
-    const FCL_VECTOR3 center = TransformPoint(transform, desc.Center);
-    const FCL_VECTOR3 radius = {desc.Radius, desc.Radius, desc.Radius};
-    Aabb box = {};
-    box.Min = Subtract(center, radius);
-    box.Max = Add(center, radius);
-    return box;
-}
-
-FCL_VECTOR3 AbsAxisScaled(const FCL_VECTOR3& axis, float extent) noexcept {
-    return {fabs(axis.X) * extent, fabs(axis.Y) * extent, fabs(axis.Z) * extent};
-}
-
-Aabb ObbAabb(const FCL_OBB_GEOMETRY_DESC& desc, const FCL_TRANSFORM& transform) noexcept {
-    const OrientedBox box = BuildWorldObb(desc, transform);
-    FCL_VECTOR3 offset = {0.0f, 0.0f, 0.0f};
-    for (int i = 0; i < 3; ++i) {
-        const float extent = (&box.Extents.X)[i];
-        const FCL_VECTOR3 axis = box.Axes[i];
-        const FCL_VECTOR3 contribution = AbsAxisScaled(axis, extent);
-        offset = Add(offset, contribution);
-    }
-    Aabb bounds = {};
-    bounds.Min = Subtract(box.Center, offset);
-    bounds.Max = Add(box.Center, offset);
-    return bounds;
-}
-
-FCL_OBBRSS TransformObbrss(
-    const FCL_OBBRSS& volume,
-    const FCL_TRANSFORM& transform) noexcept {
-    FCL_OBBRSS transformed = volume;
-    transformed.Center = TransformPoint(transform, volume.Center);
-    for (int axis = 0; axis < 3; ++axis) {
-        FCL_VECTOR3 worldAxis = MatrixVectorMultiply(transform.Rotation, volume.Axis[axis]);
-        const float length = Length(worldAxis);
-        if (length > kSingularityEpsilon) {
-            worldAxis = Scale(worldAxis, 1.0f / length);
-        }
-        transformed.Axis[axis] = worldAxis;
-    }
-    return transformed;
-}
-
-Aabb ObbrssAabb(const FCL_OBBRSS& volume) noexcept {
-    FCL_VECTOR3 offset = {0.0f, 0.0f, 0.0f};
-    for (int i = 0; i < 3; ++i) {
-        const float extent = (&volume.Extents.X)[i];
-        const FCL_VECTOR3 contribution = AbsAxisScaled(volume.Axis[i], extent);
-        offset = Add(offset, contribution);
-    }
-    Aabb bounds = {};
-    bounds.Min = Subtract(volume.Center, offset);
-    bounds.Max = Add(volume.Center, offset);
-    return bounds;
-}
-
-bool TryGetMeshVolume(
-    const FCL_GEOMETRY_SNAPSHOT& snapshot,
-    FCL_OBBRSS* volume) noexcept {
-    if (snapshot.Type != FCL_GEOMETRY_MESH || snapshot.Data.Mesh.Bvh == nullptr || volume == nullptr) {
-        return false;
+NTSTATUS BuildManagedObject(
+    const FCL_BROADPHASE_OBJECT& source,
+    ManagedObject* target) noexcept {
+    if (target == nullptr) {
+        return STATUS_INVALID_PARAMETER;
     }
 
-    ULONG nodeCount = 0;
-    const FCL_BVH_NODE* nodes = FclBvhGetNodes(snapshot.Data.Mesh.Bvh, &nodeCount);
-    if (nodes == nullptr || nodeCount == 0) {
-        return false;
-    }
+    target->Handle = source.Handle;
+    target->Reference = {};
 
-    *volume = nodes[0].Volume;
-    return true;
-}
-
-Aabb MeshVerticesAabb(
-    const FCL_GEOMETRY_SNAPSHOT& snapshot,
-    const FCL_TRANSFORM& transform) noexcept {
-    const auto& mesh = snapshot.Data.Mesh;
-    Aabb bounds = {};
-    if (mesh.Vertices == nullptr || mesh.VertexCount == 0) {
-        const FCL_VECTOR3 origin = TransformPoint(transform, {0.0f, 0.0f, 0.0f});
-        bounds.Min = origin;
-        bounds.Max = origin;
-        return bounds;
-    }
-
-    FCL_VECTOR3 vertex = TransformPoint(transform, mesh.Vertices[0]);
-    bounds.Min = vertex;
-    bounds.Max = vertex;
-    for (ULONG i = 1; i < mesh.VertexCount; ++i) {
-        vertex = TransformPoint(transform, mesh.Vertices[i]);
-        bounds.Min.X = std::min(bounds.Min.X, vertex.X);
-        bounds.Min.Y = std::min(bounds.Min.Y, vertex.Y);
-        bounds.Min.Z = std::min(bounds.Min.Z, vertex.Z);
-        bounds.Max.X = std::max(bounds.Max.X, vertex.X);
-        bounds.Max.Y = std::max(bounds.Max.Y, vertex.Y);
-        bounds.Max.Z = std::max(bounds.Max.Z, vertex.Z);
-    }
-    return bounds;
-}
-
-Aabb MeshAabb(
-    const FCL_GEOMETRY_SNAPSHOT& snapshot,
-    const FCL_TRANSFORM& transform) noexcept {
-    FCL_OBBRSS volume = {};
-    if (TryGetMeshVolume(snapshot, &volume)) {
-        const FCL_OBBRSS transformed = TransformObbrss(volume, transform);
-        return ObbrssAabb(transformed);
-    }
-    return MeshVerticesAabb(snapshot, transform);
-}
-
-NTSTATUS BuildEntry(
-    const FCL_BROADPHASE_OBJECT& object,
-    ObjectEntry* entry) noexcept {
-    entry->Handle = object.Handle;
-    entry->Reference = {};
-    entry->Snapshot = {};
-    entry->Transform = object.Transform != nullptr ? *object.Transform : IdentityTransform();
-
-    NTSTATUS status = FclAcquireGeometryReference(object.Handle, &entry->Reference, &entry->Snapshot);
+    FCL_GEOMETRY_SNAPSHOT snapshot = {};
+    NTSTATUS status = FclAcquireGeometryReference(source.Handle, &target->Reference, &snapshot);
     if (!NT_SUCCESS(status)) {
         return status;
     }
 
-    switch (entry->Snapshot.Type) {
-        case FCL_GEOMETRY_SPHERE:
-            entry->Bounds = SphereAabb(entry->Snapshot.Data.Sphere, entry->Transform);
-            break;
-        case FCL_GEOMETRY_OBB:
-            entry->Bounds = ObbAabb(entry->Snapshot.Data.Obb, entry->Transform);
-            break;
-        case FCL_GEOMETRY_MESH:
-            entry->Bounds = MeshAabb(entry->Snapshot, entry->Transform);
-            break;
-        default:
-            FclReleaseGeometryReference(&entry->Reference);
-            return STATUS_NOT_SUPPORTED;
+    status = BuildGeometryBinding(snapshot, &target->Binding);
+    if (!NT_SUCCESS(status)) {
+        FclReleaseGeometryReference(&target->Reference);
+        return status;
+    }
+
+    const FCL_TRANSFORM inputTransform = (source.Transform != nullptr)
+        ? *source.Transform
+        : fclmusa::geom::IdentityTransform();
+    const FCL_TRANSFORM worldTransform = CombineTransforms(inputTransform, target->Binding.LocalTransform);
+
+    try {
+        target->WorldTransform = ToEigenTransform(worldTransform);
+        target->CollisionObject = std::make_unique<fcl::CollisionObjectd>(
+            target->Binding.Geometry,
+            target->WorldTransform);
+        target->CollisionObject->setUserData(target);
+    } catch (const std::bad_alloc&) {
+        FclReleaseGeometryReference(&target->Reference);
+        return STATUS_INSUFFICIENT_RESOURCES;
+    } catch (...) {
+        FclReleaseGeometryReference(&target->Reference);
+        return STATUS_INTERNAL_ERROR;
     }
 
     return STATUS_SUCCESS;
+}
+
+void ReleaseManagedObjects(std::vector<ManagedObject>& objects) noexcept {
+    for (auto& entry : objects) {
+        FclReleaseGeometryReference(&entry.Reference);
+    }
 }
 
 }  // namespace
@@ -212,42 +130,41 @@ FclBroadphaseDetect(
         return STATUS_INVALID_DEVICE_STATE;
     }
 
-    std::vector<ObjectEntry> entries;
-    entries.reserve(objectCount);
+    std::vector<ManagedObject> managedObjects;
+    try {
+        managedObjects.reserve(objectCount);
+    } catch (const std::bad_alloc&) {
+        return STATUS_INSUFFICIENT_RESOURCES;
+    }
 
     for (ULONG i = 0; i < objectCount; ++i) {
-        ObjectEntry entry = {};
-        NTSTATUS status = BuildEntry(objects[i], &entry);
+        ManagedObject entry = {};
+        NTSTATUS status = BuildManagedObject(objects[i], &entry);
         if (!NT_SUCCESS(status)) {
-            for (auto& built : entries) {
-                FclReleaseGeometryReference(&built.Reference);
-            }
+            ReleaseManagedObjects(managedObjects);
             return status;
         }
-        entries.emplace_back(entry);
+        managedObjects.emplace_back(std::move(entry));
     }
 
-    ULONG writeIndex = 0;
-    for (ULONG i = 0; i < entries.size(); ++i) {
-        for (ULONG j = i + 1; j < entries.size(); ++j) {
-            if (!Overlaps(entries[i].Bounds, entries[j].Bounds)) {
-                continue;
-            }
-            if (pairs != nullptr && writeIndex < pairCapacity) {
-                pairs[writeIndex].A = entries[i].Handle;
-                pairs[writeIndex].B = entries[j].Handle;
-            }
-            ++writeIndex;
-        }
+    std::vector<fcl::CollisionObjectd*> collisionObjects;
+    collisionObjects.reserve(managedObjects.size());
+    for (auto& entry : managedObjects) {
+        collisionObjects.push_back(entry.CollisionObject.get());
     }
 
-    *pairCount = writeIndex;
+    fcl::DynamicAABBTreeCollisionManagerd manager;
+    manager.registerObjects(collisionObjects);
+    manager.setup();
 
-    for (auto& entry : entries) {
-        FclReleaseGeometryReference(&entry.Reference);
-    }
+    PairCollector collector = {pairs, pairCapacity, 0};
+    manager.collide(&collector, &CollisionCallback);
 
-    if (pairs != nullptr && writeIndex > pairCapacity) {
+    *pairCount = collector.Count;
+
+    ReleaseManagedObjects(managedObjects);
+
+    if (pairs != nullptr && collector.Count > pairCapacity) {
         return STATUS_BUFFER_TOO_SMALL;
     }
 

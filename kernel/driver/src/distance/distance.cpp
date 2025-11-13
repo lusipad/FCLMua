@@ -4,7 +4,7 @@
 
 #include "fclmusa/distance.h"
 #include "fclmusa/geometry/math_utils.h"
-#include "fclmusa/upstream_bridge.h"
+#include "fclmusa/upstream/upstream_bridge.h"
 
 namespace {
 

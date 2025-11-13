@@ -503,6 +503,7 @@ typename HierarchyTree<BV>::NodeType* HierarchyTree<BV>::getNodes() const
 template<typename BV>
 void HierarchyTree<BV>::print(size_t root, int depth)
 {
+#if FCL_ENABLE_STD_LOGGING
   for(int i = 0; i < depth; ++i)
     std::cout << " ";
   NodeType* n = nodes + root;
@@ -515,6 +516,10 @@ void HierarchyTree<BV>::print(size_t root, int depth)
     print(n->children[0], depth+1);
     print(n->children[1], depth+1);
   }
+#else
+  (void)root;
+  (void)depth;
+#endif
 }
 
 //==============================================================================

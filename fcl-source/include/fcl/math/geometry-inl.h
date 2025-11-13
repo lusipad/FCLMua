@@ -464,7 +464,7 @@ void eigen(const Matrix3<S>& m, Vector3<S>& dout, Matrix3<S>& vout)
   Eigen::SelfAdjointEigenSolver<Matrix3<S>> eigensolver(m);
   if (eigensolver.info() != Eigen::Success)
   {
-    std::cerr << "[eigen] Failed to compute eigendecomposition.\n";
+    FCL_CERR << "[eigen] Failed to compute eigendecomposition.\n";
     return;
   }
   dout = eigensolver.eigenvalues();
@@ -556,7 +556,7 @@ void eigen_old(const Matrix3<S>& m, Vector3<S>& dout, Matrix3<S>& vout)
     }
   }
 
-  std::cerr << "eigen: too many iterations in Jacobi transform.\n";
+  FCL_CERR << "eigen: too many iterations in Jacobi transform.\n";
 
   return;
 }

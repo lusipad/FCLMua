@@ -11,11 +11,23 @@
 - `FclCreateGeometry`/`FclDestroyGeometry`：支持 Sphere/OBB/Mesh 几何创建/销毁，覆盖 NonPagedPool 分配、参数校验与异常路径回滚
 - `FclCollisionDetect`：支持 Sphere-Sphere、Sphere-OBB、OBB-OBB 判定，输出布尔状态、穿透深度与接触点，并强制 PASSIVE_LEVEL 执行
 - `FclDistanceCompute`：支持 Sphere-Sphere、Sphere-OBB、OBB-OBB 距离查询，返回最近点及最小距离
-- `FclBroadphaseDetect`：基于 AABB 的朴素宽相检测，可输入多组句柄+变换，输出潜在碰撞对
+- `FclBroadphaseDetect`：委托 upstream FCL DynamicAABBTree 宽相管理器，根据传入句柄+变换生成潜在碰撞对
 - GJK 窄相：静态集成 libccd (v2.1) 的 GJK/EPA 流程，使用内核内存包装与 NonPagedPool 支持，覆盖 Sphere/OBB/Mesh 等凸体的兜底组合
 - Eigen 适配：`fclmusa/math/eigen_config.h` 自动检测 `<Eigen/Core>` 并禁用对齐/向量化，详见 `docs/EIGEN_ADAPTATION.md`
 - NonPagedPool RAII 分配器与全局 `new/delete` 覆盖，带池统计
 - Musa.Runtime/STL 自检与 Eigen 自检入口（缺失 Eigen 时自动降级为 `STATUS_NOT_SUPPORTED` 提示）
+
+## 工程拆分
+
+- kernel/FclMusaDriver/：VS 解决方案与唯一的 `.vcxproj`，直接编译 `kernel/driver/src` 下的所有 Ring0 源文件并生成 `FclMusaDriver.sys`。
+- kernel/driver/：当前目录，提供 `include/` 与 `src/` 树，涵盖碰撞/距离/宽相/内存/上游桥接以及自检脚本，驱动无需额外静态库即可使用。
+
+
+## 目录结构
+
+- `src/upstream/geometry_bridge.*`：封装 R0 几何句柄到 upstream FCL `CollisionObject` 的转换逻辑，供 `upstream_bridge.cpp`、宽相管理等模块共用。
+- `src/testing/self_test.cpp`：集中维护 `IOCTL_FCL_SELF_TEST` 所需的各类场景与回归逻辑，其他模块无需直接依赖。
+- 其余子目录（`collision/`、`distance/`、`broadphase/` 等）各自聚焦对应 API，仅通过 `fclmusa/*.h` 引出公共接口。
 
 ## 构建指引
 

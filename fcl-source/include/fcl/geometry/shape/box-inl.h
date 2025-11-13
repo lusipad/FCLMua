@@ -141,11 +141,19 @@ std::vector<Vector3<S>> Box<S>::getBoundVertices(
 template <typename S>
 std::string Box<S>::representation(int precision) const {
   const char* S_str = detail::ScalarRepr<S>::value();
+#if FCL_ENABLE_STD_LOGGING
   std::stringstream ss;
   ss << std::setprecision(precision);
   ss << "Box<" << S_str << ">(" << side[0] << ", " << side[1] << ", " << side[2]
      << ");";
   return ss.str();
+#else
+  (void)precision;
+  std::string repr = "Box<";
+  repr += S_str;
+  repr += ">";
+  return repr;
+#endif
 }
 
 } // namespace fcl

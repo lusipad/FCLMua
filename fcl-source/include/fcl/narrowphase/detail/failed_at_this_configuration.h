@@ -38,11 +38,14 @@
 #define FCL_FAILED_AT_THIS_CONFIGURATION_H
 
 #include <exception>
+#include <stdexcept>
+#include <string>
+
+#if FCL_ENABLE_STD_LOGGING
 #include <iomanip>
 #include <ostream>
 #include <sstream>
-#include <stdexcept>
-#include <string>
+#endif
 
 #include "fcl/common/types.h"
 #include "fcl/export.h"
@@ -105,8 +108,12 @@ FCL_EXPORT void ThrowFailedAtThisConfiguration(
                e, f, g, h,
                i, j, k, l,
                m, n, o, p; */
+#if FCL_ENABLE_STD_LOGGING
+
 template <typename S>
-void WriteCommaSeparated(std::stringstream* sstream, const Transform3<S>& p) {
+void WriteCommaSeparated(
+    std::stringstream* sstream,
+    const Transform3<S>& p) {
   const auto& m = p.matrix();
   std::stringstream& ss = *sstream;
   for (int row = 0; row < 4; ++row) {
@@ -156,6 +163,17 @@ void ThrowDetailedConfiguration(const Shape1& s1, const Transform3<S>& X_FS1,
   ss << "\n  Solver: " << solver;
   throw std::logic_error(ss.str());
 }
+
+#else
+
+template <typename Shape1, typename Shape2, typename Solver, typename S>
+void ThrowDetailedConfiguration(const Shape1&, const Transform3<S>&,
+                                const Shape2&, const Transform3<S>&,
+                                const Solver&, const std::exception& e) {
+  throw std::logic_error(e.what());
+}
+
+#endif
 
 }  // namespace detail
 }  // namespace fcl

@@ -40,7 +40,7 @@
 
 #include <algorithm>
 #include <chrono>
-#include <iostream>
+#include <iosfwd>
 #include <map>
 #include <cmath>
 #include <mutex>
@@ -131,12 +131,12 @@ public:
   /// @brief Print the status of the profiled code chunks and
   /// events. Optionally, computation done by different threads
   /// can be printed separately.
-  static void Status(std::ostream &out = std::cout, bool merge = true);
+  static void Status(std::ostream &out, bool merge = true);
 
   /// @brief Print the status of the profiled code chunks and
   /// events. Optionally, computation done by different threads
   /// can be printed separately.
-  void status(std::ostream &out = std::cout, bool merge = true);
+  void status(std::ostream &out, bool merge = true);
 
   /// @brief Check if the profiler is counting time or not
   bool running(void) const;

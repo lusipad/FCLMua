@@ -165,10 +165,18 @@ std::vector<Vector3<S>> Capsule<S>::getBoundVertices(
 template <typename S>
 std::string Capsule<S>::representation(int precision) const {
   const char* S_str = detail::ScalarRepr<S>::value();
+#if FCL_ENABLE_STD_LOGGING
   std::stringstream ss;
   ss << std::setprecision(precision);
   ss << "Capsule<" << S_str << ">(" << radius << ", " << lz << ");";
   return ss.str();
+#else
+  (void)precision;
+  std::string repr = "Capsule<";
+  repr += S_str;
+  repr += ">";
+  return repr;
+#endif
 }
 
 } // namespace fcl

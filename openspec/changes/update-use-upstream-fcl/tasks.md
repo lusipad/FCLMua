@@ -8,8 +8,8 @@
 - [x] 2.2 在架构/README/部署文档中记录 upstream FCL 依赖与约束
 
 ## 3. 实施与验证（审批通过后执行）
-- [ ] 3.1 完成 `upstream_bridge` 连续碰撞实现，调用 upstream `fcl::continuousCollide`
-- [ ] 3.2 清理遗留 `narrowphase/gjk.cpp` 等旧实现并更新所有引用
-- [ ] 3.3 修订构建脚本，确保构建链固定使用 commit `5f7776e2101b8ec95d5054d732684d00dac45e3d`
-- [ ] 3.4 增加自动化回归测试，对 Driver IOCTL 输出与 upstream FCL（碰撞/距离/CCD）逐场景比对
-- [ ] 3.5 运行 `openspec validate update-use-upstream-fcl --strict`，验证通过后发起审批
+- [x] 3.1 完成 `upstream_bridge` 连续碰撞实现，调用 upstream `fcl::continuousCollide`
+- [x] 3.2 清理遗留 `narrowphase/gjk.cpp` 等旧实现并更新所有引用
+- [x] 3.3 修订构建脚本，确保构建链固定使用 commit `5f7776e2101b8ec95d5054d732684d00dac45e3d`
+- [x] 3.4 增加自动化回归测试，对 Driver IOCTL 输出与 upstream FCL（碰撞/距离/CCD）逐场景比对
+- [x] 3.5 运行 `openspec validate update-use-upstream-fcl --strict`，验证通过后发起审批

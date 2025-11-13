@@ -39,14 +39,13 @@
 #define FCL_NARROWPHASE_DETAIL_GJKLIBCCD_INL_H
 
 #include <array>
-#include <iostream>
-#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 
 #include "fcl/common/unused.h"
 #include "fcl/common/warning.h"
+#include "fcl/logging.h"
 #include "fcl/narrowphase/detail/convexity_based_algorithm/gjk_libccd.h"
 #include "fcl/narrowphase/detail/failed_at_this_configuration.h"
 
@@ -1745,12 +1744,12 @@ static void validateNearestFeatureOfPolytopeBeingEdge(ccd_pt_t* polytope) {
     // distance to be considered zero. We assume that the GJK/EPA code
     // ultimately classifies inside/outside around *zero* and *not* epsilon.
     if (origin_to_face_distance[i] > plane_threshold) {
-      std::ostringstream oss;
-      oss << "The origin is outside of the polytope by "
-          << origin_to_face_distance[i] << ", exceeding the threshold "
-          << plane_threshold
-          << ". This should already have been identified as separating.";
-      FCL_THROW_FAILED_AT_THIS_CONFIGURATION(oss.str());
+      fcl::logging::StringBuilder builder;
+      builder << "The origin is outside of the polytope by "
+              << origin_to_face_distance[i] << ", exceeding the threshold "
+              << plane_threshold
+              << ". This should already have been identified as separating.";
+      FCL_THROW_FAILED_AT_THIS_CONFIGURATION(builder.str());
     }
   }
 

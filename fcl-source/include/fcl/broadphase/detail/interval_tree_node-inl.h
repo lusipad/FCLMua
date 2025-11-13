@@ -79,6 +79,7 @@ template <typename S>
 void IntervalTreeNode<S>::print(
     IntervalTreeNode<S>* nil, IntervalTreeNode<S>* root) const
 {
+#if FCL_ENABLE_STD_LOGGING
   stored_interval->print();
   std::cout << ", k = " << key << ", h = " << high << ", mH = " << max_high;
   std::cout << "  l->key = ";
@@ -88,6 +89,10 @@ void IntervalTreeNode<S>::print(
   std::cout << "  p->key = ";
   if(parent == root) std::cout << "nullptr"; else std::cout << parent->key;
   std::cout << "  red = " << (int)red << std::endl;
+#else
+  (void)nil;
+  (void)root;
+#endif
 }
 
 } // namespace detail
