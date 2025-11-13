@@ -54,7 +54,7 @@ PS> .\build_driver.cmd          # 带交互输出，可自动调用签名脚本
 | `IOCTL_FCL_CONVEX_CCD`      | 运行 InterpMotion CCD，返回 TOI 信息            |
 | `IOCTL_FCL_CREATE_MESH`     | 传入顶点+索引缓冲，创建 Mesh 几何               |
 
-详细结构定义见 `kernel/driver/include/fclmusa/ioctl.h`。
+详细结构定义见 `kernel/core/include/fclmusa/ioctl.h`。
 
 ## 用户态示例
 
@@ -78,7 +78,7 @@ CLI 提供命令：
 ## 内核态调用
 
 - 在 `DriverEntry` 中调用 `FclInitialize()`，`DriverUnload` 中调用 `FclCleanup()`。
-- API 位于 `kernel/driver/include/fclmusa/*.h`，例如：
+- API 位于 `kernel/core/include/fclmusa/*.h`，例如：
   - `FclCreateGeometry / FclDestroyGeometry`
   - `FclCollideObjects / FclCollisionDetect`
   - `FclDistanceCompute`
@@ -100,3 +100,7 @@ CLI 提供命令：
 - `fcl-source/` 内置的 FCL 基于 commit `5f7776e2101b8ec95d5054d732684d00dac45e3d`。
 - `tools/manual_build.cmd`/`build_driver.cmd` 会检查 `fcl-source` HEAD 是否匹配该提交，避免混用其它版本。
 - 若需升级 upstream FCL，请在 `fcl-source/` 同步代码并更新脚本中的 `FCL_EXPECTED_COMMIT`。
+
+
+
+

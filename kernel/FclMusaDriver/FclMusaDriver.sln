@@ -4,6 +4,8 @@ VisualStudioVersion = 17.6.33829.357
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FclMusaDriver", "FclMusaDriver.vcxproj", "{43DB9C53-3336-4432-A543-9763BBB1387B}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "FclMusaCoreLib", "FclMusaCoreLib.vcxproj", "{8E7C95F0-5E65-4B1C-A39F-31DA77F73F27}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64
@@ -14,6 +16,10 @@ Global
 		{43DB9C53-3336-4432-A543-9763BBB1387B}.Debug|x64.Build.0 = Debug|x64
 		{43DB9C53-3336-4432-A543-9763BBB1387B}.Release|x64.ActiveCfg = Release|x64
 		{43DB9C53-3336-4432-A543-9763BBB1387B}.Release|x64.Build.0 = Release|x64
+		{8E7C95F0-5E65-4B1C-A39F-31DA77F73F27}.Debug|x64.ActiveCfg = Debug|x64
+		{8E7C95F0-5E65-4B1C-A39F-31DA77F73F27}.Debug|x64.Build.0 = Debug|x64
+		{8E7C95F0-5E65-4B1C-A39F-31DA77F73F27}.Release|x64.ActiveCfg = Release|x64
+		{8E7C95F0-5E65-4B1C-A39F-31DA77F73F27}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

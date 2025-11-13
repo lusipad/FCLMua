@@ -66,7 +66,7 @@ void DriverUnload(PDRIVER_OBJECT) {
 }
 ```
 
-常用 API：`FclCreateGeometry` / `FclDestroyGeometry`、`FclCollideObjects`、`FclDistanceCompute`、`FclContinuousCollision` 等，全部在 `kernel/driver/include/fclmusa/*.h` 中定义。
+常用 API：`FclCreateGeometry` / `FclDestroyGeometry`、`FclCollideObjects`、`FclDistanceCompute`、`FclContinuousCollision` 等，全部在 `kernel/core/include/fclmusa/*.h` 中定义。
 
 ## 5. IOCTL 快速验证
 
@@ -99,3 +99,4 @@ void DriverUnload(PDRIVER_OBJECT) {
 - 深入了解 IOCTL 结构：`docs/api.md`
 - 参考 `docs/testing.md` 拓展自测项
 - 结合 `docs/VM_DEBUG_SETUP.md` 搭建 Hyper-V + WinDbg 远程调试环境
+

@@ -8,6 +8,13 @@
 #include "fclmusa/logging.h"
 #include "fclmusa/self_test.h"
 
+#ifdef FCL_MUSA_ENABLE_DEMO
+#include "device_control_demo.h"
+#endif
+
+// 注意：本文件仅作为 IOCTL 与 FCL 管理模块之间的薄封装层。
+// 只负责 IRP/缓冲区编解码并调用 Fcl* API，不引入几何/碰撞/CCD 控制逻辑或持久状态。
+
 using fclmusa::geom::IdentityTransform;
 
 namespace {
@@ -138,41 +145,6 @@ NTSTATUS HandleDestroyGeometry(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) 
     return FclDestroyGeometry(input->Handle);
 }
 
-NTSTATUS HandleSphereCollisionDemo(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
-    if (stack->Parameters.DeviceIoControl.InputBufferLength < sizeof(FCL_SPHERE_COLLISION_BUFFER) ||
-        stack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(FCL_SPHERE_COLLISION_BUFFER)) {
-        return STATUS_BUFFER_TOO_SMALL;
-    }
-
-    auto* buffer = reinterpret_cast<FCL_SPHERE_COLLISION_BUFFER*>(irp->AssociatedIrp.SystemBuffer);
-    FCL_GEOMETRY_HANDLE sphereA = {};
-    FCL_GEOMETRY_HANDLE sphereB = {};
-
-    NTSTATUS status = FclCreateGeometry(FCL_GEOMETRY_SPHERE, &buffer->SphereA, &sphereA);
-    if (NT_SUCCESS(status)) {
-        status = FclCreateGeometry(FCL_GEOMETRY_SPHERE, &buffer->SphereB, &sphereB);
-    }
-    if (!NT_SUCCESS(status)) {
-        FclDestroyGeometry(sphereA);
-        return status;
-    }
-
-    FCL_COLLISION_OBJECT_DESC objA = {sphereA, IdentityTransform()};
-    FCL_COLLISION_OBJECT_DESC objB = {sphereB, IdentityTransform()};
-
-    FCL_COLLISION_QUERY_RESULT queryResult = {};
-    status = FclCollideObjects(&objA, &objB, nullptr, &queryResult);
-    if (NT_SUCCESS(status)) {
-        buffer->Result.IsColliding = queryResult.Intersecting ? 1 : 0;
-        buffer->Result.Contact = queryResult.Contact;
-        irp->IoStatus.Information = sizeof(*buffer);
-    }
-
-    FclDestroyGeometry(sphereB);
-    FclDestroyGeometry(sphereA);
-    return status;
-}
-
 NTSTATUS HandleCreateMesh(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
     if (stack->Parameters.DeviceIoControl.InputBufferLength < sizeof(FCL_CREATE_MESH_BUFFER) ||
         stack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(FCL_CREATE_MESH_BUFFER)) {
@@ -284,15 +256,17 @@ FclDispatchDeviceControl(_In_ PDEVICE_OBJECT deviceObject, _Inout_ PIRP irp) {
         case IOCTL_FCL_DESTROY_GEOMETRY:
             status = HandleDestroyGeometry(irp, stack);
             break;
-        case IOCTL_FCL_SPHERE_COLLISION:
-            status = HandleSphereCollisionDemo(irp, stack);
+        case IOCTL_FCL_CREATE_MESH:
+            status = HandleCreateMesh(irp, stack);
             break;
         case IOCTL_FCL_CONVEX_CCD:
             status = HandleConvexCcdDemo(irp, stack);
             break;
-        case IOCTL_FCL_CREATE_MESH:
-            status = HandleCreateMesh(irp, stack);
+#ifdef FCL_MUSA_ENABLE_DEMO
+        case IOCTL_FCL_DEMO_SPHERE_COLLISION:
+            status = HandleSphereCollisionDemo(irp, stack);
             break;
+#endif
         default:
             FCL_LOG_WARN("Unsupported IOCTL: 0x%X", stack->Parameters.DeviceIoControl.IoControlCode);
             status = STATUS_INVALID_DEVICE_REQUEST;

@@ -184,39 +184,3 @@ size_t QueryAllocationSize(const void* buffer) noexcept {
 }
 
 }  // namespace fclmusa::memory
-
-void* __cdecl operator new(size_t size) {
-    void* buffer = fclmusa::memory::Allocate(size);
-    if (buffer == nullptr) {
-        ExRaiseStatus(STATUS_INSUFFICIENT_RESOURCES);
-    }
-    return buffer;
-}
-
-void* __cdecl operator new[](size_t size) {
-    return operator new(size);
-}
-
-void* __cdecl operator new(size_t size, const std::nothrow_t&) noexcept {
-    return fclmusa::memory::Allocate(size);
-}
-
-void* __cdecl operator new[](size_t size, const std::nothrow_t&) noexcept {
-    return fclmusa::memory::Allocate(size);
-}
-
-void __cdecl operator delete(void* ptr) noexcept {
-    fclmusa::memory::Free(ptr);
-}
-
-void __cdecl operator delete[](void* ptr) noexcept {
-    fclmusa::memory::Free(ptr);
-}
-
-void __cdecl operator delete(void* ptr, size_t) noexcept {
-    fclmusa::memory::Free(ptr);
-}
-
-void __cdecl operator delete[](void* ptr, size_t) noexcept {
-    fclmusa::memory::Free(ptr);
-}

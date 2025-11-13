@@ -523,9 +523,9 @@ openspec/
 - **FCL 桥接**: `kernel/driver/src/upstream/upstream_bridge.cpp`
 
 ### API 定义
-- **几何 API**: `kernel/driver/include/fclmusa/geometry.h`
-- **碰撞 API**: `kernel/driver/include/fclmusa/collision.h`
-- **IOCTL 定义**: `kernel/driver/include/fclmusa/ioctl.h`
+- **几何 API**: `kernel/core/include/fclmusa/geometry.h`
+- **碰撞 API**: `kernel/core/include/fclmusa/collision.h`
+- **IOCTL 定义**: `kernel/core/include/fclmusa/ioctl.h`
 
 ### 测试与工具
 - **用户态测试**: `tools/fcl_demo.cpp`
@@ -569,3 +569,4 @@ FCL+Musa 项目采用清晰的分层架构：
 6. **openspec** - 变更管理系统
 
 每个模块职责明确，通过 `upstream_bridge` 实现内核与 FCL 的无缝集成，确保算法与原版 FCL 100% 一致。
+
