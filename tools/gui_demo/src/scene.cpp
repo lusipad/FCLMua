@@ -1,6 +1,7 @@
 #include "scene.h"
 #include "obj_loader.h"
 #include <algorithm>
+#include <fstream>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -681,7 +682,8 @@ void Scene::HandleInput(Window* window, float deltaTime)
     // Create new objects (C/B/M keys with Ctrl)
     static bool ctrlCPressed = false;
     static bool ctrlBPressed = false;
-    static bool ctrlMPressed = false;
+    static bool ctrlSPressed = false;
+    static bool ctrlOPressed = false;
 
     bool ctrlDown = window->IsKeyDown(VK_CONTROL);
 
@@ -735,6 +737,48 @@ void Scene::HandleInput(Window* window, float deltaTime)
     else
     {
         deletePressed = false;
+    }
+
+    // Save scene (Ctrl+S)
+    if (ctrlDown && window->IsKeyDown('S'))
+    {
+        if (!ctrlSPressed)
+        {
+            if (SaveScene("scene_save.txt"))
+            {
+                window->SetStatusText(L"Scene saved to scene_save.txt");
+            }
+            else
+            {
+                window->SetStatusText(L"Failed to save scene");
+            }
+            ctrlSPressed = true;
+        }
+    }
+    else
+    {
+        ctrlSPressed = false;
+    }
+
+    // Load scene (Ctrl+O)
+    if (ctrlDown && window->IsKeyDown('O'))
+    {
+        if (!ctrlOPressed)
+        {
+            if (LoadScene("scene_save.txt"))
+            {
+                window->SetStatusText(L"Scene loaded from scene_save.txt");
+            }
+            else
+            {
+                window->SetStatusText(L"Failed to load scene (file not found or invalid format)");
+            }
+            ctrlOPressed = true;
+        }
+    }
+    else
+    {
+        ctrlOPressed = false;
     }
 
     // Reset mouse input after processing to ensure smooth input next frame
@@ -1461,4 +1505,171 @@ void Scene::AddVehicleFromOBJ(const std::string& name, const std::string& objFil
     }
 
     m_objects.push_back(std::move(obj));
+}
+
+bool Scene::SaveScene(const std::string& filename)
+{
+    std::ofstream file(filename);
+    if (!file.is_open())
+        return false;
+
+    try
+    {
+        // Save header
+        file << "FCL_SCENE_V1\n";
+        file << "ObjectCount: " << m_objects.size() << "\n";
+        file << "\n";
+
+        // Save each object (only basic shapes - spheres and boxes)
+        for (const auto& obj : m_objects)
+        {
+            // Skip complex objects (vehicles, meshes, etc.) for simplicity
+            if (obj->type == GeometryType::Mesh || obj->isVehicle || obj->isOrbiting)
+                continue;
+
+            file << "OBJECT\n";
+            file << "Name: " << obj->name << "\n";
+            file << "Type: " << (obj->type == GeometryType::Sphere ? "Sphere" : "Box") << "\n";
+            file << "Position: " << obj->position.x << " " << obj->position.y << " " << obj->position.z << "\n";
+            file << "Rotation: " << obj->rotation.x << " " << obj->rotation.y << " " << obj->rotation.z << "\n";
+            file << "Color: " << obj->color.x << " " << obj->color.y << " " << obj->color.z << " " << obj->color.w << "\n";
+
+            if (obj->type == GeometryType::Sphere)
+            {
+                file << "Radius: " << obj->data.sphere.radius << "\n";
+            }
+            else if (obj->type == GeometryType::Box)
+            {
+                file << "Extents: " << obj->data.box.extents.x << " "
+                     << obj->data.box.extents.y << " "
+                     << obj->data.box.extents.z << "\n";
+            }
+
+            // Velocity if present
+            if (obj->hasVelocity)
+            {
+                file << "Velocity: " << obj->velocity.x << " " << obj->velocity.y << " " << obj->velocity.z << "\n";
+            }
+
+            file << "END_OBJECT\n\n";
+        }
+
+        file.close();
+        return true;
+    }
+    catch (...)
+    {
+        file.close();
+        return false;
+    }
+}
+
+bool Scene::LoadScene(const std::string& filename)
+{
+    std::ifstream file(filename);
+    if (!file.is_open())
+        return false;
+
+    try
+    {
+        std::string line;
+
+        // Read header
+        std::getline(file, line);
+        if (line != "FCL_SCENE_V1")
+            return false;
+
+        // Clear current scene
+        ClearAllObjects();
+
+        // Read object count
+        std::getline(file, line); // ObjectCount line
+        std::getline(file, line); // Empty line
+
+        // Read objects
+        while (std::getline(file, line))
+        {
+            if (line == "OBJECT")
+            {
+                std::string name, type;
+                XMFLOAT3 position(0, 0, 0), rotation(0, 0, 0);
+                XMFLOAT4 color(0.7f, 0.7f, 0.7f, 1.0f);
+                float radius = 1.0f;
+                XMFLOAT3 extents(1, 1, 1);
+                XMFLOAT3 velocity(0, 0, 0);
+                bool hasVelocity = false;
+
+                // Read object properties
+                while (std::getline(file, line) && line != "END_OBJECT")
+                {
+                    if (line.substr(0, 6) == "Name: ")
+                    {
+                        name = line.substr(6);
+                    }
+                    else if (line.substr(0, 6) == "Type: ")
+                    {
+                        type = line.substr(6);
+                    }
+                    else if (line.substr(0, 10) == "Position: ")
+                    {
+                        sscanf_s(line.c_str() + 10, "%f %f %f", &position.x, &position.y, &position.z);
+                    }
+                    else if (line.substr(0, 10) == "Rotation: ")
+                    {
+                        sscanf_s(line.c_str() + 10, "%f %f %f", &rotation.x, &rotation.y, &rotation.z);
+                    }
+                    else if (line.substr(0, 7) == "Color: ")
+                    {
+                        sscanf_s(line.c_str() + 7, "%f %f %f %f", &color.x, &color.y, &color.z, &color.w);
+                    }
+                    else if (line.substr(0, 8) == "Radius: ")
+                    {
+                        sscanf_s(line.c_str() + 8, "%f", &radius);
+                    }
+                    else if (line.substr(0, 9) == "Extents: ")
+                    {
+                        sscanf_s(line.c_str() + 9, "%f %f %f", &extents.x, &extents.y, &extents.z);
+                    }
+                    else if (line.substr(0, 10) == "Velocity: ")
+                    {
+                        sscanf_s(line.c_str() + 10, "%f %f %f", &velocity.x, &velocity.y, &velocity.z);
+                        hasVelocity = true;
+                    }
+                }
+
+                // Create object based on type
+                if (type == "Sphere")
+                {
+                    if (hasVelocity)
+                    {
+                        AddAsteroid(name, position, velocity, radius);
+                    }
+                    else
+                    {
+                        AddSphere(name, position, radius);
+                    }
+                }
+                else if (type == "Box")
+                {
+                    AddBox(name, position, extents);
+                }
+
+                // Set color and rotation
+                if (!m_objects.empty())
+                {
+                    auto& obj = m_objects.back();
+                    obj->color = color;
+                    obj->rotation = rotation;
+                }
+            }
+        }
+
+        file.close();
+        return true;
+    }
+    catch (...)
+    {
+        file.close();
+        return false;
+    }
 }
