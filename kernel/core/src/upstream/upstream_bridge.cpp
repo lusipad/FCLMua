@@ -206,10 +206,14 @@ FclUpstreamContinuousCollision(
         fcl::Transform3d tfStart2 = ToEigenTransform(start2);
         fcl::Transform3d tfEnd2 = ToEigenTransform(end2);
 
+        // Use translation-only motion model in kernel to avoid the heavier
+        // InterpMotion-based path (which has large Eigen stack frames and can
+        // exhaust kernel stack). Our current CCD IOCTL only uses linear
+        // translation, so CCDM_TRANS is sufficient and safer.
         fcl::ContinuousCollisionRequestd request(
             resolvedIterations,
             resolvedTolerance,
-            fcl::CCDM_LINEAR,
+            fcl::CCDM_TRANS,
             fcl::GJKSolverType::GST_LIBCCD,
             fcl::CCDC_CONSERVATIVE_ADVANCEMENT);
 

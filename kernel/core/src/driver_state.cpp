@@ -3,12 +3,9 @@
 
 #include "fclmusa/driver.h"
 #include "fclmusa/logging.h"
-#include "fclmusa/math/self_test.h"
-#include "fclmusa/collision/self_test.h"
 #include "fclmusa/geometry.h"
 #include "fclmusa/geometry/math_utils.h"
 #include "fclmusa/memory/pool_allocator.h"
-#include "fclmusa/runtime/musa_runtime_adapter.h"
 
 using fclmusa::geom::IdentityTransform;
 
@@ -86,80 +83,6 @@ LARGE_INTEGER QuerySystemTime100ns() {
 #endif
 }
 
-NTSTATUS DemoTriangleMesh() {
-    static const FCL_VECTOR3 vertices[] = {
-        {0.0f, 0.0f, 0.0f},
-        {1.0f, 0.0f, 0.0f},
-        {0.0f, 1.0f, 0.0f},
-        {0.0f, 0.0f, 1.0f},
-    };
-    static const UINT32 indices[] = {
-        0, 1, 2,
-        0, 1, 3,
-        0, 2, 3,
-        1, 2, 3,
-    };
-
-    FCL_MESH_GEOMETRY_DESC desc = {};
-    desc.Vertices = vertices;
-    desc.VertexCount = RTL_NUMBER_OF(vertices);
-    desc.Indices = indices;
-    desc.IndexCount = RTL_NUMBER_OF(indices);
-
-    FCL_GEOMETRY_HANDLE meshA = {};
-    FCL_GEOMETRY_HANDLE meshB = {};
-    NTSTATUS status = FclCreateGeometry(FCL_GEOMETRY_MESH, &desc, &meshA);
-    if (!NT_SUCCESS(status)) {
-        return status;
-    }
-    status = FclCreateGeometry(FCL_GEOMETRY_MESH, &desc, &meshB);
-    if (!NT_SUCCESS(status)) {
-        FclDestroyGeometry(meshA);
-        return status;
-    }
-
-    FCL_TRANSFORM transformA = IdentityTransform();
-    FCL_TRANSFORM transformB = IdentityTransform();
-    transformB.Translation = {0.2f, 0.2f, 0.2f};
-
-    BOOLEAN intersecting = FALSE;
-    status = FclCollisionDetect(meshA, &transformA, meshB, &transformB, &intersecting, nullptr);
-
-    FclDestroyGeometry(meshB);
-    FclDestroyGeometry(meshA);
-    return status;
-}
-
-NTSTATUS DemoSphereCollisionSimple() {
-    FCL_SPHERE_GEOMETRY_DESC desc = {};
-    desc.Center = {0.0f, 0.0f, 0.0f};
-    desc.Radius = 0.5f;
-
-    FCL_GEOMETRY_HANDLE sphereA = {};
-    FCL_GEOMETRY_HANDLE sphereB = {};
-    NTSTATUS status = FclCreateGeometry(FCL_GEOMETRY_SPHERE, &desc, &sphereA);
-    if (!NT_SUCCESS(status)) {
-        return status;
-    }
-    desc.Center.X = 1.0f;
-    status = FclCreateGeometry(FCL_GEOMETRY_SPHERE, &desc, &sphereB);
-    if (!NT_SUCCESS(status)) {
-        FclDestroyGeometry(sphereA);
-        return status;
-    }
-
-    FCL_COLLISION_OBJECT_DESC objA = {sphereA, IdentityTransform()};
-    FCL_COLLISION_OBJECT_DESC objB = {sphereB, IdentityTransform()};
-    objB.Transform.Translation.X = 0.6f;
-
-    FCL_COLLISION_QUERY_RESULT result = {};
-    status = FclCollideObjects(&objA, &objB, nullptr, &result);
-
-    FclDestroyGeometry(sphereB);
-    FclDestroyGeometry(sphereA);
-    return status;
-}
-
 }  // namespace
 
 extern "C" const FCL_DRIVER_VERSION* FclGetDriverVersion() {
@@ -189,47 +112,12 @@ FclInitialize() {
 
     fclmusa::memory::InitializePoolTracking();
 
-    status = FclRunMusaRuntimeSmokeTests();
-    if (!NT_SUCCESS(status)) {
-        FCL_LOG_ERROR("Musa.Runtime smoke test failed: 0x%X", status);
-        goto Cleanup;
-    }
-
-    status = FclRunEigenSmokeTest();
-    if (status == STATUS_NOT_SUPPORTED) {
-        FCL_LOG_WARN0("Eigen headers not found; skipping math self-test");
-        status = STATUS_SUCCESS;
-    } else if (!NT_SUCCESS(status)) {
-        FCL_LOG_ERROR("Eigen self-test failed: 0x%X", status);
-        goto Cleanup;
-    }
-
     status = FclGeometrySubsystemInitialize();
     if (!NT_SUCCESS(status)) {
         FCL_LOG_ERROR("Geometry subsystem initialization failed: 0x%X", status);
         goto Cleanup;
     }
     geometryInitialized = TRUE;
-
-
-    status = FclRunCollisionSmokeTests();
-    if (!NT_SUCCESS(status)) {
-        FCL_LOG_ERROR("Collision smoke test failed: 0x%X", status);
-        goto Cleanup;
-    }
-
-    if (NT_SUCCESS(status)) {
-        status = DemoTriangleMesh();
-        if (!NT_SUCCESS(status)) {
-            FCL_LOG_ERROR("Triangle mesh demo failed: 0x%X", status);
-            goto Cleanup;
-        }
-        status = DemoSphereCollisionSimple();
-        if (!NT_SUCCESS(status)) {
-            FCL_LOG_ERROR("Sphere collision demo failed: 0x%X", status);
-            goto Cleanup;
-        }
-    }
 
 Cleanup:
     ExEnterCriticalRegionAndAcquirePushLockExclusive(&g_DriverState.Lock);

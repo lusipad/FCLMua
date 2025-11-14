@@ -512,32 +512,6 @@ void RunLegacyDemo(HANDLE device) {
     if (SendIoctl(device, IOCTL_FCL_DEMO_SPHERE_COLLISION, &buffer, sizeof(buffer))) {
         printf("  Result: %s\n", buffer.Result.IsColliding ? "Intersecting" : "Separated");
     }
-
-    printf("=== CCD Demo ===\n");
-    FCL_GEOMETRY_HANDLE sphereA = {};
-    FCL_GEOMETRY_HANDLE sphereB = {};
-    if (!CreateSphere(device, 0.5f, {0.0f, 0.0f, 0.0f}, sphereA) ||
-        !CreateSphere(device, 0.5f, {2.0f, 0.0f, 0.0f}, sphereB)) {
-        DestroyGeometry(device, sphereA);
-        DestroyGeometry(device, sphereB);
-        return;
-    }
-
-    FCL_CONVEX_CCD_BUFFER ccd = {};
-    ccd.Object1 = sphereA;
-    ccd.Object2 = sphereB;
-    ccd.Motion1.Start = IdentityTransform();
-    ccd.Motion1.End = IdentityTransform();
-    ccd.Motion1.End.Translation.X = 2.0f;
-    ccd.Motion2.Start = IdentityTransform();
-    ccd.Motion2.End = IdentityTransform();
-    if (SendIoctl(device, IOCTL_FCL_CONVEX_CCD, &ccd, sizeof(ccd))) {
-        printf("  CCD: %s, TOI=%.4f\n",
-               ccd.Result.Intersecting ? "Intersecting" : "Separated",
-               ccd.Result.TimeOfImpact);
-    }
-    DestroyGeometry(device, sphereA);
-    DestroyGeometry(device, sphereB);
 }
 
 SceneObject* FindObject(SceneMap& objects, const std::string& name) {

@@ -8,3 +8,4 @@ NTSTATUS
 FclRunCollisionSmokeTests() noexcept;
 
 EXTERN_C_END
+

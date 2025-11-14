@@ -24,3 +24,13 @@ kernel/*/Release/
 
 # 工具构建输出
 tools/build/
+tools/build_driver_latest.txt
+tools/build_and_sign_driver.cmd
+tools/build_and_sign_driver.ps1
+
+# 分发/二进制输出
+dist/
+*.sys
+*.pdb
+*.cer
+*.pfx

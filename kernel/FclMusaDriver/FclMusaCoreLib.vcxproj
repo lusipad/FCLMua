@@ -86,18 +86,14 @@
   <ItemGroup>
     <ClCompile Include="..\core\src\driver_state.cpp" />
     <ClCompile Include="..\core\src\broadphase\broadphase.cpp" />
-    <ClCompile Include="..\core\src\collision\collision_self_test.cpp" />
     <ClCompile Include="..\core\src\collision\collision.cpp" />
     <ClCompile Include="..\core\src\collision\continuous_collision.cpp" />
     <ClCompile Include="..\core\src\distance\distance.cpp" />
     <ClCompile Include="..\core\src\geometry\geometry_manager.cpp" />
     <ClCompile Include="..\core\src\geometry\bvh_model.cpp" />
     <ClCompile Include="..\core\src\geometry\obbrss.cpp" />
-    <ClCompile Include="..\core\src\math\eigen_self_test.cpp" />
     <ClCompile Include="..\core\src\memory\pool_allocator.cpp" />
-    <ClCompile Include="..\core\src\runtime\musa_runtime_adapter.cpp" />
     <ClCompile Include="..\core\src\runtime\c_runtime_stubs.cpp" />
-    <ClCompile Include="..\core\src\testing\self_test.cpp" />
     <ClCompile Include="..\core\src\upstream\geometry_bridge.cpp" />
     <ClCompile Include="..\core\src\upstream\upstream_bridge.cpp" />
     <ClCompile Include="..\core\src\narrowphase\libccd_memory.cpp" />
@@ -132,7 +128,6 @@
     <ClInclude Include="..\core\include\fclmusa\collision.h" />
     <ClInclude Include="..\core\include\fclmusa\distance.h" />
     <ClInclude Include="..\core\include\fclmusa\geometry.h" />
-    <ClInclude Include="..\core\include\fclmusa\self_test.h" />
     <ClInclude Include="..\core\include\fclmusa\upstream\geometry_bridge.h" />
     <ClInclude Include="..\core\include\fclmusa\upstream\upstream_bridge.h" />
   </ItemGroup>
