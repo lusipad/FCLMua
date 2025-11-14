@@ -20,9 +20,11 @@ public:
     std::function<void(float)> OnCreateSphere;
     std::function<void(float, float, float)> OnCreateBox;
     std::function<void()> OnDeleteObject;
-    std::function<void(int)> OnSceneModeChanged;  // 0=Default, 1=SolarSystem
+    std::function<void(int)> OnSceneModeChanged;  // 0=Default, 1=SolarSystem, 2=Crossroad
     std::function<void(float)> OnSimulationSpeedChanged;
     std::function<void(float, float, float, float)> OnCreateAsteroid;  // vx, vy, vz, radius
+    std::function<void(int, int, int, float)> OnCreateVehicle;  // vehicleType, direction, intention, speed
+    std::function<void(std::string, int, int, float, float)> OnLoadVehicleFromOBJ;  // objPath, direction, intention, speed, scale
 
     // Input state
     bool IsKeyDown(int vkCode) const { return m_keys[vkCode]; }
@@ -62,6 +64,7 @@ private:
     HWND m_labelSceneMode;
     HWND m_btnSceneDefault;
     HWND m_btnSceneSolarSystem;
+    HWND m_btnSceneCrossroad;
 
     // Speed controls
     HWND m_labelSpeed;
@@ -77,6 +80,21 @@ private:
     HWND m_btnCreateAsteroid;
     HWND m_labelAsteroidVelocity;
     HWND m_labelAsteroidRadius;
+
+    // Vehicle controls (for crossroad scene)
+    HWND m_labelVehicle;
+    HWND m_labelVehicleType;
+    HWND m_comboVehicleType;
+    HWND m_labelVehicleDirection;
+    HWND m_comboVehicleDirection;
+    HWND m_labelVehicleIntention;
+    HWND m_comboVehicleIntention;
+    HWND m_labelVehicleSpeed;
+    HWND m_editVehicleSpeed;
+    HWND m_btnCreateVehicle;
+    HWND m_btnLoadOBJ;
+    HWND m_labelOBJScale;
+    HWND m_editOBJScale;
 
     void CreateUIControls();
 };

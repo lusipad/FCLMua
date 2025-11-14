@@ -1,4 +1,5 @@
 #include "scene.h"
+#include "obj_loader.h"
 #include <algorithm>
 
 #ifndef M_PI
@@ -149,6 +150,112 @@ void Scene::InitializeSolarSystem()
     m_camera.SetDistance(50.0f);
 }
 
+void Scene::InitializeCrossroadScene()
+{
+    ClearAllObjects();
+
+    // Define road parameters
+    const float roadWidth = 4.0f;      // Width of each road lane
+    const float roadLength = 40.0f;    // Total length of road
+    const float roadThickness = 0.1f;  // Thickness of road
+    const XMFLOAT4 roadColor(0.3f, 0.3f, 0.3f, 1.0f);  // Dark gray
+    const XMFLOAT4 lineColor(1.0f, 1.0f, 1.0f, 1.0f);  // White
+
+    // Create horizontal road (East-West)
+    auto roadEW = std::make_unique<SceneObject>();
+    roadEW->name = "Road East-West";
+    roadEW->type = GeometryType::Box;
+    roadEW->position = XMFLOAT3(0, 0, 0);
+    roadEW->data.box.extents = XMFLOAT3(roadLength / 2.0f, roadThickness / 2.0f, roadWidth / 2.0f);
+    roadEW->color = roadColor;
+    if (m_driver && m_driver->IsConnected())
+    {
+        roadEW->fclHandle = m_driver->CreateBox(roadEW->position, roadEW->data.box.extents);
+    }
+    m_objects.push_back(std::move(roadEW));
+
+    // Create vertical road (North-South)
+    auto roadNS = std::make_unique<SceneObject>();
+    roadNS->name = "Road North-South";
+    roadNS->type = GeometryType::Box;
+    roadNS->position = XMFLOAT3(0, 0, 0);
+    roadNS->data.box.extents = XMFLOAT3(roadWidth / 2.0f, roadThickness / 2.0f, roadLength / 2.0f);
+    roadNS->color = roadColor;
+    if (m_driver && m_driver->IsConnected())
+    {
+        roadNS->fclHandle = m_driver->CreateBox(roadNS->position, roadNS->data.box.extents);
+    }
+    m_objects.push_back(std::move(roadNS));
+
+    // Create crossroad boundary lines (white lines marking the intersection)
+    const float lineThickness = 0.05f;
+    const float lineWidth = 0.15f;
+    const float intersectionSize = roadWidth * 1.5f; // Size of the intersection area
+
+    // North boundary line (marks where vehicles entering from south can start turning)
+    auto lineNorth = std::make_unique<SceneObject>();
+    lineNorth->name = "Line North";
+    lineNorth->type = GeometryType::Box;
+    lineNorth->position = XMFLOAT3(0, roadThickness, intersectionSize / 2.0f);
+    lineNorth->data.box.extents = XMFLOAT3(roadWidth / 2.0f, lineThickness, lineWidth / 2.0f);
+    lineNorth->color = lineColor;
+    m_objects.push_back(std::move(lineNorth));
+
+    // South boundary line
+    auto lineSouth = std::make_unique<SceneObject>();
+    lineSouth->name = "Line South";
+    lineSouth->type = GeometryType::Box;
+    lineSouth->position = XMFLOAT3(0, roadThickness, -intersectionSize / 2.0f);
+    lineSouth->data.box.extents = XMFLOAT3(roadWidth / 2.0f, lineThickness, lineWidth / 2.0f);
+    lineSouth->color = lineColor;
+    m_objects.push_back(std::move(lineSouth));
+
+    // East boundary line
+    auto lineEast = std::make_unique<SceneObject>();
+    lineEast->name = "Line East";
+    lineEast->type = GeometryType::Box;
+    lineEast->position = XMFLOAT3(intersectionSize / 2.0f, roadThickness, 0);
+    lineEast->data.box.extents = XMFLOAT3(lineWidth / 2.0f, lineThickness, roadWidth / 2.0f);
+    lineEast->color = lineColor;
+    m_objects.push_back(std::move(lineEast));
+
+    // West boundary line
+    auto lineWest = std::make_unique<SceneObject>();
+    lineWest->name = "Line West";
+    lineWest->type = GeometryType::Box;
+    lineWest->position = XMFLOAT3(-intersectionSize / 2.0f, roadThickness, 0);
+    lineWest->data.box.extents = XMFLOAT3(lineWidth / 2.0f, lineThickness, roadWidth / 2.0f);
+    lineWest->color = lineColor;
+    m_objects.push_back(std::move(lineWest));
+
+    // Add default sample vehicles for demonstration
+    // These vehicles showcase different types, directions, and movement intentions
+
+    // 1. Red Sedan going straight from South to North (speed 3.0)
+    AddVehicle("Demo Sedan", VehicleType::Sedan,
+               VehicleDirection::North, MovementIntention::GoStraight, 3.0f);
+
+    // 2. Blue SUV turning left from East to North (speed 2.5)
+    AddVehicle("Demo SUV", VehicleType::SUV,
+               VehicleDirection::East, MovementIntention::TurnLeft, 2.5f);
+
+    // 3. Yellow Truck going straight from West to East (speed 2.0)
+    AddVehicle("Demo Truck", VehicleType::Truck,
+               VehicleDirection::West, MovementIntention::GoStraight, 2.0f);
+
+    // 4. Green Sports Car turning right from North to East (speed 4.0)
+    AddVehicle("Demo Sports Car", VehicleType::SportsCar,
+               VehicleDirection::South, MovementIntention::TurnRight, 4.0f);
+
+    // 5. Orange Bus going straight from North to South (speed 1.5)
+    AddVehicle("Demo Bus", VehicleType::Bus,
+               VehicleDirection::North, MovementIntention::GoStraight, 1.5f);
+
+    // Adjust camera for top-down view of crossroad
+    m_camera.SetTarget(XMFLOAT3(0, 0, 0));
+    m_camera.SetDistance(35.0f);
+}
+
 void Scene::SetSceneMode(SceneMode mode)
 {
     if (m_sceneMode == mode)
@@ -160,6 +267,10 @@ void Scene::SetSceneMode(SceneMode mode)
     if (mode == SceneMode::SolarSystem)
     {
         InitializeSolarSystem();
+    }
+    else if (mode == SceneMode::CrossroadSimulation)
+    {
+        InitializeCrossroadScene();
     }
     else
     {
@@ -176,6 +287,12 @@ void Scene::Update(float deltaTime)
     if (m_sceneMode == SceneMode::SolarSystem)
     {
         UpdateOrbitalMotion(scaledDeltaTime);
+    }
+
+    // Update vehicle movement (for crossroad scene)
+    if (m_sceneMode == SceneMode::CrossroadSimulation)
+    {
+        UpdateVehicleMovement(scaledDeltaTime);
     }
 
     // Update physics (for asteroids and other objects with velocity)
@@ -218,6 +335,205 @@ void Scene::UpdatePhysics(float deltaTime)
             obj->position.x += obj->velocity.x * deltaTime;
             obj->position.y += obj->velocity.y * deltaTime;
             obj->position.z += obj->velocity.z * deltaTime;
+        }
+    }
+}
+
+void Scene::UpdateVehicleMovement(float deltaTime)
+{
+    const float intersectionBoundary = 6.0f;  // Distance from center where intersection starts
+    const float turnRadius = 3.0f;  // Radius for turning arcs
+
+    for (auto& obj : m_objects)
+    {
+        if (!obj->isVehicle)
+            continue;
+
+        // Calculate movement distance for this frame
+        float moveDistance = obj->vehicleSpeed * deltaTime;
+        obj->distanceTraveled += moveDistance;
+
+        // Check if vehicle has crossed the intersection line
+        bool justCrossed = false;
+        if (!obj->hasCrossedIntersection)
+        {
+            // Check based on direction
+            switch (obj->vehicleDirection)
+            {
+            case VehicleDirection::North:
+                if (obj->position.z >= -intersectionBoundary)
+                {
+                    obj->hasCrossedIntersection = true;
+                    justCrossed = true;
+                }
+                break;
+            case VehicleDirection::South:
+                if (obj->position.z <= intersectionBoundary)
+                {
+                    obj->hasCrossedIntersection = true;
+                    justCrossed = true;
+                }
+                break;
+            case VehicleDirection::East:
+                if (obj->position.x >= -intersectionBoundary)
+                {
+                    obj->hasCrossedIntersection = true;
+                    justCrossed = true;
+                }
+                break;
+            case VehicleDirection::West:
+                if (obj->position.x <= intersectionBoundary)
+                {
+                    obj->hasCrossedIntersection = true;
+                    justCrossed = true;
+                }
+                break;
+            }
+
+            // If just crossed and needs to turn, set up the turn
+            if (justCrossed && obj->movementIntention != MovementIntention::GoStraight)
+            {
+                // Calculate turn center and target direction
+                // This will be used for smooth turning
+                obj->targetPosition = obj->position;  // Will be updated below
+            }
+        }
+
+        // Update position based on current state
+        if (!obj->hasCrossedIntersection || obj->movementIntention == MovementIntention::GoStraight)
+        {
+            // Move straight along current direction
+            switch (obj->vehicleDirection)
+            {
+            case VehicleDirection::North:
+                obj->position.z += moveDistance;
+                break;
+            case VehicleDirection::South:
+                obj->position.z -= moveDistance;
+                break;
+            case VehicleDirection::East:
+                obj->position.x += moveDistance;
+                break;
+            case VehicleDirection::West:
+                obj->position.x -= moveDistance;
+                break;
+            }
+        }
+        else
+        {
+            // Vehicle is turning - use smooth arc
+            const float turnSpeed = obj->vehicleSpeed / turnRadius;  // Angular velocity
+
+            // Calculate turn angle for this frame
+            float turnAngle = 0;
+            if (obj->movementIntention == MovementIntention::TurnLeft)
+            {
+                turnAngle = turnSpeed * deltaTime;  // Counter-clockwise
+            }
+            else if (obj->movementIntention == MovementIntention::TurnRight)
+            {
+                turnAngle = -turnSpeed * deltaTime;  // Clockwise
+            }
+
+            // Update rotation
+            obj->rotation.y += turnAngle;
+
+            // Move in the direction the vehicle is facing
+            float facingAngle = obj->rotation.y;
+            obj->position.x += moveDistance * sin(facingAngle);
+            obj->position.z += moveDistance * cos(facingAngle);
+
+            // Check if turn is complete (approximately 90 degrees)
+            float totalTurnAngle = 0;
+
+            // Calculate expected final angle based on initial direction and turn type
+            float targetAngle = 0;
+            switch (obj->vehicleDirection)
+            {
+            case VehicleDirection::North:
+                targetAngle = 0;
+                if (obj->movementIntention == MovementIntention::TurnLeft)
+                    targetAngle = -static_cast<float>(M_PI) / 2.0f;  // Turn to West
+                else if (obj->movementIntention == MovementIntention::TurnRight)
+                    targetAngle = static_cast<float>(M_PI) / 2.0f;   // Turn to East
+                break;
+
+            case VehicleDirection::South:
+                targetAngle = static_cast<float>(M_PI);
+                if (obj->movementIntention == MovementIntention::TurnLeft)
+                    targetAngle = static_cast<float>(M_PI) / 2.0f;   // Turn to East
+                else if (obj->movementIntention == MovementIntention::TurnRight)
+                    targetAngle = -static_cast<float>(M_PI) / 2.0f;  // Turn to West
+                break;
+
+            case VehicleDirection::East:
+                targetAngle = static_cast<float>(M_PI) / 2.0f;
+                if (obj->movementIntention == MovementIntention::TurnLeft)
+                    targetAngle = 0;  // Turn to North
+                else if (obj->movementIntention == MovementIntention::TurnRight)
+                    targetAngle = static_cast<float>(M_PI);  // Turn to South
+                break;
+
+            case VehicleDirection::West:
+                targetAngle = -static_cast<float>(M_PI) / 2.0f;
+                if (obj->movementIntention == MovementIntention::TurnLeft)
+                    targetAngle = static_cast<float>(M_PI);  // Turn to South
+                else if (obj->movementIntention == MovementIntention::TurnRight)
+                    targetAngle = 0;  // Turn to North
+                break;
+            }
+
+            // Normalize angles to [-PI, PI]
+            auto normalizeAngle = [](float angle) {
+                while (angle > static_cast<float>(M_PI)) angle -= 2.0f * static_cast<float>(M_PI);
+                while (angle < -static_cast<float>(M_PI)) angle += 2.0f * static_cast<float>(M_PI);
+                return angle;
+            };
+
+            obj->rotation.y = normalizeAngle(obj->rotation.y);
+            targetAngle = normalizeAngle(targetAngle);
+
+            // Check if turn is complete (within tolerance)
+            float angleDiff = std::abs(normalizeAngle(obj->rotation.y - targetAngle));
+            if (angleDiff < 0.1f)  // Small tolerance
+            {
+                // Snap to final angle and update direction
+                obj->rotation.y = targetAngle;
+
+                // Update the vehicle's direction for future straight movement
+                if (obj->movementIntention == MovementIntention::TurnLeft)
+                {
+                    switch (obj->vehicleDirection)
+                    {
+                    case VehicleDirection::North: obj->vehicleDirection = VehicleDirection::West; break;
+                    case VehicleDirection::South: obj->vehicleDirection = VehicleDirection::East; break;
+                    case VehicleDirection::East: obj->vehicleDirection = VehicleDirection::North; break;
+                    case VehicleDirection::West: obj->vehicleDirection = VehicleDirection::South; break;
+                    }
+                }
+                else if (obj->movementIntention == MovementIntention::TurnRight)
+                {
+                    switch (obj->vehicleDirection)
+                    {
+                    case VehicleDirection::North: obj->vehicleDirection = VehicleDirection::East; break;
+                    case VehicleDirection::South: obj->vehicleDirection = VehicleDirection::West; break;
+                    case VehicleDirection::East: obj->vehicleDirection = VehicleDirection::South; break;
+                    case VehicleDirection::West: obj->vehicleDirection = VehicleDirection::North; break;
+                    }
+                }
+
+                // Set movement to straight now that turn is complete
+                obj->movementIntention = MovementIntention::GoStraight;
+                obj->hasCrossedIntersection = false;  // Reset for potential future intersections
+            }
+        }
+
+        // Update FCL transform if collision detection is active
+        if (m_driver && m_driver->IsConnected() && obj->fclHandle.Value != 0)
+        {
+            FCL_TRANSFORM transform = FclDriver::CreateTransform(
+                obj->position, obj->GetRotationMatrix());
+            m_driver->UpdateTransform(obj->fclHandle, transform);
         }
     }
 }
@@ -751,4 +1067,390 @@ void Scene::SetAsteroidVelocity(size_t index, const XMFLOAT3& velocity)
     auto& obj = m_objects[index];
     obj->hasVelocity = true;
     obj->velocity = velocity;
+}
+
+// Helper function to add a box to the mesh
+static void AddBoxToMesh(std::vector<XMFLOAT3>& vertices,
+                         std::vector<uint32_t>& indices,
+                         const XMFLOAT3& center,
+                         const XMFLOAT3& extents)
+{
+    size_t baseIdx = vertices.size();
+
+    // 8 vertices of the box
+    XMFLOAT3 boxVerts[8] = {
+        {center.x - extents.x, center.y - extents.y, center.z - extents.z},
+        {center.x + extents.x, center.y - extents.y, center.z - extents.z},
+        {center.x + extents.x, center.y - extents.y, center.z + extents.z},
+        {center.x - extents.x, center.y - extents.y, center.z + extents.z},
+        {center.x - extents.x, center.y + extents.y, center.z - extents.z},
+        {center.x + extents.x, center.y + extents.y, center.z - extents.z},
+        {center.x + extents.x, center.y + extents.y, center.z + extents.z},
+        {center.x - extents.x, center.y + extents.y, center.z + extents.z}
+    };
+
+    for (int i = 0; i < 8; i++)
+        vertices.push_back(boxVerts[i]);
+
+    // 6 faces (2 triangles each)
+    uint32_t boxIndices[] = {
+        // Bottom
+        baseIdx+0, baseIdx+1, baseIdx+2,  baseIdx+0, baseIdx+2, baseIdx+3,
+        // Top
+        baseIdx+4, baseIdx+6, baseIdx+5,  baseIdx+4, baseIdx+7, baseIdx+6,
+        // Front
+        baseIdx+0, baseIdx+4, baseIdx+5,  baseIdx+0, baseIdx+5, baseIdx+1,
+        // Back
+        baseIdx+2, baseIdx+6, baseIdx+7,  baseIdx+2, baseIdx+7, baseIdx+3,
+        // Left
+        baseIdx+0, baseIdx+3, baseIdx+7,  baseIdx+0, baseIdx+7, baseIdx+4,
+        // Right
+        baseIdx+1, baseIdx+5, baseIdx+6,  baseIdx+1, baseIdx+6, baseIdx+2
+    };
+
+    indices.insert(indices.end(), boxIndices, boxIndices + 36);
+}
+
+// Helper function to create vehicle mesh vertices with wheels
+static void CreateVehicleMesh(VehicleType type,
+                             std::vector<XMFLOAT3>& vertices,
+                             std::vector<uint32_t>& indices)
+{
+    vertices.clear();
+    indices.clear();
+
+    // We'll create detailed box-based vehicles with multiple components including wheels
+    // All measurements are relative to a standard sedan size
+
+    switch (type)
+    {
+    case VehicleType::Sedan:
+    {
+        // Sedan: compact car with main body + cabin + wheels
+        float length = 2.5f, width = 1.2f, height = 0.8f;
+        float cabinHeight = 0.6f, cabinLength = 1.2f;
+        float wheelRadius = 0.25f, wheelWidth = 0.2f;
+
+        // Main body (lower part)
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
+
+        // Cabin (upper part) - centered and shorter
+        float cabinOffset = (length - cabinLength) / 4.0f;
+        AddBoxToMesh(vertices, indices,
+            XMFLOAT3(cabinOffset, height + cabinHeight/2, 0),
+            XMFLOAT3(cabinLength/2, cabinHeight/2, width/2.5f));
+
+        // 4 Wheels (front-left, front-right, back-left, back-right)
+        float wheelOffsetX = length / 3.0f;
+        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        break;
+    }
+
+    case VehicleType::SUV:
+    {
+        // SUV: larger and taller than sedan + wheels
+        float length = 3.0f, width = 1.5f, height = 1.2f;
+        float cabinHeight = 0.8f, cabinLength = 1.8f;
+        float wheelRadius = 0.3f, wheelWidth = 0.25f;
+
+        // Main body
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
+
+        // Cabin
+        AddBoxToMesh(vertices, indices,
+            XMFLOAT3(0, height + cabinHeight/2, 0),
+            XMFLOAT3(cabinLength/2, cabinHeight/2, width/2.3f));
+
+        // 4 Wheels
+        float wheelOffsetX = length / 3.0f;
+        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        break;
+    }
+
+    case VehicleType::Truck:
+    {
+        // Truck: long cargo area + small cabin + wheels
+        float length = 4.0f, width = 1.6f, height = 1.0f;
+        float cabinHeight = 1.0f, cabinLength = 1.0f;
+        float wheelRadius = 0.35f, wheelWidth = 0.3f;
+
+        // Cargo area (back)
+        float cargoCenter = -(length/2 - (length - cabinLength)/2);
+        AddBoxToMesh(vertices, indices,
+            XMFLOAT3(cargoCenter, height/2, 0),
+            XMFLOAT3((length - cabinLength)/2, height/2, width/2));
+
+        // Cabin (front)
+        float cabinCenter = length/2 - cabinLength/2;
+        AddBoxToMesh(vertices, indices,
+            XMFLOAT3(cabinCenter, cabinHeight/2, 0),
+            XMFLOAT3(cabinLength/2, cabinHeight/2, width/2.5f));
+
+        // 4 Wheels
+        float wheelOffsetX = length / 3.5f;
+        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        break;
+    }
+
+    case VehicleType::Bus:
+    {
+        // Bus: very long and tall + wheels
+        float length = 5.0f, width = 1.8f, height = 2.0f;
+        float wheelRadius = 0.35f, wheelWidth = 0.3f;
+
+        // Main body
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
+
+        // 6 Wheels (3 per side for longer vehicle)
+        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(length/3, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(length/3, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-length/3, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-length/3, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        break;
+    }
+
+    case VehicleType::SportsCar:
+    {
+        // Sports car: low and sleek + wheels
+        float length = 2.8f, width = 1.4f, height = 0.6f;
+        float cabinHeight = 0.4f, cabinLength = 1.0f;
+        float wheelRadius = 0.22f, wheelWidth = 0.18f;
+
+        // Main body (very low)
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
+
+        // Cabin (sleek and aerodynamic)
+        AddBoxToMesh(vertices, indices,
+            XMFLOAT3(0, height + cabinHeight/2, 0),
+            XMFLOAT3(cabinLength/2, cabinHeight/2, width/3.0f));
+
+        // 4 Wheels (smaller for sports car)
+        float wheelOffsetX = length / 3.0f;
+        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        break;
+    }
+    }
+}
+
+void Scene::AddVehicle(const std::string& name, VehicleType type,
+                       VehicleDirection direction, MovementIntention intention,
+                       float speed)
+{
+    // Create vehicle mesh
+    std::vector<XMFLOAT3> vertices;
+    std::vector<uint32_t> indices;
+    CreateVehicleMesh(type, vertices, indices);
+
+    // Determine starting position based on direction
+    XMFLOAT3 startPos;
+    const float laneOffset = 1.0f;  // Offset from center of road
+    const float startDistance = 18.0f; // Distance from center
+
+    switch (direction)
+    {
+    case VehicleDirection::North:
+        startPos = XMFLOAT3(-laneOffset, 0.5f, -startDistance);
+        break;
+    case VehicleDirection::South:
+        startPos = XMFLOAT3(laneOffset, 0.5f, startDistance);
+        break;
+    case VehicleDirection::East:
+        startPos = XMFLOAT3(-startDistance, 0.5f, laneOffset);
+        break;
+    case VehicleDirection::West:
+        startPos = XMFLOAT3(startDistance, 0.5f, -laneOffset);
+        break;
+    }
+
+    // Create the vehicle object
+    auto obj = std::make_unique<SceneObject>();
+    obj->name = name;
+    obj->type = GeometryType::Mesh;
+    obj->position = startPos;
+
+    // Set vehicle-specific data
+    obj->isVehicle = true;
+    obj->vehicleType = type;
+    obj->vehicleDirection = direction;
+    obj->movementIntention = intention;
+    obj->vehicleSpeed = speed;
+    obj->hasCrossedIntersection = false;
+    obj->distanceTraveled = 0;
+
+    // Set rotation based on direction
+    switch (direction)
+    {
+    case VehicleDirection::North:
+        obj->rotation = XMFLOAT3(0, 0, 0);  // Facing +Z
+        break;
+    case VehicleDirection::South:
+        obj->rotation = XMFLOAT3(0, static_cast<float>(M_PI), 0);  // Facing -Z
+        break;
+    case VehicleDirection::East:
+        obj->rotation = XMFLOAT3(0, static_cast<float>(M_PI) / 2.0f, 0);  // Facing +X
+        break;
+    case VehicleDirection::West:
+        obj->rotation = XMFLOAT3(0, -static_cast<float>(M_PI) / 2.0f, 0);  // Facing -X
+        break;
+    }
+
+    // Assign color based on vehicle type
+    switch (type)
+    {
+    case VehicleType::Sedan:
+        obj->color = XMFLOAT4(0.8f, 0.2f, 0.2f, 1.0f);  // Red
+        break;
+    case VehicleType::SUV:
+        obj->color = XMFLOAT4(0.2f, 0.4f, 0.8f, 1.0f);  // Blue
+        break;
+    case VehicleType::Truck:
+        obj->color = XMFLOAT4(0.6f, 0.6f, 0.2f, 1.0f);  // Yellow
+        break;
+    case VehicleType::Bus:
+        obj->color = XMFLOAT4(0.9f, 0.5f, 0.1f, 1.0f);  // Orange
+        break;
+    case VehicleType::SportsCar:
+        obj->color = XMFLOAT4(0.1f, 0.8f, 0.3f, 1.0f);  // Green
+        break;
+    }
+
+    // Create mesh in renderer
+    if (m_renderer)
+    {
+        auto mesh = m_renderer->CreateMesh(vertices, indices);
+        obj->data.customMesh.mesh = mesh;
+
+        // Create FCL collision geometry (use bounding box for simplicity)
+        if (m_driver && m_driver->IsConnected())
+        {
+            // Calculate bounding box
+            XMFLOAT3 minBounds(FLT_MAX, FLT_MAX, FLT_MAX);
+            XMFLOAT3 maxBounds(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+            for (const auto& v : vertices)
+            {
+                minBounds.x = std::min(minBounds.x, v.x);
+                minBounds.y = std::min(minBounds.y, v.y);
+                minBounds.z = std::min(minBounds.z, v.z);
+                maxBounds.x = std::max(maxBounds.x, v.x);
+                maxBounds.y = std::max(maxBounds.y, v.y);
+                maxBounds.z = std::max(maxBounds.z, v.z);
+            }
+            XMFLOAT3 extents(
+                (maxBounds.x - minBounds.x) / 2.0f,
+                (maxBounds.y - minBounds.y) / 2.0f,
+                (maxBounds.z - minBounds.z) / 2.0f
+            );
+            obj->fclHandle = m_driver->CreateBox(startPos, extents);
+        }
+    }
+
+    m_objects.push_back(std::move(obj));
+}
+
+void Scene::AddVehicleFromOBJ(const std::string& name, const std::string& objFilePath,
+                              VehicleDirection direction, MovementIntention intention,
+                              float speed, float scale)
+{
+    // Load OBJ file
+    ObjLoader::MeshData meshData;
+    if (!ObjLoader::LoadFromFile(objFilePath, meshData, scale))
+    {
+        // Failed to load OBJ file
+        return;
+    }
+
+    // Determine starting position based on direction
+    XMFLOAT3 startPos;
+    const float laneOffset = 1.0f;  // Offset from center of road
+    const float startDistance = 18.0f; // Distance from center
+
+    switch (direction)
+    {
+    case VehicleDirection::North:
+        startPos = XMFLOAT3(-laneOffset, 0.5f, -startDistance);
+        break;
+    case VehicleDirection::South:
+        startPos = XMFLOAT3(laneOffset, 0.5f, startDistance);
+        break;
+    case VehicleDirection::East:
+        startPos = XMFLOAT3(-startDistance, 0.5f, laneOffset);
+        break;
+    case VehicleDirection::West:
+        startPos = XMFLOAT3(startDistance, 0.5f, -laneOffset);
+        break;
+    }
+
+    // Create the vehicle object
+    auto obj = std::make_unique<SceneObject>();
+    obj->name = name;
+    obj->type = GeometryType::Mesh;
+    obj->position = startPos;
+
+    // Set vehicle-specific data
+    obj->isVehicle = true;
+    obj->vehicleType = VehicleType::Sedan;  // Default, will be custom
+    obj->vehicleDirection = direction;
+    obj->movementIntention = intention;
+    obj->vehicleSpeed = speed;
+    obj->hasCrossedIntersection = false;
+    obj->distanceTraveled = 0;
+
+    // Set rotation based on direction
+    switch (direction)
+    {
+    case VehicleDirection::North:
+        obj->rotation = XMFLOAT3(0, 0, 0);  // Facing +Z
+        break;
+    case VehicleDirection::South:
+        obj->rotation = XMFLOAT3(0, static_cast<float>(M_PI), 0);  // Facing -Z
+        break;
+    case VehicleDirection::East:
+        obj->rotation = XMFLOAT3(0, static_cast<float>(M_PI) / 2.0f, 0);  // Facing +X
+        break;
+    case VehicleDirection::West:
+        obj->rotation = XMFLOAT3(0, -static_cast<float>(M_PI) / 2.0f, 0);  // Facing -X
+        break;
+    }
+
+    // Use a distinct color for custom OBJ models
+    obj->color = XMFLOAT4(0.7f, 0.3f, 0.9f, 1.0f);  // Purple for custom models
+
+    // Create mesh in renderer
+    if (m_renderer)
+    {
+        auto mesh = m_renderer->CreateMesh(meshData.vertices, meshData.indices);
+        obj->data.customMesh.mesh = mesh;
+
+        // Create FCL collision geometry using bounding box
+        if (m_driver && m_driver->IsConnected())
+        {
+            XMFLOAT3 extents(
+                (meshData.maxBounds.x - meshData.minBounds.x) / 2.0f,
+                (meshData.maxBounds.y - meshData.minBounds.y) / 2.0f,
+                (meshData.maxBounds.z - meshData.minBounds.z) / 2.0f
+            );
+            obj->fclHandle = m_driver->CreateBox(startPos, extents);
+        }
+    }
+
+    m_objects.push_back(std::move(obj));
 }

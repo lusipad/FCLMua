@@ -105,7 +105,12 @@ int WINAPI WinMain(
         };
 
         window->OnSceneModeChanged = [&scene](int mode) {
-            scene->SetSceneMode(mode == 0 ? SceneMode::Default : SceneMode::SolarSystem);
+            if (mode == 0)
+                scene->SetSceneMode(SceneMode::Default);
+            else if (mode == 1)
+                scene->SetSceneMode(SceneMode::SolarSystem);
+            else if (mode == 2)
+                scene->SetSceneMode(SceneMode::CrossroadSimulation);
         };
 
         window->OnSimulationSpeedChanged = [&scene](float speed) {
@@ -119,6 +124,27 @@ int WINAPI WinMain(
             XMFLOAT3 velocity(vx, vy, vz);
             std::string name = "Asteroid " + std::to_string(scene->GetObjectCount() + 1);
             scene->AddAsteroid(name, pos, velocity, radius);
+            scene->SelectObject(scene->GetObjectCount() - 1);
+        };
+
+        window->OnCreateVehicle = [&scene](int vehicleType, int direction, int intention, float speed) {
+            // Create vehicle with specified parameters
+            std::string name = "Vehicle " + std::to_string(scene->GetObjectCount() + 1);
+            scene->AddVehicle(name,
+                static_cast<VehicleType>(vehicleType),
+                static_cast<VehicleDirection>(direction),
+                static_cast<MovementIntention>(intention),
+                speed);
+            scene->SelectObject(scene->GetObjectCount() - 1);
+        };
+
+        window->OnLoadVehicleFromOBJ = [&scene](std::string objPath, int direction, int intention, float speed, float scale) {
+            // Load vehicle from OBJ file
+            std::string name = "Custom " + std::to_string(scene->GetObjectCount() + 1);
+            scene->AddVehicleFromOBJ(name, objPath,
+                static_cast<VehicleDirection>(direction),
+                static_cast<MovementIntention>(intention),
+                speed, scale);
             scene->SelectObject(scene->GetObjectCount() - 1);
         };
 

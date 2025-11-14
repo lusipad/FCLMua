@@ -196,14 +196,20 @@ void Window::CreateUIControls()
     m_btnSceneDefault = CreateWindowW(
         L"BUTTON", L"Default",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX, y, 85, buttonHeight,
+        panelX, y, 60, buttonHeight,
         m_hwnd, (HMENU)3001, m_hInstance, nullptr);
 
     m_btnSceneSolarSystem = CreateWindowW(
-        L"BUTTON", L"Solar System",
+        L"BUTTON", L"Solar",
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 90, y, 95, buttonHeight,
+        panelX + 65, y, 60, buttonHeight,
         m_hwnd, (HMENU)3002, m_hInstance, nullptr);
+
+    m_btnSceneCrossroad = CreateWindowW(
+        L"BUTTON", L"Crossroad",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX + 130, y, 70, buttonHeight,
+        m_hwnd, (HMENU)3003, m_hInstance, nullptr);
     y += spacing + 10;
 
     // Speed controls section
@@ -299,6 +305,109 @@ void Window::CreateUIControls()
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         panelX, y, 180, buttonHeight,
         m_hwnd, (HMENU)5001, m_hInstance, nullptr);
+    y += spacing + 15;
+
+    // Vehicle section (for crossroad scene)
+    m_labelVehicle = CreateWindowW(
+        L"STATIC", L"Create Vehicle:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 200, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += spacing;
+
+    m_labelVehicleType = CreateWindowW(
+        L"STATIC", L"Type:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 60, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+
+    m_comboVehicleType = CreateWindowW(
+        L"COMBOBOX", L"",
+        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+        panelX + 65, y, 115, 120,
+        m_hwnd, (HMENU)1009, m_hInstance, nullptr);
+    SendMessageW(m_comboVehicleType, CB_ADDSTRING, 0, (LPARAM)L"Sedan");
+    SendMessageW(m_comboVehicleType, CB_ADDSTRING, 0, (LPARAM)L"SUV");
+    SendMessageW(m_comboVehicleType, CB_ADDSTRING, 0, (LPARAM)L"Truck");
+    SendMessageW(m_comboVehicleType, CB_ADDSTRING, 0, (LPARAM)L"Bus");
+    SendMessageW(m_comboVehicleType, CB_ADDSTRING, 0, (LPARAM)L"SportsCar");
+    SendMessageW(m_comboVehicleType, CB_SETCURSEL, 0, 0);
+    y += spacing;
+
+    m_labelVehicleDirection = CreateWindowW(
+        L"STATIC", L"Direction:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 60, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+
+    m_comboVehicleDirection = CreateWindowW(
+        L"COMBOBOX", L"",
+        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+        panelX + 65, y, 115, 100,
+        m_hwnd, (HMENU)1010, m_hInstance, nullptr);
+    SendMessageW(m_comboVehicleDirection, CB_ADDSTRING, 0, (LPARAM)L"North");
+    SendMessageW(m_comboVehicleDirection, CB_ADDSTRING, 0, (LPARAM)L"South");
+    SendMessageW(m_comboVehicleDirection, CB_ADDSTRING, 0, (LPARAM)L"East");
+    SendMessageW(m_comboVehicleDirection, CB_ADDSTRING, 0, (LPARAM)L"West");
+    SendMessageW(m_comboVehicleDirection, CB_SETCURSEL, 0, 0);
+    y += spacing;
+
+    m_labelVehicleIntention = CreateWindowW(
+        L"STATIC", L"Action:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 60, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+
+    m_comboVehicleIntention = CreateWindowW(
+        L"COMBOBOX", L"",
+        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+        panelX + 65, y, 115, 90,
+        m_hwnd, (HMENU)1011, m_hInstance, nullptr);
+    SendMessageW(m_comboVehicleIntention, CB_ADDSTRING, 0, (LPARAM)L"Straight");
+    SendMessageW(m_comboVehicleIntention, CB_ADDSTRING, 0, (LPARAM)L"Turn Left");
+    SendMessageW(m_comboVehicleIntention, CB_ADDSTRING, 0, (LPARAM)L"Turn Right");
+    SendMessageW(m_comboVehicleIntention, CB_SETCURSEL, 0, 0);
+    y += spacing;
+
+    m_labelVehicleSpeed = CreateWindowW(
+        L"STATIC", L"Speed:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 60, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+
+    m_editVehicleSpeed = CreateWindowW(
+        L"EDIT", L"3.0",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        panelX + 65, y, 60, editHeight,
+        m_hwnd, (HMENU)1012, m_hInstance, nullptr);
+    y += editHeight + 5;
+
+    m_btnCreateVehicle = CreateWindowW(
+        L"BUTTON", L"Add Vehicle",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX, y, 180, buttonHeight,
+        m_hwnd, (HMENU)6001, m_hInstance, nullptr);
+    y += spacing + 10;
+
+    // OBJ loading section
+    m_labelOBJScale = CreateWindowW(
+        L"STATIC", L"OBJ Scale:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 60, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+
+    m_editOBJScale = CreateWindowW(
+        L"EDIT", L"1.0",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        panelX + 65, y, 60, editHeight,
+        m_hwnd, (HMENU)1013, m_hInstance, nullptr);
+    y += editHeight + 5;
+
+    m_btnLoadOBJ = CreateWindowW(
+        L"BUTTON", L"Load OBJ Model...",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX, y, 180, buttonHeight,
+        m_hwnd, (HMENU)6002, m_hInstance, nullptr);
 
     // Set font for all controls
     HFONT hFont = CreateFontW(
@@ -320,6 +429,7 @@ void Window::CreateUIControls()
     SendMessage(m_labelSceneMode, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_btnSceneDefault, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_btnSceneSolarSystem, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnSceneCrossroad, WM_SETFONT, (WPARAM)hFont, TRUE);
 
     SendMessage(m_labelSpeed, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_btnSpeedPause, WM_SETFONT, (WPARAM)hFont, TRUE);
@@ -336,6 +446,20 @@ void Window::CreateUIControls()
     SendMessage(m_labelAsteroidRadius, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_editAsteroidRadius, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_btnCreateAsteroid, WM_SETFONT, (WPARAM)hFont, TRUE);
+
+    SendMessage(m_labelVehicle, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_labelVehicleType, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_comboVehicleType, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_labelVehicleDirection, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_comboVehicleDirection, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_labelVehicleIntention, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_comboVehicleIntention, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_labelVehicleSpeed, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editVehicleSpeed, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnCreateVehicle, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_labelOBJScale, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editOBJScale, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnLoadOBJ, WM_SETFONT, (WPARAM)hFont, TRUE);
 }
 
 void Window::Show(int nCmdShow)
@@ -421,6 +545,12 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
                 OnSceneModeChanged(1);
             break;
         }
+        case 3003: // Scene mode: Crossroad
+        {
+            if (OnSceneModeChanged)
+                OnSceneModeChanged(2);
+            break;
+        }
         case 4001: // Speed: Pause
         {
             if (OnSimulationSpeedChanged)
@@ -465,6 +595,63 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             if (radius <= 0.0f) radius = 0.3f;
             if (OnCreateAsteroid)
                 OnCreateAsteroid(vx, vy, vz, radius);
+            break;
+        }
+        case 6001: // Create Vehicle button
+        {
+            // Get vehicle type
+            int vehicleType = static_cast<int>(SendMessageW(m_comboVehicleType, CB_GETCURSEL, 0, 0));
+            // Get direction
+            int direction = static_cast<int>(SendMessageW(m_comboVehicleDirection, CB_GETCURSEL, 0, 0));
+            // Get movement intention
+            int intention = static_cast<int>(SendMessageW(m_comboVehicleIntention, CB_GETCURSEL, 0, 0));
+            // Get speed
+            wchar_t bufferSpeed[32];
+            GetWindowTextW(m_editVehicleSpeed, bufferSpeed, 32);
+            float speed = static_cast<float>(_wtof(bufferSpeed));
+            if (speed <= 0.0f) speed = 3.0f;
+
+            if (OnCreateVehicle)
+                OnCreateVehicle(vehicleType, direction, intention, speed);
+            break;
+        }
+        case 6002: // Load OBJ Model button
+        {
+            // Open file dialog
+            wchar_t filename[MAX_PATH] = L"";
+            OPENFILENAMEW ofn = {};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = m_hwnd;
+            ofn.lpstrFilter = L"OBJ Files (*.obj)\0*.obj\0All Files (*.*)\0*.*\0";
+            ofn.lpstrFile = filename;
+            ofn.nMaxFile = MAX_PATH;
+            ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+            ofn.lpstrDefExt = L"obj";
+
+            if (GetOpenFileNameW(&ofn))
+            {
+                // Get direction, intention, and speed from current UI state
+                int direction = static_cast<int>(SendMessageW(m_comboVehicleDirection, CB_GETCURSEL, 0, 0));
+                int intention = static_cast<int>(SendMessageW(m_comboVehicleIntention, CB_GETCURSEL, 0, 0));
+
+                wchar_t bufferSpeed[32];
+                GetWindowTextW(m_editVehicleSpeed, bufferSpeed, 32);
+                float speed = static_cast<float>(_wtof(bufferSpeed));
+                if (speed <= 0.0f) speed = 3.0f;
+
+                wchar_t bufferScale[32];
+                GetWindowTextW(m_editOBJScale, bufferScale, 32);
+                float scale = static_cast<float>(_wtof(bufferScale));
+                if (scale <= 0.0f) scale = 1.0f;
+
+                // Convert wchar_t* to std::string
+                int size_needed = WideCharToMultiByte(CP_UTF8, 0, filename, -1, NULL, 0, NULL, NULL);
+                std::string objPath(size_needed - 1, 0);
+                WideCharToMultiByte(CP_UTF8, 0, filename, -1, &objPath[0], size_needed, NULL, NULL);
+
+                if (OnLoadVehicleFromOBJ)
+                    OnLoadVehicleFromOBJ(objPath, direction, intention, speed, scale);
+            }
             break;
         }
         }

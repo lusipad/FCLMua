@@ -14,7 +14,8 @@ using namespace DirectX;
 enum class SceneMode
 {
     Default,
-    SolarSystem
+    SolarSystem,
+    CrossroadSimulation
 };
 
 // Geometry types
@@ -23,6 +24,33 @@ enum class GeometryType
     Sphere,
     Box,
     Mesh
+};
+
+// Vehicle direction (for crossroad scene)
+enum class VehicleDirection
+{
+    North,  // Moving from south to north
+    South,  // Moving from north to south
+    East,   // Moving from west to east
+    West    // Moving from east to west
+};
+
+// Vehicle movement intention (for crossroad scene)
+enum class MovementIntention
+{
+    GoStraight,
+    TurnLeft,
+    TurnRight
+};
+
+// Vehicle type (for different meshes in crossroad scene)
+enum class VehicleType
+{
+    Sedan,      // Regular car
+    SUV,        // Larger car
+    Truck,      // Truck
+    Bus,        // Bus
+    SportsCar   // Sports car
 };
 
 // Scene object
@@ -47,6 +75,16 @@ struct SceneObject
     // Physics data (for asteroids)
     bool hasVelocity;
     XMFLOAT3 velocity;        // Linear velocity
+
+    // Vehicle data (for crossroad scene)
+    bool isVehicle;                      // Whether this object is a vehicle
+    VehicleType vehicleType;             // Type of vehicle (for mesh selection)
+    VehicleDirection vehicleDirection;   // Current travel direction
+    MovementIntention movementIntention; // What the vehicle intends to do at crossroad
+    float vehicleSpeed;                  // Speed in units per second
+    bool hasCrossedIntersection;         // Whether vehicle has crossed the crossroad line
+    XMFLOAT3 targetPosition;             // Next waypoint to move towards
+    float distanceTraveled;              // Distance traveled on current path
 
     // Geometry-specific data
     union {
@@ -78,6 +116,14 @@ struct SceneObject
         , orbitCenter(0, 0, 0)
         , hasVelocity(false)
         , velocity(0, 0, 0)
+        , isVehicle(false)
+        , vehicleType(VehicleType::Sedan)
+        , vehicleDirection(VehicleDirection::North)
+        , movementIntention(MovementIntention::GoStraight)
+        , vehicleSpeed(0)
+        , hasCrossedIntersection(false)
+        , targetPosition(0, 0, 0)
+        , distanceTraveled(0)
         , fclHandle{ 0 }
     {
         memset(&data, 0, sizeof(data));
@@ -102,6 +148,7 @@ public:
     SceneMode GetSceneMode() const { return m_sceneMode; }
     void InitializeDefaultScene();
     void InitializeSolarSystem();
+    void InitializeCrossroadScene();
 
     // Object management
     void AddSphere(const std::string& name, const XMFLOAT3& position, float radius);
@@ -116,6 +163,16 @@ public:
     void AddAsteroid(const std::string& name, const XMFLOAT3& position,
                      const XMFLOAT3& velocity, float radius);
     void SetAsteroidVelocity(size_t index, const XMFLOAT3& velocity);
+
+    // Vehicle management (for crossroad scene)
+    void AddVehicle(const std::string& name, VehicleType type,
+                   VehicleDirection direction, MovementIntention intention,
+                   float speed);
+
+    // Load vehicle from OBJ file
+    void AddVehicleFromOBJ(const std::string& name, const std::string& objFilePath,
+                          VehicleDirection direction, MovementIntention intention,
+                          float speed, float scale = 1.0f);
 
     // Selection and transformation
     void SelectObject(size_t index);
@@ -147,6 +204,7 @@ private:
     // Update orbital positions
     void UpdateOrbitalMotion(float deltaTime);
     void UpdatePhysics(float deltaTime);
+    void UpdateVehicleMovement(float deltaTime);
 
     Renderer* m_renderer;
     FclDriver* m_driver;
