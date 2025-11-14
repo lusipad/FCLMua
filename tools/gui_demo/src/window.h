@@ -37,6 +37,9 @@ public:
     // Status bar
     void SetStatusText(const std::wstring& text);
 
+    // Help dialog
+    void ShowHelpDialog();
+
 private:
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);

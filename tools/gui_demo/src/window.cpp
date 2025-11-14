@@ -688,6 +688,12 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
 
     case WM_KEYDOWN:
+        // Handle F1 key for help
+        if (wParam == VK_F1)
+        {
+            ShowHelpDialog();
+            return 0;
+        }
         if (wParam < 256)
             m_keys[wParam] = true;
         return 0;
@@ -758,4 +764,39 @@ void Window::SetStatusText(const std::wstring& text)
     {
         SetWindowTextW(m_statusBar, text.c_str());
     }
+}
+
+void Window::ShowHelpDialog()
+{
+    const wchar_t* helpText =
+        L"FCL Collision Detection Demo - Help\n\n"
+        L"CAMERA CONTROLS:\n"
+        L"  Right Mouse Button + Drag  - Rotate camera around target\n"
+        L"  Middle Mouse Button + Drag - Pan camera (move target)\n"
+        L"  Mouse Wheel                - Zoom in/out\n\n"
+        L"OBJECT MANIPULATION:\n"
+        L"  Left Mouse Button + Drag   - Move selected object on XZ plane\n"
+        L"  W / S Keys                 - Move selected object up/down\n"
+        L"  Q / E Keys                 - Rotate selected object (Y-axis)\n"
+        L"  1-9 Keys                   - Select object by index\n"
+        L"  ESC Key                    - Deselect all objects\n"
+        L"  Delete Key                 - Delete selected object\n\n"
+        L"OBJECT CREATION:\n"
+        L"  Ctrl + C                   - Create sphere at camera target\n"
+        L"  Ctrl + B                   - Create box at camera target\n"
+        L"  UI Buttons                 - Create various objects\n\n"
+        L"SCENE MODES:\n"
+        L"  Default        - Interactive demo with spheres and boxes\n"
+        L"  Solar System   - Planetary orbits simulation\n"
+        L"  Crossroad      - Traffic intersection simulation\n\n"
+        L"SIMULATION:\n"
+        L"  Speed Controls - Adjust simulation speed (0x to 5x)\n"
+        L"  Pause Button   - Pause/resume simulation\n\n"
+        L"VISUAL FEEDBACK:\n"
+        L"  Yellow Object  - Currently selected\n"
+        L"  Red Object     - Collision detected\n"
+        L"  Colored Axes   - Selection gizmo (X=red, Y=green, Z=blue)\n\n"
+        L"Press F1 at any time to show this help.";
+
+    MessageBoxW(m_hwnd, helpText, L"Help - Controls and Features", MB_OK | MB_ICONINFORMATION);
 }
