@@ -1,5 +1,7 @@
 *.o
 *.a
-ccd/config.h
+# ccd/config.h is ignored by CMake builds, but we need it for MSBuild
+# So this line is commented out to allow tracking the manually-created config.h
+# ccd/config.h
 ccd/config.h.in
 
