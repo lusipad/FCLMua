@@ -22,11 +22,15 @@ Scene::Scene(Renderer* renderer, FclDriver* driver)
     : m_renderer(renderer)
     , m_driver(driver)
     , m_selectedObjectIndex(static_cast<size_t>(-1))
+    , m_sceneMode(SceneMode::Default)
+    , m_simulationSpeed(1.0f)
     , m_isDragging(false)
     , m_isPanning(false)
     , m_isRotatingCamera(false)
     , m_lastMouseX(0)
     , m_lastMouseY(0)
+    , m_isCreatingAsteroid(false)
+    , m_asteroidVelocity(0, 0, 0)
 {
 }
 
@@ -40,6 +44,14 @@ void Scene::Initialize()
     // Initialize camera
     m_camera.SetTarget(XMFLOAT3(0, 0, 0));
     m_camera.SetDistance(15.0f);
+
+    // Initialize default scene
+    InitializeDefaultScene();
+}
+
+void Scene::InitializeDefaultScene()
+{
+    ClearAllObjects();
 
     // Add some default objects for demo
     AddSphere("Sphere 1", XMFLOAT3(-3, 2, 0), 1.0f);
@@ -55,11 +67,159 @@ void Scene::Initialize()
         m_objects[2]->color = XMFLOAT4(0.3f, 1.0f, 0.3f, 1.0f); // Green
 }
 
+void Scene::InitializeSolarSystem()
+{
+    ClearAllObjects();
+
+    // Solar system data (relative sizes and orbital radii)
+    // Sizes are scaled down for visibility
+    // Orbital radii are compressed for better viewing
+    const XMFLOAT3 sunCenter(0, 0, 0);
+
+    // Sun (static, at center)
+    auto sun = std::make_unique<SceneObject>();
+    sun->name = "Sun";
+    sun->type = GeometryType::Sphere;
+    sun->position = sunCenter;
+    sun->data.sphere.radius = 3.0f;
+    sun->color = XMFLOAT4(1.0f, 0.9f, 0.2f, 1.0f); // Yellow
+    sun->isOrbiting = false;
+    if (m_driver && m_driver->IsConnected())
+    {
+        sun->fclHandle = m_driver->CreateSphere(sun->position, sun->data.sphere.radius);
+    }
+    m_objects.push_back(std::move(sun));
+
+    // Planet data: {name, radius, orbital_radius, orbital_speed, color}
+    struct PlanetData {
+        const char* name;
+        float radius;
+        float orbitalRadius;
+        float orbitalSpeed;  // radians per second (base speed)
+        XMFLOAT4 color;
+    };
+
+    PlanetData planets[] = {
+        // Inner planets
+        {"Mercury", 0.15f, 5.0f,  0.8f, XMFLOAT4(0.7f, 0.7f, 0.7f, 1.0f)},  // Gray
+        {"Venus",   0.35f, 7.0f,  0.6f, XMFLOAT4(0.9f, 0.7f, 0.4f, 1.0f)},  // Orange-ish
+        {"Earth",   0.35f, 9.0f,  0.5f, XMFLOAT4(0.2f, 0.4f, 0.8f, 1.0f)},  // Blue
+        {"Mars",    0.20f, 11.0f, 0.4f, XMFLOAT4(0.8f, 0.3f, 0.2f, 1.0f)},  // Red
+        // Outer planets (gas giants)
+        {"Jupiter", 1.0f,  15.0f, 0.25f, XMFLOAT4(0.8f, 0.6f, 0.4f, 1.0f)}, // Tan
+        {"Saturn",  0.9f,  19.0f, 0.20f, XMFLOAT4(0.9f, 0.8f, 0.6f, 1.0f)}, // Pale yellow
+        {"Uranus",  0.5f,  23.0f, 0.15f, XMFLOAT4(0.5f, 0.8f, 0.8f, 1.0f)}, // Cyan
+        {"Neptune", 0.5f,  27.0f, 0.12f, XMFLOAT4(0.3f, 0.4f, 0.9f, 1.0f)}, // Deep blue
+        // Dwarf planet
+        {"Pluto",   0.10f, 31.0f, 0.08f, XMFLOAT4(0.8f, 0.7f, 0.6f, 1.0f)}  // Light brown
+    };
+
+    // Create all planets
+    for (int i = 0; i < 9; ++i)
+    {
+        auto planet = std::make_unique<SceneObject>();
+        planet->name = planets[i].name;
+        planet->type = GeometryType::Sphere;
+        planet->data.sphere.radius = planets[i].radius;
+        planet->color = planets[i].color;
+
+        // Set up orbital motion
+        planet->isOrbiting = true;
+        planet->orbitalRadius = planets[i].orbitalRadius;
+        planet->orbitalSpeed = planets[i].orbitalSpeed;
+        planet->orbitCenter = sunCenter;
+        planet->currentAngle = static_cast<float>(i) * (2.0f * static_cast<float>(M_PI) / 9.0f); // Spread planets around
+
+        // Calculate initial position based on angle
+        planet->position.x = sunCenter.x + planet->orbitalRadius * cos(planet->currentAngle);
+        planet->position.y = sunCenter.y;
+        planet->position.z = sunCenter.z + planet->orbitalRadius * sin(planet->currentAngle);
+
+        // Create FCL geometry
+        if (m_driver && m_driver->IsConnected())
+        {
+            planet->fclHandle = m_driver->CreateSphere(planet->position, planet->data.sphere.radius);
+        }
+
+        m_objects.push_back(std::move(planet));
+    }
+
+    // Adjust camera for solar system view
+    m_camera.SetTarget(sunCenter);
+    m_camera.SetDistance(50.0f);
+}
+
+void Scene::SetSceneMode(SceneMode mode)
+{
+    if (m_sceneMode == mode)
+        return;
+
+    m_sceneMode = mode;
+
+    // Initialize the appropriate scene
+    if (mode == SceneMode::SolarSystem)
+    {
+        InitializeSolarSystem();
+    }
+    else
+    {
+        InitializeDefaultScene();
+    }
+}
+
 void Scene::Update(float deltaTime)
 {
-    // Update logic (animation, physics, etc.)
-    // For now, just detect collisions
+    // Apply simulation speed
+    float scaledDeltaTime = deltaTime * m_simulationSpeed;
+
+    // Update orbital motion (for solar system)
+    if (m_sceneMode == SceneMode::SolarSystem)
+    {
+        UpdateOrbitalMotion(scaledDeltaTime);
+    }
+
+    // Update physics (for asteroids and other objects with velocity)
+    UpdatePhysics(scaledDeltaTime);
+
+    // Detect collisions
     DetectCollisions();
+}
+
+void Scene::UpdateOrbitalMotion(float deltaTime)
+{
+    for (auto& obj : m_objects)
+    {
+        if (obj->isOrbiting)
+        {
+            // Update angle
+            obj->currentAngle += obj->orbitalSpeed * deltaTime;
+
+            // Wrap angle to [0, 2*PI]
+            while (obj->currentAngle > 2.0f * static_cast<float>(M_PI))
+                obj->currentAngle -= 2.0f * static_cast<float>(M_PI);
+            while (obj->currentAngle < 0)
+                obj->currentAngle += 2.0f * static_cast<float>(M_PI);
+
+            // Calculate new position
+            obj->position.x = obj->orbitCenter.x + obj->orbitalRadius * cos(obj->currentAngle);
+            obj->position.y = obj->orbitCenter.y;
+            obj->position.z = obj->orbitCenter.z + obj->orbitalRadius * sin(obj->currentAngle);
+        }
+    }
+}
+
+void Scene::UpdatePhysics(float deltaTime)
+{
+    for (auto& obj : m_objects)
+    {
+        if (obj->hasVelocity && !obj->isOrbiting)
+        {
+            // Update position based on velocity
+            obj->position.x += obj->velocity.x * deltaTime;
+            obj->position.y += obj->velocity.y * deltaTime;
+            obj->position.z += obj->velocity.z * deltaTime;
+        }
+    }
 }
 
 void Scene::Render()
@@ -72,6 +232,12 @@ void Scene::Render()
 
     // Render grid
     RenderGrid();
+
+    // Render orbits (for solar system)
+    if (m_sceneMode == SceneMode::SolarSystem)
+    {
+        RenderOrbits();
+    }
 
     // Render objects
     RenderObjects();
@@ -338,6 +504,39 @@ void Scene::RenderGizmo()
     m_renderer->DrawLine(pos, XMFLOAT3(pos.x, pos.y, pos.z + gizmoSize), XMFLOAT4(0, 0, 1, 1));
 }
 
+void Scene::RenderOrbits()
+{
+    const XMFLOAT4 orbitColor(0.3f, 0.3f, 0.3f, 1.0f);
+    const int segmentCount = 64;
+
+    for (const auto& obj : m_objects)
+    {
+        if (obj->isOrbiting && obj->orbitalRadius > 0)
+        {
+            // Draw orbit as a circle
+            for (int i = 0; i < segmentCount; ++i)
+            {
+                float angle1 = static_cast<float>(i) * 2.0f * static_cast<float>(M_PI) / segmentCount;
+                float angle2 = static_cast<float>(i + 1) * 2.0f * static_cast<float>(M_PI) / segmentCount;
+
+                XMFLOAT3 p1(
+                    obj->orbitCenter.x + obj->orbitalRadius * cos(angle1),
+                    obj->orbitCenter.y,
+                    obj->orbitCenter.z + obj->orbitalRadius * sin(angle1)
+                );
+
+                XMFLOAT3 p2(
+                    obj->orbitCenter.x + obj->orbitalRadius * cos(angle2),
+                    obj->orbitCenter.y,
+                    obj->orbitCenter.z + obj->orbitalRadius * sin(angle2)
+                );
+
+                m_renderer->DrawLine(p1, p2, orbitColor);
+            }
+        }
+    }
+}
+
 void Scene::AddSphere(const std::string& name, const XMFLOAT3& position, float radius)
 {
     auto obj = std::make_unique<SceneObject>();
@@ -519,4 +718,37 @@ void Scene::DetectCollisions()
             }
         }
     }
+}
+
+void Scene::AddAsteroid(const std::string& name, const XMFLOAT3& position,
+                        const XMFLOAT3& velocity, float radius)
+{
+    auto obj = std::make_unique<SceneObject>();
+    obj->name = name;
+    obj->type = GeometryType::Sphere;
+    obj->position = position;
+    obj->data.sphere.radius = radius;
+    obj->color = XMFLOAT4(0.6f, 0.5f, 0.4f, 1.0f); // Brown-ish asteroid color
+
+    // Set velocity
+    obj->hasVelocity = true;
+    obj->velocity = velocity;
+
+    // Create FCL geometry if driver is connected
+    if (m_driver && m_driver->IsConnected())
+    {
+        obj->fclHandle = m_driver->CreateSphere(position, radius);
+    }
+
+    m_objects.push_back(std::move(obj));
+}
+
+void Scene::SetAsteroidVelocity(size_t index, const XMFLOAT3& velocity)
+{
+    if (index >= m_objects.size())
+        return;
+
+    auto& obj = m_objects[index];
+    obj->hasVelocity = true;
+    obj->velocity = velocity;
 }

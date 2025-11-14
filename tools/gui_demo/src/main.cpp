@@ -104,6 +104,24 @@ int WINAPI WinMain(
             }
         };
 
+        window->OnSceneModeChanged = [&scene](int mode) {
+            scene->SetSceneMode(mode == 0 ? SceneMode::Default : SceneMode::SolarSystem);
+        };
+
+        window->OnSimulationSpeedChanged = [&scene](float speed) {
+            scene->SetSimulationSpeed(speed);
+        };
+
+        window->OnCreateAsteroid = [&scene](float vx, float vy, float vz, float radius) {
+            // Create asteroid at camera target with specified velocity
+            XMFLOAT3 pos = scene->GetCamera().GetTarget();
+            pos.y += 2.0f; // Slightly above the target
+            XMFLOAT3 velocity(vx, vy, vz);
+            std::string name = "Asteroid " + std::to_string(scene->GetObjectCount() + 1);
+            scene->AddAsteroid(name, pos, velocity, radius);
+            scene->SelectObject(scene->GetObjectCount() - 1);
+        };
+
         // Show window
         window->Show(nCmdShow);
 
