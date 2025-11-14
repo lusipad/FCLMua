@@ -1,0 +1,5 @@
+add_test([=[FCL_GJKSignedDistance.sphere_sphere]=]  /home/user/FCLMua/build/test/narrowphase/detail/convexity_based_algorithm/test_gjk_libccd-inl_signed_distance [==[--gtest_filter=FCL_GJKSignedDistance.sphere_sphere]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[FCL_GJKSignedDistance.sphere_sphere]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test/narrowphase/detail/convexity_based_algorithm SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[FCL_GJKSignedDistance.box_box]=]  /home/user/FCLMua/build/test/narrowphase/detail/convexity_based_algorithm/test_gjk_libccd-inl_signed_distance [==[--gtest_filter=FCL_GJKSignedDistance.box_box]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[FCL_GJKSignedDistance.box_box]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test/narrowphase/detail/convexity_based_algorithm SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+set(  test_gjk_libccd-inl_signed_distance_TESTS FCL_GJKSignedDistance.sphere_sphere FCL_GJKSignedDistance.box_box)

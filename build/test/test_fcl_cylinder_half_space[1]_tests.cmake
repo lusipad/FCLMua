@@ -1,0 +1,5 @@
+add_test([=[FCL_GEOMETRIC_SHAPES.collision_cylinder_half_space_libccd]=]  /home/user/FCLMua/build/test/test_fcl_cylinder_half_space [==[--gtest_filter=FCL_GEOMETRIC_SHAPES.collision_cylinder_half_space_libccd]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[FCL_GEOMETRIC_SHAPES.collision_cylinder_half_space_libccd]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[FCL_GEOMETRIC_SHAPES.collision_cylinder_half_space_indep]=]  /home/user/FCLMua/build/test/test_fcl_cylinder_half_space [==[--gtest_filter=FCL_GEOMETRIC_SHAPES.collision_cylinder_half_space_indep]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[FCL_GEOMETRIC_SHAPES.collision_cylinder_half_space_indep]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+set(  test_fcl_cylinder_half_space_TESTS FCL_GEOMETRIC_SHAPES.collision_cylinder_half_space_libccd FCL_GEOMETRIC_SHAPES.collision_cylinder_half_space_indep)

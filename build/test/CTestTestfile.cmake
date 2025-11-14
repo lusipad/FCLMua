@@ -1,0 +1,36 @@
+# CMake generated Testfile for 
+# Source directory: /home/user/FCLMua/fcl-source/test
+# Build directory: /home/user/FCLMua/build/test
+# 
+# This file includes the relevant testing commands required for 
+# testing this directory and lists subdirectories to be tested as well.
+include("/home/user/FCLMua/build/test/test_fcl_auto_diff[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_box_box[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_broadphase_collision_1[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_broadphase_collision_2[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_broadphase_distance[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_bvh_models[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_capsule_box_1[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_capsule_box_2[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_capsule_capsule[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_cylinder_half_space[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_collision[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_constant_eps[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_distance[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_frontlist[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_general[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_generate_bvh_model_deferred_finalize[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_geometric_shapes[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_math[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_profiler[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_shape_mesh_consistency[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_signed_distance[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_simple[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_sphere_box[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_sphere_capsule[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_sphere_cylinder[1]_include.cmake")
+include("/home/user/FCLMua/build/test/test_fcl_sphere_sphere[1]_include.cmake")
+subdirs("../_deps/googletest-build")
+subdirs("geometry")
+subdirs("narrowphase")
+subdirs("broadphase")

@@ -40,12 +40,9 @@
 #include <exception>
 #include <stdexcept>
 #include <string>
-
-#if FCL_ENABLE_STD_LOGGING
 #include <iomanip>
 #include <ostream>
 #include <sstream>
-#endif
 
 #include "fcl/common/types.h"
 #include "fcl/export.h"

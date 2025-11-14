@@ -1,0 +1,5 @@
+if(EXISTS "/home/user/FCLMua/build/test/geometry/shape/test_plane[1]_tests.cmake")
+  include("/home/user/FCLMua/build/test/geometry/shape/test_plane[1]_tests.cmake")
+else()
+  add_test(test_plane_NOT_BUILT test_plane_NOT_BUILT)
+endif()

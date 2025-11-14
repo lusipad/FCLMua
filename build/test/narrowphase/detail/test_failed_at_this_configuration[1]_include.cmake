@@ -1,0 +1,5 @@
+if(EXISTS "/home/user/FCLMua/build/test/narrowphase/detail/test_failed_at_this_configuration[1]_tests.cmake")
+  include("/home/user/FCLMua/build/test/narrowphase/detail/test_failed_at_this_configuration[1]_tests.cmake")
+else()
+  add_test(test_failed_at_this_configuration_NOT_BUILT test_failed_at_this_configuration_NOT_BUILT)
+endif()

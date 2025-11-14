@@ -1,0 +1,5 @@
+add_test([=[FCL_GEOMETRIC_SHAPES.distance_capsule_box_ccd]=]  /home/user/FCLMua/build/test/test_fcl_capsule_box_2 [==[--gtest_filter=FCL_GEOMETRIC_SHAPES.distance_capsule_box_ccd]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[FCL_GEOMETRIC_SHAPES.distance_capsule_box_ccd]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+add_test([=[FCL_GEOMETRIC_SHAPES.distance_capsule_box_indep]=]  /home/user/FCLMua/build/test/test_fcl_capsule_box_2 [==[--gtest_filter=FCL_GEOMETRIC_SHAPES.distance_capsule_box_indep]==] --gtest_also_run_disabled_tests)
+set_tests_properties([=[FCL_GEOMETRIC_SHAPES.distance_capsule_box_indep]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
+set(  test_fcl_capsule_box_2_TESTS FCL_GEOMETRIC_SHAPES.distance_capsule_box_ccd FCL_GEOMETRIC_SHAPES.distance_capsule_box_indep)

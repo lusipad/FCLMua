@@ -1,0 +1,5 @@
+if(EXISTS "/home/user/FCLMua/build/test/test_fcl_sphere_sphere[1]_tests.cmake")
+  include("/home/user/FCLMua/build/test/test_fcl_sphere_sphere[1]_tests.cmake")
+else()
+  add_test(test_fcl_sphere_sphere_NOT_BUILT test_fcl_sphere_sphere_NOT_BUILT)
+endif()
