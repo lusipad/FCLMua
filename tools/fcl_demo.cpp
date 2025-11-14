@@ -20,17 +20,19 @@
 #include <unordered_map>
 #include <vector>
 
-#define IOCTL_FCL_PING                 CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_SELF_TEST            CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_SELF_TEST_SCENARIO   CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_QUERY_DIAGNOSTICS    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x803, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_QUERY_COLLISION      CTL_CODE(FILE_DEVICE_UNKNOWN, 0x810, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_QUERY_DISTANCE       CTL_CODE(FILE_DEVICE_UNKNOWN, 0x811, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_CREATE_SPHERE        CTL_CODE(FILE_DEVICE_UNKNOWN, 0x812, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_DESTROY_GEOMETRY     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x813, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_CREATE_MESH          CTL_CODE(FILE_DEVICE_UNKNOWN, 0x814, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_CONVEX_CCD           CTL_CODE(FILE_DEVICE_UNKNOWN, 0x815, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_DEMO_SPHERE_COLLISION CTL_CODE(FILE_DEVICE_UNKNOWN, 0x900, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_PING                  CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_SELF_TEST             CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_SELF_TEST_SCENARIO    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_QUERY_DIAGNOSTICS     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x803, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_QUERY_COLLISION       CTL_CODE(FILE_DEVICE_UNKNOWN, 0x810, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_QUERY_DISTANCE        CTL_CODE(FILE_DEVICE_UNKNOWN, 0x811, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_CREATE_SPHERE         CTL_CODE(FILE_DEVICE_UNKNOWN, 0x812, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_DESTROY_GEOMETRY      CTL_CODE(FILE_DEVICE_UNKNOWN, 0x813, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_CREATE_MESH           CTL_CODE(FILE_DEVICE_UNKNOWN, 0x814, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_CONVEX_CCD            CTL_CODE(FILE_DEVICE_UNKNOWN, 0x815, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_START_PERIODIC_COLLISION CTL_CODE(FILE_DEVICE_UNKNOWN, 0x820, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_STOP_PERIODIC_COLLISION  CTL_CODE(FILE_DEVICE_UNKNOWN, 0x821, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_DEMO_SPHERE_COLLISION  CTL_CODE(FILE_DEVICE_UNKNOWN, 0x900, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 
 struct FCL_VECTOR3 {
     float X;
@@ -187,6 +189,15 @@ struct FCL_CREATE_MESH_BUFFER {
     FCL_GEOMETRY_HANDLE Handle;
 };
 
+struct FCL_PERIODIC_COLLISION_CONFIG {
+    FCL_GEOMETRY_HANDLE Object1;
+    FCL_TRANSFORM       Transform1;
+    FCL_GEOMETRY_HANDLE Object2;
+    FCL_TRANSFORM       Transform2;
+    uint32_t            PeriodMicroseconds;
+    uint32_t            Reserved[3];
+};
+
 struct SceneObject {
     std::string Name;
     FCL_GEOMETRY_HANDLE Handle{};
@@ -272,6 +283,11 @@ struct FCL_SELF_TEST_RESULT {
 static_assert(sizeof(FCL_SELF_TEST_RESULT) == 296, "Unexpected FCL_SELF_TEST_RESULT size");
 
 using SceneMap = std::unordered_map<std::string, SceneObject>;
+
+static bool g_DpcBaselineValid = false;
+static FCL_DIAGNOSTICS_RESPONSE g_DpcBaselineDiag = {};
+static bool g_PassBaselineValid = false;
+static FCL_DIAGNOSTICS_RESPONSE g_PassBaselineDiag = {};
 
 FCL_TRANSFORM IdentityTransform() {
     FCL_TRANSFORM t = {};
@@ -662,6 +678,267 @@ void ListObjects(const SceneMap& objects) {
     }
 }
 
+bool SelfTestPass(HANDLE device) {
+    FCL_DIAGNOSTICS_RESPONSE baseline = {};
+    if (!SendIoctl(device, IOCTL_FCL_QUERY_DIAGNOSTICS, &baseline, sizeof(baseline))) {
+        printf("  [FAIL] IOCTL_FCL_QUERY_DIAGNOSTICS failed (baseline for selftest_pass).\n");
+        return true;
+    }
+    g_PassBaselineDiag = baseline;
+    g_PassBaselineValid = true;
+
+    FCL_GEOMETRY_HANDLE handleA = {};
+    FCL_GEOMETRY_HANDLE handleB = {};
+
+    // 几何本地中心固定在原点，位置差异通过变换表示，保持与内核 self_test 一致
+    FCL_VECTOR3 localCenter = {0.0f, 0.0f, 0.0f};
+    if (!CreateSphere(device, 0.5f, localCenter, handleA)) {
+        printf("  [FAIL] selftest_pass: failed to create sphere A.\n");
+        return true;
+    }
+    if (!CreateSphere(device, 0.5f, localCenter, handleB)) {
+        printf("  [FAIL] selftest_pass: failed to create sphere B.\n");
+        DestroyGeometry(device, handleA);
+        return true;
+    }
+
+    SceneObject a{};
+    a.Name = "PassA";
+    a.Handle = handleA;
+    a.Transform = IdentityTransform();
+    a.Transform.Translation = {0.0f, 0.0f, 0.0f};
+
+    SceneObject b{};
+    b.Name = "PassB";
+    b.Handle = handleB;
+    b.Transform = IdentityTransform();
+    b.Transform.Translation = {0.6f, 0.0f, 0.0f};
+
+    const int iterations = 640;
+    printf("Running PASSIVE collision self-test: two spheres, iterations=%d...\n", iterations);
+
+    FCL_COLLISION_RESULT result = {};
+    for (int i = 0; i < iterations; ++i) {
+        result = {};
+        if (!QueryCollision(device, a, b, result)) {
+            printf("  [FAIL] selftest_pass: QueryCollision failed at iteration %d.\n", i);
+            break;
+        }
+        if (!result.IsColliding) {
+            printf("  [FAIL] selftest_pass: expected collision at iteration %d.\n", i);
+            break;
+        }
+    }
+
+    DestroyGeometry(device, handleB);
+    DestroyGeometry(device, handleA);
+
+    printf("PASSIVE collision self-test completed. Use 'diag_pass' to view delta diagnostics.\n");
+    return true;
+}
+
+bool PrintDiagPass(HANDLE device) {
+    if (!g_PassBaselineValid) {
+        printf("diag_pass: baseline not set. Run 'selftest_pass' first.\n");
+        return true;
+    }
+
+    FCL_DIAGNOSTICS_RESPONSE now = {};
+    if (!SendIoctl(device, IOCTL_FCL_QUERY_DIAGNOSTICS, &now, sizeof(now))) {
+        printf("  [FAIL] IOCTL_FCL_QUERY_DIAGNOSTICS failed in diag_pass.\n");
+        return true;
+    }
+
+    const auto& base = g_PassBaselineDiag;
+
+    const uint64_t deltaCalls =
+        (now.Collision.CallCount >= base.Collision.CallCount)
+            ? (now.Collision.CallCount - base.Collision.CallCount)
+            : 0;
+    const uint64_t deltaTotal =
+        (now.Collision.TotalDurationMicroseconds >= base.Collision.TotalDurationMicroseconds)
+            ? (now.Collision.TotalDurationMicroseconds - base.Collision.TotalDurationMicroseconds)
+            : 0;
+
+    printf("PASSIVE collision diagnostics (delta since selftest_pass):\n");
+    if (deltaCalls == 0) {
+        printf("  Collision: no additional samples recorded.\n");
+        return true;
+    }
+
+    const double avgUs = static_cast<double>(deltaTotal) / static_cast<double>(deltaCalls);
+    printf("  Collision: calls=%llu total=%.3f ms avg=%.3f ms (global min=%.3f ms max=%.3f ms)\n",
+           static_cast<unsigned long long>(deltaCalls),
+           static_cast<double>(deltaTotal) / 1000.0,
+           avgUs / 1000.0,
+           static_cast<double>(now.Collision.MinDurationMicroseconds) / 1000.0,
+           static_cast<double>(now.Collision.MaxDurationMicroseconds) / 1000.0);
+    return true;
+}
+bool SelfTestDpc(HANDLE device) {
+    FCL_DIAGNOSTICS_RESPONSE baseline = {};
+    if (!SendIoctl(device, IOCTL_FCL_QUERY_DIAGNOSTICS, &baseline, sizeof(baseline))) {
+        printf("  [FAIL] IOCTL_FCL_QUERY_DIAGNOSTICS failed (baseline for selftest_dpc).\n");
+        return true;
+    }
+    g_DpcBaselineDiag = baseline;
+    g_DpcBaselineValid = true;
+
+    FCL_GEOMETRY_HANDLE handleA = {};
+    FCL_GEOMETRY_HANDLE handleB = {};
+
+    // 与 PASSIVE 自测保持一致：几何本地中心固定在原点，位移由变换提供
+    FCL_VECTOR3 localCenter = {0.0f, 0.0f, 0.0f};
+    if (!CreateSphere(device, 0.5f, localCenter, handleA)) {
+        printf("  [FAIL] selftest_dpc: failed to create sphere A.\n");
+        return true;
+    }
+    if (!CreateSphere(device, 0.5f, localCenter, handleB)) {
+        printf("  [FAIL] selftest_dpc: failed to create sphere B.\n");
+        DestroyGeometry(device, handleA);
+        return true;
+    }
+
+    FCL_TRANSFORM tA = IdentityTransform();
+    FCL_TRANSFORM tB = IdentityTransform();
+    tA.Translation = {0.0f, 0.0f, 0.0f};
+    tB.Translation = {0.6f, 0.0f, 0.0f};
+
+    // 使用更密集的周期：1ms，一共约 64 次调用
+    const uint32_t periodUs = 1000;    // 1ms
+    const uint32_t innerIterations = 16;
+    const uint32_t durationMs = 640;   // ~640 次调用
+
+    FCL_PERIODIC_COLLISION_CONFIG config = {};
+    config.Object1 = handleA;
+    config.Transform1 = tA;
+    config.Object2 = handleB;
+    config.Transform2 = tB;
+    config.PeriodMicroseconds = periodUs;
+    config.Reserved[0] = innerIterations;
+
+    if (!SendIoctl(
+            device,
+            IOCTL_FCL_START_PERIODIC_COLLISION,
+            &config,
+            static_cast<DWORD>(sizeof(config)),
+            &config,
+            static_cast<DWORD>(sizeof(config)))) {
+        printf("  [FAIL] IOCTL_FCL_START_PERIODIC_COLLISION failed in selftest_dpc.\n");
+        DestroyGeometry(device, handleB);
+        DestroyGeometry(device, handleA);
+        return true;
+    }
+
+    printf("Running DPC periodic self-test: two spheres, period=%u us, duration=%u ms...\n",
+           static_cast<unsigned>(periodUs),
+           static_cast<unsigned>(durationMs));
+
+    std::this_thread::sleep_for(std::chrono::milliseconds(durationMs));
+
+    (void)SendIoctl(
+        device,
+        IOCTL_FCL_STOP_PERIODIC_COLLISION,
+        nullptr,
+        0,
+        nullptr,
+        0);
+
+    DestroyGeometry(device, handleB);
+    DestroyGeometry(device, handleA);
+
+    printf("DPC periodic self-test completed. Use 'diag_dpc' to view delta diagnostics.\n");
+    return true;
+}
+
+bool PrintDiagDpc(HANDLE device) {
+    if (!g_DpcBaselineValid) {
+        printf("diag_dpc: baseline not set. Run 'selftest_dpc' first.\n");
+        return true;
+    }
+
+    FCL_DIAGNOSTICS_RESPONSE now = {};
+    if (!SendIoctl(device, IOCTL_FCL_QUERY_DIAGNOSTICS, &now, sizeof(now))) {
+        printf("  [FAIL] IOCTL_FCL_QUERY_DIAGNOSTICS failed in diag_dpc.\n");
+        return true;
+    }
+
+    const auto& base = g_DpcBaselineDiag;
+
+    const uint64_t deltaCalls =
+        (now.Collision.CallCount >= base.Collision.CallCount)
+            ? (now.Collision.CallCount - base.Collision.CallCount)
+            : 0;
+    const uint64_t deltaTotal =
+        (now.Collision.TotalDurationMicroseconds >= base.Collision.TotalDurationMicroseconds)
+            ? (now.Collision.TotalDurationMicroseconds - base.Collision.TotalDurationMicroseconds)
+            : 0;
+
+    printf("DPC periodic collision diagnostics (delta since selftest_dpc):\n");
+    if (deltaCalls == 0) {
+        printf("  Collision: no additional samples recorded.\n");
+        return true;
+    }
+
+    const double avgUs = static_cast<double>(deltaTotal) / static_cast<double>(deltaCalls);
+    printf("  Collision: calls=%llu total=%.3f ms avg=%.3f ms (global min=%.3f ms max=%.3f ms)\n",
+           static_cast<unsigned long long>(deltaCalls),
+           static_cast<double>(deltaTotal) / 1000.0,
+           avgUs / 1000.0,
+           static_cast<double>(now.Collision.MinDurationMicroseconds) / 1000.0,
+           static_cast<double>(now.Collision.MaxDurationMicroseconds) / 1000.0);
+    return true;
+}
+
+bool StartPeriodicCollision(HANDLE device, const SceneObject& objectA, const SceneObject& objectB, uint32_t periodMicroseconds) {
+    if (periodMicroseconds == 0) {
+        printf("Period must be > 0 microseconds.\n");
+        return false;
+    }
+
+    FCL_PERIODIC_COLLISION_CONFIG config = {};
+    config.Object1 = objectA.Handle;
+    config.Transform1 = objectA.Transform;
+    config.Object2 = objectB.Handle;
+    config.Transform2 = objectB.Transform;
+    config.PeriodMicroseconds = periodMicroseconds;
+
+    if (!SendIoctl(
+            device,
+            IOCTL_FCL_START_PERIODIC_COLLISION,
+            &config,
+            static_cast<DWORD>(sizeof(config)),
+            &config,
+            static_cast<DWORD>(sizeof(config)))) {
+        printf("  [FAIL] IOCTL_FCL_START_PERIODIC_COLLISION failed.\n");
+        return false;
+    }
+
+    printf("Started periodic collision: %s vs %s, period=%u us\n",
+           objectA.Name.c_str(),
+           objectB.Name.c_str(),
+           static_cast<unsigned>(periodMicroseconds));
+    printf("Use 'diag' to inspect aggregated timing stats while it runs.\n");
+    return true;
+}
+
+bool StopPeriodicCollision(HANDLE device) {
+    // 此 IOCTL 不检查缓冲区长度，传入空缓冲区即可。
+    if (!SendIoctl(
+            device,
+            IOCTL_FCL_STOP_PERIODIC_COLLISION,
+            nullptr,
+            0,
+            nullptr,
+            0)) {
+        printf("  [FAIL] IOCTL_FCL_STOP_PERIODIC_COLLISION failed.\n");
+        return false;
+    }
+
+    printf("Stopped periodic collision.\n");
+    return true;
+}
+
 void PrintHelp() {
     printf("Commands:\n");
     printf("  help                                 Show this message\n");
@@ -673,12 +950,18 @@ void PrintHelp() {
     printf("  distance <nameA> <nameB>             Compute closest distance\n");
     printf("  simulate <mov> <static> <dx dy dz> <steps> <interval_ms>\n");
     printf("  ccd <mov> <static> <dx dy dz>        Run convex CCD query\n");
+    printf("  periodic <mov> <static> <period_us>  Start periodic collision (DPC+PASSIVE)\n");
+    printf("  periodic_stop                        Stop periodic collision\n");
+    printf("  selftest_pass                        Run PASSIVE collision self-test (multi-call)\n");
+    printf("  selftest_dpc                         Run periodic DPC self-test (DPC+PASSIVE)\n");
     printf("  destroy <name>                       Destroy a geometry\n");
     printf("  list                                 List registered geometries\n");
     printf("  demo                                 Run legacy sphere demo\n");
     printf("  selftest                             Run driver self-test (ping + IOCTL_FCL_SELF_TEST)\n");
     printf("  selftest <scenario>                  Run single self-test scenario (runtime|sphere|broadphase|mesh|ccd)\n");
     printf("  diag                                 Query kernel detection timing diagnostics\n");
+    printf("  diag_pass                            Show diagnostics delta since selftest_pass\n");
+    printf("  diag_dpc                             Show diagnostics delta since selftest_dpc\n");
     printf("  quit                                 Exit the tool\n");
 }
 
@@ -764,6 +1047,10 @@ bool ExecuteCommand(const std::vector<std::string>& tokens, HANDLE device, Scene
         PrintTimingStats("Collision", diag.Collision);
         PrintTimingStats("Distance", diag.Distance);
         PrintTimingStats("ContinuousCollision", diag.ContinuousCollision);
+    } else if (cmd == "diag_pass") {
+        return PrintDiagPass(device);
+    } else if (cmd == "diag_dpc") {
+        return PrintDiagDpc(device);
     } else if (cmd == "selftest") {
         if (tokens.size() == 2) {
             return RunSelfTestScenario(device, tokens[1]);
@@ -814,6 +1101,10 @@ bool ExecuteCommand(const std::vector<std::string>& tokens, HANDLE device, Scene
                self.CollisionDetected,
                self.BroadphasePairCount,
                self.DistanceValue);
+    } else if (cmd == "selftest_pass") {
+        return SelfTestPass(device);
+    } else if (cmd == "selftest_dpc") {
+        return SelfTestDpc(device);
     } else if (cmd == "run") {
         if (tokens.size() != 2) {
             printf("Usage: run <script_path>\n");
@@ -985,6 +1276,25 @@ bool ExecuteCommand(const std::vector<std::string>& tokens, HANDLE device, Scene
                 std::this_thread::sleep_for(std::chrono::milliseconds(intervalMs));
             }
         }
+    } else if (cmd == "periodic") {
+        if (tokens.size() != 4) {
+            printf("Usage: periodic <mov> <static> <period_us>\n");
+            return true;
+        }
+        auto* mover = FindObject(objects, tokens[1]);
+        auto* target = FindObject(objects, tokens[2]);
+        if (!mover || !target) {
+            return true;
+        }
+        int periodUsSigned = 0;
+        if (!ParseInt(tokens[3], periodUsSigned) || periodUsSigned <= 0) {
+            printf("Period must be a positive integer microseconds value.\n");
+            return true;
+        }
+        const uint32_t periodUs = static_cast<uint32_t>(periodUsSigned);
+        (void)StartPeriodicCollision(device, *mover, *target, periodUs);
+    } else if (cmd == "periodic_stop") {
+        (void)StopPeriodicCollision(device);
     } else if (cmd == "ccd") {
         if (tokens.size() != 7) {
             printf("Usage: ccd <mov> <static> <dx> <dy> <dz>\n");
