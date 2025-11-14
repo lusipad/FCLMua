@@ -387,6 +387,27 @@ void Window::CreateUIControls()
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         panelX, y, 180, buttonHeight,
         m_hwnd, (HMENU)6001, m_hInstance, nullptr);
+    y += spacing + 10;
+
+    // OBJ loading section
+    m_labelOBJScale = CreateWindowW(
+        L"STATIC", L"OBJ Scale:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 60, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+
+    m_editOBJScale = CreateWindowW(
+        L"EDIT", L"1.0",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        panelX + 65, y, 60, editHeight,
+        m_hwnd, (HMENU)1013, m_hInstance, nullptr);
+    y += editHeight + 5;
+
+    m_btnLoadOBJ = CreateWindowW(
+        L"BUTTON", L"Load OBJ Model...",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX, y, 180, buttonHeight,
+        m_hwnd, (HMENU)6002, m_hInstance, nullptr);
 
     // Set font for all controls
     HFONT hFont = CreateFontW(
@@ -436,6 +457,9 @@ void Window::CreateUIControls()
     SendMessage(m_labelVehicleSpeed, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_editVehicleSpeed, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_btnCreateVehicle, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_labelOBJScale, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editOBJScale, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnLoadOBJ, WM_SETFONT, (WPARAM)hFont, TRUE);
 }
 
 void Window::Show(int nCmdShow)
@@ -589,6 +613,45 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             if (OnCreateVehicle)
                 OnCreateVehicle(vehicleType, direction, intention, speed);
+            break;
+        }
+        case 6002: // Load OBJ Model button
+        {
+            // Open file dialog
+            wchar_t filename[MAX_PATH] = L"";
+            OPENFILENAMEW ofn = {};
+            ofn.lStructSize = sizeof(ofn);
+            ofn.hwndOwner = m_hwnd;
+            ofn.lpstrFilter = L"OBJ Files (*.obj)\0*.obj\0All Files (*.*)\0*.*\0";
+            ofn.lpstrFile = filename;
+            ofn.nMaxFile = MAX_PATH;
+            ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
+            ofn.lpstrDefExt = L"obj";
+
+            if (GetOpenFileNameW(&ofn))
+            {
+                // Get direction, intention, and speed from current UI state
+                int direction = static_cast<int>(SendMessageW(m_comboVehicleDirection, CB_GETCURSEL, 0, 0));
+                int intention = static_cast<int>(SendMessageW(m_comboVehicleIntention, CB_GETCURSEL, 0, 0));
+
+                wchar_t bufferSpeed[32];
+                GetWindowTextW(m_editVehicleSpeed, bufferSpeed, 32);
+                float speed = static_cast<float>(_wtof(bufferSpeed));
+                if (speed <= 0.0f) speed = 3.0f;
+
+                wchar_t bufferScale[32];
+                GetWindowTextW(m_editOBJScale, bufferScale, 32);
+                float scale = static_cast<float>(_wtof(bufferScale));
+                if (scale <= 0.0f) scale = 1.0f;
+
+                // Convert wchar_t* to std::string
+                int size_needed = WideCharToMultiByte(CP_UTF8, 0, filename, -1, NULL, 0, NULL, NULL);
+                std::string objPath(size_needed - 1, 0);
+                WideCharToMultiByte(CP_UTF8, 0, filename, -1, &objPath[0], size_needed, NULL, NULL);
+
+                if (OnLoadVehicleFromOBJ)
+                    OnLoadVehicleFromOBJ(objPath, direction, intention, speed, scale);
+            }
             break;
         }
         }

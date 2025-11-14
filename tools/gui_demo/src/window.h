@@ -24,6 +24,7 @@ public:
     std::function<void(float)> OnSimulationSpeedChanged;
     std::function<void(float, float, float, float)> OnCreateAsteroid;  // vx, vy, vz, radius
     std::function<void(int, int, int, float)> OnCreateVehicle;  // vehicleType, direction, intention, speed
+    std::function<void(std::string, int, int, float, float)> OnLoadVehicleFromOBJ;  // objPath, direction, intention, speed, scale
 
     // Input state
     bool IsKeyDown(int vkCode) const { return m_keys[vkCode]; }
@@ -91,6 +92,9 @@ private:
     HWND m_labelVehicleSpeed;
     HWND m_editVehicleSpeed;
     HWND m_btnCreateVehicle;
+    HWND m_btnLoadOBJ;
+    HWND m_labelOBJScale;
+    HWND m_editOBJScale;
 
     void CreateUIControls();
 };

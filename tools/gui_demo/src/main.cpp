@@ -138,6 +138,16 @@ int WINAPI WinMain(
             scene->SelectObject(scene->GetObjectCount() - 1);
         };
 
+        window->OnLoadVehicleFromOBJ = [&scene](std::string objPath, int direction, int intention, float speed, float scale) {
+            // Load vehicle from OBJ file
+            std::string name = "Custom " + std::to_string(scene->GetObjectCount() + 1);
+            scene->AddVehicleFromOBJ(name, objPath,
+                static_cast<VehicleDirection>(direction),
+                static_cast<MovementIntention>(intention),
+                speed, scale);
+            scene->SelectObject(scene->GetObjectCount() - 1);
+        };
+
         // Show window
         window->Show(nCmdShow);
 

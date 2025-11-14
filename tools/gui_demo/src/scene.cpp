@@ -1,4 +1,5 @@
 #include "scene.h"
+#include "obj_loader.h"
 #include <algorithm>
 
 #ifndef M_PI
@@ -1303,6 +1304,95 @@ void Scene::AddVehicle(const std::string& name, VehicleType type,
                 (maxBounds.x - minBounds.x) / 2.0f,
                 (maxBounds.y - minBounds.y) / 2.0f,
                 (maxBounds.z - minBounds.z) / 2.0f
+            );
+            obj->fclHandle = m_driver->CreateBox(startPos, extents);
+        }
+    }
+
+    m_objects.push_back(std::move(obj));
+}
+
+void Scene::AddVehicleFromOBJ(const std::string& name, const std::string& objFilePath,
+                              VehicleDirection direction, MovementIntention intention,
+                              float speed, float scale)
+{
+    // Load OBJ file
+    ObjLoader::MeshData meshData;
+    if (!ObjLoader::LoadFromFile(objFilePath, meshData, scale))
+    {
+        // Failed to load OBJ file
+        return;
+    }
+
+    // Determine starting position based on direction
+    XMFLOAT3 startPos;
+    const float laneOffset = 1.0f;  // Offset from center of road
+    const float startDistance = 18.0f; // Distance from center
+
+    switch (direction)
+    {
+    case VehicleDirection::North:
+        startPos = XMFLOAT3(-laneOffset, 0.5f, -startDistance);
+        break;
+    case VehicleDirection::South:
+        startPos = XMFLOAT3(laneOffset, 0.5f, startDistance);
+        break;
+    case VehicleDirection::East:
+        startPos = XMFLOAT3(-startDistance, 0.5f, laneOffset);
+        break;
+    case VehicleDirection::West:
+        startPos = XMFLOAT3(startDistance, 0.5f, -laneOffset);
+        break;
+    }
+
+    // Create the vehicle object
+    auto obj = std::make_unique<SceneObject>();
+    obj->name = name;
+    obj->type = GeometryType::Mesh;
+    obj->position = startPos;
+
+    // Set vehicle-specific data
+    obj->isVehicle = true;
+    obj->vehicleType = VehicleType::Sedan;  // Default, will be custom
+    obj->vehicleDirection = direction;
+    obj->movementIntention = intention;
+    obj->vehicleSpeed = speed;
+    obj->hasCrossedIntersection = false;
+    obj->distanceTraveled = 0;
+
+    // Set rotation based on direction
+    switch (direction)
+    {
+    case VehicleDirection::North:
+        obj->rotation = XMFLOAT3(0, 0, 0);  // Facing +Z
+        break;
+    case VehicleDirection::South:
+        obj->rotation = XMFLOAT3(0, static_cast<float>(M_PI), 0);  // Facing -Z
+        break;
+    case VehicleDirection::East:
+        obj->rotation = XMFLOAT3(0, static_cast<float>(M_PI) / 2.0f, 0);  // Facing +X
+        break;
+    case VehicleDirection::West:
+        obj->rotation = XMFLOAT3(0, -static_cast<float>(M_PI) / 2.0f, 0);  // Facing -X
+        break;
+    }
+
+    // Use a distinct color for custom OBJ models
+    obj->color = XMFLOAT4(0.7f, 0.3f, 0.9f, 1.0f);  // Purple for custom models
+
+    // Create mesh in renderer
+    if (m_renderer)
+    {
+        auto mesh = m_renderer->CreateMesh(meshData.vertices, meshData.indices);
+        obj->data.customMesh.mesh = mesh;
+
+        // Create FCL collision geometry using bounding box
+        if (m_driver && m_driver->IsConnected())
+        {
+            XMFLOAT3 extents(
+                (meshData.maxBounds.x - meshData.minBounds.x) / 2.0f,
+                (meshData.maxBounds.y - meshData.minBounds.y) / 2.0f,
+                (meshData.maxBounds.z - meshData.minBounds.z) / 2.0f
             );
             obj->fclHandle = m_driver->CreateBox(startPos, extents);
         }

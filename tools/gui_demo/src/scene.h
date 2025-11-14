@@ -169,6 +169,11 @@ public:
                    VehicleDirection direction, MovementIntention intention,
                    float speed);
 
+    // Load vehicle from OBJ file
+    void AddVehicleFromOBJ(const std::string& name, const std::string& objFilePath,
+                          VehicleDirection direction, MovementIntention intention,
+                          float speed, float scale = 1.0f);
+
     // Selection and transformation
     void SelectObject(size_t index);
     void DeselectAll();
