@@ -184,7 +184,7 @@ namespace FclSelfTestTool {
             : this(new Vector3(raw.PointOnObject1), new Vector3(raw.PointOnObject2), new Vector3(raw.Normal), raw.PenetrationDepth) { }
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    [StructLayout(LayoutKind.Sequential)]
     internal struct FCL_DRIVER_VERSION {
         public uint Major;
         public uint Minor;
@@ -192,14 +192,14 @@ namespace FclSelfTestTool {
         public uint Build;
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    [StructLayout(LayoutKind.Sequential)]
     internal struct FCL_VECTOR3 {
         public float X;
         public float Y;
         public float Z;
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    [StructLayout(LayoutKind.Sequential)]
     internal struct FCL_CONTACT_SUMMARY {
         public FCL_VECTOR3 PointOnObject1;
         public FCL_VECTOR3 PointOnObject2;
@@ -207,7 +207,7 @@ namespace FclSelfTestTool {
         public float PenetrationDepth;
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    [StructLayout(LayoutKind.Sequential)]
     internal struct FCL_POOL_STATS {
         public ulong AllocationCount;
         public ulong FreeCount;
@@ -217,18 +217,18 @@ namespace FclSelfTestTool {
         public ulong PeakBytesInUse;
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    [StructLayout(LayoutKind.Sequential)]
     internal struct FCL_PING_RESPONSE {
         public FCL_DRIVER_VERSION Version;
         public byte IsInitialized;
         public byte IsInitializing;
-        private ushort Reserved;
+        public uint Reserved;
         public int LastError;
         public long Uptime100ns;
         public FCL_POOL_STATS Pool;
     }
 
-    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    [StructLayout(LayoutKind.Sequential)]
     internal struct FCL_SELF_TEST_RESULT {
         public FCL_DRIVER_VERSION Version;
         public int InitializeStatus;
@@ -237,6 +237,23 @@ namespace FclSelfTestTool {
         public int DestroyStatus;
         public int DistanceStatus;
         public int BroadphaseStatus;
+        public int MeshGjkStatus;
+        public int SphereMeshStatus;
+        public int MeshBroadphaseStatus;
+        public int ContinuousCollisionStatus;
+        public int GeometryUpdateStatus;
+        public int SphereObbStatus;
+        public int MeshComplexStatus;
+        public int BoundaryStatus;
+        public int DriverVerifierStatus;
+        public byte DriverVerifierActive;
+        public byte _padding0;
+        public ushort _padding1;
+        public int LeakTestStatus;
+        public int StressStatus;
+        public int PerformanceStatus;
+        public ulong StressDurationMicroseconds;
+        public ulong PerformanceDurationMicroseconds;
         public int OverallStatus;
         public byte Passed;
         public byte PoolBalanced;
@@ -249,6 +266,7 @@ namespace FclSelfTestTool {
         public ulong PoolBytesDelta;
         public float DistanceValue;
         public uint BroadphasePairCount;
+        public uint MeshBroadphasePairCount;
         public FCL_POOL_STATS PoolBefore;
         public FCL_POOL_STATS PoolAfter;
         public FCL_CONTACT_SUMMARY Contact;

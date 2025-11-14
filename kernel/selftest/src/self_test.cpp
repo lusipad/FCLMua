@@ -83,6 +83,55 @@ NTSTATUS CreateUnitMesh(FCL_GEOMETRY_HANDLE* handle) noexcept {
     return FclCreateGeometry(FCL_GEOMETRY_MESH, &desc, handle);
 }
 
+NTSTATUS RunMeshCollisionScenario() noexcept {
+    FCL_GEOMETRY_HANDLE meshA = {};
+    FCL_GEOMETRY_HANDLE meshB = {};
+
+    NTSTATUS status = CreateUnitMesh(&meshA);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+    status = CreateUnitMesh(&meshB);
+    if (!NT_SUCCESS(status)) {
+        DestroyHandle(&meshA);
+        return status;
+    }
+
+    FCL_TRANSFORM transformA = IdentityTransform();
+    FCL_TRANSFORM transformB = IdentityTransform();
+
+    // First place meshes far apart: expect no collision.
+    transformB.Translation = {3.0f, 0.0f, 0.0f};
+    BOOLEAN isColliding = FALSE;
+    status = FclCollisionDetect(meshA, &transformA, meshB, &transformB, &isColliding, nullptr);
+    if (!NT_SUCCESS(status)) {
+        goto Cleanup;
+    }
+    if (isColliding) {
+        status = STATUS_DATA_ERROR;
+        goto Cleanup;
+    }
+
+    // Then place meshes overlapping: expect collision.
+    // NOTE: translation must satisfy d <= 1/3 so that two unit
+    // tetrahedra around origin have non-empty intersection.
+    transformB.Translation = {0.25f, 0.25f, 0.25f};
+    isColliding = FALSE;
+    status = FclCollisionDetect(meshA, &transformA, meshB, &transformB, &isColliding, nullptr);
+    if (!NT_SUCCESS(status)) {
+        goto Cleanup;
+    }
+    if (!isColliding) {
+        status = STATUS_DATA_ERROR;
+        goto Cleanup;
+    }
+
+Cleanup:
+    DestroyHandle(&meshB);
+    DestroyHandle(&meshA);
+    return status;
+}
+
 NTSTATUS EvaluateCollision(
     FCL_GEOMETRY_HANDLE sphereA,
     FCL_GEOMETRY_HANDLE sphereB,
@@ -226,7 +275,119 @@ NTSTATUS RunBroadphaseScenario(_Out_ PULONG broadphasePairCount) noexcept {
     goto Cleanup;
 }
 
+NTSTATUS RunCcdScenario() noexcept {
+    FCL_GEOMETRY_HANDLE moving = {};
+    FCL_GEOMETRY_HANDLE target = {};
+
+    NTSTATUS status = CreateSphere(0.5f, &moving);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    status = CreateSphere(0.5f, &target);
+    if (!NT_SUCCESS(status)) {
+        DestroyHandle(&moving);
+        return status;
+    }
+
+    FCL_INTERP_MOTION_DESC motionDesc = {};
+    motionDesc.Start = IdentityTransform();
+    motionDesc.End = IdentityTransform();
+    motionDesc.End.Translation.X = 2.0f;
+
+    FCL_INTERP_MOTION motion = {};
+    status = FclInterpMotionInitialize(&motionDesc, &motion);
+    if (!NT_SUCCESS(status)) {
+        DestroyHandle(&target);
+        DestroyHandle(&moving);
+        return status;
+    }
+
+    FCL_CONTINUOUS_COLLISION_QUERY query = {};
+    query.Object1 = moving;
+    query.Motion1 = motion;
+    query.Object2 = target;
+    query.Motion2 = motion;  // reuse for simplicity
+    query.Tolerance = 1.0e-4;
+    query.MaxIterations = 64;
+
+    FCL_CONTINUOUS_COLLISION_RESULT result = {};
+    status = FclContinuousCollision(&query, &result);
+
+    DestroyHandle(&target);
+    DestroyHandle(&moving);
+
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    if (!result.Intersecting) {
+        return STATUS_DATA_ERROR;
+    }
+
+    return STATUS_SUCCESS;
+}
+
 }  // namespace
+
+extern "C"
+NTSTATUS
+FclRunSelfTestScenario(
+    _In_ FCL_SELF_TEST_SCENARIO_ID scenarioId,
+    _Out_ PFCL_SELF_TEST_SCENARIO_RESULT result) noexcept {
+    if (result == nullptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    RtlZeroMemory(result, sizeof(*result));
+    result->ScenarioId = scenarioId;
+
+    const auto poolBefore = fclmusa::memory::QueryStats();
+
+    NTSTATUS scenarioStatus = STATUS_INVALID_PARAMETER;
+
+    switch (scenarioId) {
+        case FCL_SELF_TEST_SCENARIO_RUNTIME: {
+            scenarioStatus = FclRunMusaRuntimeSmokeTests();
+            break;
+        }
+        case FCL_SELF_TEST_SCENARIO_SPHERE_COLLISION: {
+            BOOLEAN collisionDetected = FALSE;
+            FCL_CONTACT_SUMMARY summary = {};
+            ULONGLONG elapsedMicroseconds = 0;
+            scenarioStatus = RunSphereCollisionScenario(&collisionDetected, &summary, &elapsedMicroseconds);
+            if (NT_SUCCESS(scenarioStatus)) {
+                result->Contact = summary;
+            }
+            break;
+        }
+        case FCL_SELF_TEST_SCENARIO_BROADPHASE: {
+            ULONG broadphasePairCount = 0;
+            scenarioStatus = RunBroadphaseScenario(&broadphasePairCount);
+            break;
+        }
+        case FCL_SELF_TEST_SCENARIO_MESH_COLLISION: {
+            scenarioStatus = RunMeshCollisionScenario();
+            break;
+        }
+        case FCL_SELF_TEST_SCENARIO_CCD: {
+            scenarioStatus = RunCcdScenario();
+            break;
+        }
+        default:
+            return STATUS_INVALID_PARAMETER;
+    }
+
+    const auto poolAfter = fclmusa::memory::QueryStats();
+
+    result->Status = scenarioStatus;
+    result->PoolBefore = poolBefore;
+    result->PoolAfter = poolAfter;
+
+    // �����ʾ��ϸ���룬������ result->Step/Reserved ����չ��
+
+    return STATUS_SUCCESS;
+}
 
 extern "C"
 NTSTATUS
@@ -243,34 +404,56 @@ FclRunSelfTest(
         result->Version = *version;
     }
 
-    NTSTATUS status = FclRunMusaRuntimeSmokeTests();
-    if (!NT_SUCCESS(status)) {
-        FCL_LOG_ERROR("Self-test: Musa.Runtime smoke failed: 0x%X", status);
-        return status;
-    }
+    const auto poolBefore = fclmusa::memory::QueryStats();
 
+    auto accumulateOverall = [](NTSTATUS currentOverall, NTSTATUS next) noexcept {
+        if (!NT_SUCCESS(next) && NT_SUCCESS(currentOverall)) {
+            return next;
+        }
+        return currentOverall;
+    };
+
+    NTSTATUS overallStatus = STATUS_SUCCESS;
+
+    // 1. Musa.Runtime STL smoke
+    result->InitializeStatus = FclRunMusaRuntimeSmokeTests();
+    overallStatus = accumulateOverall(overallStatus, result->InitializeStatus);
+
+    // 2. ��ײ������
     BOOLEAN collisionDetected = FALSE;
     FCL_CONTACT_SUMMARY summary = {};
     ULONGLONG elapsedMicroseconds = 0;
+    result->CollisionStatus = RunSphereCollisionScenario(&collisionDetected, &summary, &elapsedMicroseconds);
+    if (NT_SUCCESS(result->CollisionStatus)) {
+        result->CollisionDetected = collisionDetected ? TRUE : FALSE;
+        result->Contact = summary;
+    }
+    overallStatus = accumulateOverall(overallStatus, result->CollisionStatus);
+
+    // 3. Broadphase �۲�
     ULONG broadphasePairCount = 0;
-
-    status = RunSphereCollisionScenario(&collisionDetected, &summary, &elapsedMicroseconds);
-    if (!NT_SUCCESS(status)) {
-        FCL_LOG_ERROR("Self-test: collision scenario failed: 0x%X", status);
-        return status;
+    result->BroadphaseStatus = RunBroadphaseScenario(&broadphasePairCount);
+    if (NT_SUCCESS(result->BroadphaseStatus)) {
+        result->BroadphasePairCount = broadphasePairCount;
     }
+    overallStatus = accumulateOverall(overallStatus, result->BroadphaseStatus);
 
-    status = RunBroadphaseScenario(&broadphasePairCount);
-    if (!NT_SUCCESS(status)) {
-        FCL_LOG_ERROR("Self-test: broadphase scenario failed: 0x%X", status);
-        return status;
-    }
+    // 4. Mesh GJK ����
+    result->MeshGjkStatus = RunMeshCollisionScenario();
+    overallStatus = accumulateOverall(overallStatus, result->MeshGjkStatus);
 
-    result->CollisionDetected = collisionDetected ? TRUE : FALSE;
-    result->Contact = summary;
-    result->BroadphasePairCount = broadphasePairCount;
-    result->DistanceValue = 0.0f;
-    result->OverallStatus = STATUS_SUCCESS;
+    // 5. CCD ����
+    result->ContinuousCollisionStatus = RunCcdScenario();
+    overallStatus = accumulateOverall(overallStatus, result->ContinuousCollisionStatus);
+
+    const auto poolAfter = fclmusa::memory::QueryStats();
+    result->PoolBefore = poolBefore;
+    result->PoolAfter = poolAfter;
+    result->PoolBytesDelta = AbsoluteDifference(poolBefore.BytesInUse, poolAfter.BytesInUse);
+    result->PoolBalanced = (poolBefore.BytesInUse == poolAfter.BytesInUse) ? TRUE : FALSE;
+
+    result->OverallStatus = overallStatus;
+    result->Passed = NT_SUCCESS(overallStatus) ? TRUE : FALSE;
 
     return STATUS_SUCCESS;
 }

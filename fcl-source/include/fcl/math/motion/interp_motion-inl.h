@@ -187,6 +187,71 @@ void InterpMotion<S>::getTaylorModel(TMatrix3<S>& tm, TVector3<S>& tv) const
 }
 
 //==============================================================================
+#if defined(FCL_MUSA_KERNEL_MODE)
+
+template <typename S>
+void InterpMotion<S>::computeVelocity()
+{
+  // Linear velocity: difference of reference point under start/end transforms.
+  linear_vel = tf2 * reference_p - tf1 * reference_p;
+
+  // Compute relative rotation R = R2 * R1^T.
+  const Matrix3<S> R = tf2.linear() * tf1.linear().transpose();
+
+  // Convert R to axis-angle without going through Eigen::AngleAxis stableNorm
+  // path, to keep stack usage small in kernel builds.
+  const S trace = R(0, 0) + R(1, 1) + R(2, 2);
+  Quaternion<S> q;
+  if(trace > S(0))
+  {
+    const S t = trace + S(1);
+    const S s = std::sqrt(t) * S(2);
+    q.w() = t / s;
+    q.x() = (R(2, 1) - R(1, 2)) / s;
+    q.y() = (R(0, 2) - R(2, 0)) / s;
+    q.z() = (R(1, 0) - R(0, 1)) / s;
+  }
+  else
+  {
+    int i = 0;
+    if(R(1, 1) > R(0, 0)) i = 1;
+    if(R(2, 2) > R(i, i)) i = 2;
+    const int j = (i + 1) % 3;
+    const int k = (i + 2) % 3;
+    const S t = (R(i, i) - R(j, j) - R(k, k)) + S(1);
+    const S s = std::sqrt(t) * S(2);
+    S* q_data = q.coeffs().data(); // x,y,z,w
+    q_data[i] = t / s;
+    q_data[3] = (R(k, j) - R(j, k)) / s;
+    q_data[j] = (R(j, i) + R(i, j)) / s;
+    q_data[k] = (R(k, i) + R(i, k)) / s;
+  }
+
+  // Normalize quaternion to be safe.
+  q.normalize();
+
+  // Extract angle and axis.
+  angular_vel = S(2) * std::acos(std::max(S(-1), std::min(S(1), q.w())));
+  const S sin_half = std::sqrt(std::max(S(0), S(1) - q.w() * q.w()));
+  if(sin_half > std::numeric_limits<S>::epsilon())
+  {
+    angular_axis = Vector3<S>(q.x(), q.y(), q.z()) / sin_half;
+  }
+  else
+  {
+    angular_axis = Vector3<S>::UnitX();
+    angular_vel = 0;
+  }
+
+  if(angular_vel < 0)
+  {
+    angular_vel = -angular_vel;
+    angular_axis = -angular_axis;
+  }
+}
+
+#else
+
 template <typename S>
 void InterpMotion<S>::computeVelocity()
 {
@@ -202,6 +267,8 @@ void InterpMotion<S>::computeVelocity()
     angular_axis = -angular_axis;
   }
 }
+
+#endif
 
 //==============================================================================
 template <typename S>

@@ -22,6 +22,7 @@
 
 #define IOCTL_FCL_PING                 CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 #define IOCTL_FCL_SELF_TEST            CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_SELF_TEST_SCENARIO   CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 #define IOCTL_FCL_QUERY_COLLISION      CTL_CODE(FILE_DEVICE_UNKNOWN, 0x810, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 #define IOCTL_FCL_QUERY_DISTANCE       CTL_CODE(FILE_DEVICE_UNKNOWN, 0x811, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 #define IOCTL_FCL_CREATE_SPHERE        CTL_CODE(FILE_DEVICE_UNKNOWN, 0x812, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
@@ -48,6 +49,35 @@ struct FCL_TRANSFORM {
 struct FCL_GEOMETRY_HANDLE {
     uint64_t Value;
 };
+
+struct FCL_DRIVER_VERSION {
+    uint32_t Major;
+    uint32_t Minor;
+    uint32_t Patch;
+    uint32_t Build;
+};
+
+struct FCL_POOL_STATS {
+    uint64_t AllocationCount;
+    uint64_t FreeCount;
+    uint64_t BytesAllocated;
+    uint64_t BytesFreed;
+    uint64_t BytesInUse;
+    uint64_t PeakBytesInUse;
+};
+
+struct FCL_PING_RESPONSE {
+    FCL_DRIVER_VERSION Version;
+    uint8_t IsInitialized;
+    uint8_t IsInitializing;
+    uint16_t Reserved0;
+    uint32_t Reserved;
+    int32_t LastError;
+    uint32_t Padding;  // align Uptime100ns to 8-byte boundary like kernel
+    int64_t Uptime100ns;
+    FCL_POOL_STATS Pool;
+};
+static_assert(sizeof(FCL_PING_RESPONSE) == 88, "Unexpected FCL_PING_RESPONSE size");
 
 struct FCL_SPHERE_GEOMETRY_DESC {
     FCL_VECTOR3 Center;
@@ -152,6 +182,81 @@ struct SceneObject {
     size_t IndexCount = 0;
 };
 
+struct FCL_CONTACT_SUMMARY {
+    FCL_VECTOR3 PointOnObject1;
+    FCL_VECTOR3 PointOnObject2;
+    FCL_VECTOR3 Normal;
+    float PenetrationDepth;
+};
+
+enum class FCL_SELF_TEST_SCENARIO_ID : uint32_t {
+    Runtime = 1,
+    SphereCollision = 2,
+    Broadphase = 3,
+    MeshCollision = 4,
+    Ccd = 5,
+};
+
+struct FCL_SELF_TEST_SCENARIO_REQUEST {
+    uint32_t ScenarioId;
+    uint32_t Reserved[3];
+};
+
+struct FCL_SELF_TEST_SCENARIO_RESULT {
+    uint32_t ScenarioId;
+    int32_t Status;
+    uint32_t Step;
+    uint32_t Reserved[3];
+    FCL_POOL_STATS PoolBefore;
+    FCL_POOL_STATS PoolAfter;
+    FCL_CONTACT_SUMMARY Contact;
+};
+static_assert(sizeof(FCL_SELF_TEST_SCENARIO_REQUEST) % sizeof(uint32_t) == 0, "Unexpected FCL_SELF_TEST_SCENARIO_REQUEST size");
+static_assert(sizeof(FCL_SELF_TEST_SCENARIO_RESULT) % sizeof(uint32_t) == 0, "Unexpected FCL_SELF_TEST_SCENARIO_RESULT size");
+
+struct FCL_SELF_TEST_RESULT {
+    FCL_DRIVER_VERSION Version;
+    int32_t InitializeStatus;
+    int32_t GeometryCreateStatus;
+    int32_t CollisionStatus;
+    int32_t DestroyStatus;
+    int32_t DistanceStatus;
+    int32_t BroadphaseStatus;
+    int32_t MeshGjkStatus;
+    int32_t SphereMeshStatus;
+    int32_t MeshBroadphaseStatus;
+    int32_t ContinuousCollisionStatus;
+    int32_t GeometryUpdateStatus;
+    int32_t SphereObbStatus;
+    int32_t MeshComplexStatus;
+    int32_t BoundaryStatus;
+    int32_t DriverVerifierStatus;
+    uint8_t DriverVerifierActive;
+    uint8_t ReservedFlags[3];
+    int32_t LeakTestStatus;
+    int32_t StressStatus;
+    int32_t PerformanceStatus;
+    uint64_t StressDurationMicroseconds;
+    uint64_t PerformanceDurationMicroseconds;
+    int32_t OverallStatus;
+    uint8_t Passed;
+    uint8_t PoolBalanced;
+    uint8_t CollisionDetected;
+    uint8_t BoundaryPassed;
+    uint16_t Reserved;
+    int32_t InvalidGeometryStatus;
+    int32_t DestroyInvalidStatus;
+    int32_t CollisionInvalidStatus;
+    uint64_t PoolBytesDelta;
+    float DistanceValue;
+    uint32_t BroadphasePairCount;
+    uint32_t MeshBroadphasePairCount;
+    FCL_POOL_STATS PoolBefore;
+    FCL_POOL_STATS PoolAfter;
+    FCL_CONTACT_SUMMARY Contact;
+};
+static_assert(sizeof(FCL_SELF_TEST_RESULT) == 296, "Unexpected FCL_SELF_TEST_RESULT size");
+
 using SceneMap = std::unordered_map<std::string, SceneObject>;
 
 FCL_TRANSFORM IdentityTransform() {
@@ -183,6 +288,48 @@ bool SendIoctl(
         printf("DeviceIoControl failed (code=0x%08lX, error=0x%08lX)\n", code, GetLastError());
         return false;
     }
+    return true;
+}
+
+bool RunSelfTestScenario(HANDLE device, const std::string& name) {
+    FCL_SELF_TEST_SCENARIO_ID scenarioId;
+    if (name == "runtime") {
+        scenarioId = FCL_SELF_TEST_SCENARIO_ID::Runtime;
+    } else if (name == "sphere") {
+        scenarioId = FCL_SELF_TEST_SCENARIO_ID::SphereCollision;
+    } else if (name == "broadphase") {
+        scenarioId = FCL_SELF_TEST_SCENARIO_ID::Broadphase;
+    } else if (name == "mesh") {
+        scenarioId = FCL_SELF_TEST_SCENARIO_ID::MeshCollision;
+    } else if (name == "ccd") {
+        scenarioId = FCL_SELF_TEST_SCENARIO_ID::Ccd;
+    } else {
+        printf("Unknown scenario '%s'. Supported: runtime|sphere|broadphase|mesh|ccd\n", name.c_str());
+        return true;
+    }
+
+    FCL_SELF_TEST_SCENARIO_REQUEST request = {};
+    request.ScenarioId = static_cast<uint32_t>(scenarioId);
+
+    FCL_SELF_TEST_SCENARIO_RESULT result = {};
+    if (!SendIoctl(device, IOCTL_FCL_SELF_TEST_SCENARIO, &request, sizeof(request), &result, sizeof(result))) {
+        printf("  [FAIL] IOCTL_FCL_SELF_TEST_SCENARIO failed.\n");
+        return true;
+    }
+
+    printf("Scenario '%s' (id=%u): Status=0x%08X\n",
+           name.c_str(),
+           result.ScenarioId,
+           result.Status);
+    printf("  PoolBefore.BytesInUse=%llu PoolAfter.BytesInUse=%llu\n",
+           static_cast<unsigned long long>(result.PoolBefore.BytesInUse),
+           static_cast<unsigned long long>(result.PoolAfter.BytesInUse));
+    printf("  Contact: P1=(%.3f, %.3f, %.3f) P2=(%.3f, %.3f, %.3f) N=(%.3f, %.3f, %.3f) Depth=%.6f\n",
+           result.Contact.PointOnObject1.X, result.Contact.PointOnObject1.Y, result.Contact.PointOnObject1.Z,
+           result.Contact.PointOnObject2.X, result.Contact.PointOnObject2.Y, result.Contact.PointOnObject2.Z,
+           result.Contact.Normal.X, result.Contact.Normal.Y, result.Contact.Normal.Z,
+           result.Contact.PenetrationDepth);
+
     return true;
 }
 
@@ -499,6 +646,8 @@ void PrintHelp() {
     printf("  destroy <name>                       Destroy a geometry\n");
     printf("  list                                 List registered geometries\n");
     printf("  demo                                 Run legacy sphere demo\n");
+    printf("  selftest                             Run driver self-test (ping + IOCTL_FCL_SELF_TEST)\n");
+    printf("  selftest <scenario>                  Run single self-test scenario (runtime|sphere|broadphase|mesh|ccd)\n");
     printf("  quit                                 Exit the tool\n");
 }
 
@@ -573,6 +722,56 @@ bool ExecuteCommand(const std::vector<std::string>& tokens, HANDLE device, Scene
         ListObjects(objects);
     } else if (cmd == "demo") {
         RunLegacyDemo(device);
+    } else if (cmd == "selftest") {
+        if (tokens.size() == 2) {
+            return RunSelfTestScenario(device, tokens[1]);
+        }
+
+        printf("Running ping...\n");
+        FCL_PING_RESPONSE ping = {};
+        if (!SendIoctl(device, IOCTL_FCL_PING, &ping, sizeof(ping))) {
+            printf("  [FAIL] Ping IOCTL failed.\n");
+            return true;
+        }
+        printf("  [OK]   Version=%u.%u.%u.%u initialized=%u initializing=%u lastError=0x%08X\n",
+               ping.Version.Major,
+               ping.Version.Minor,
+               ping.Version.Patch,
+               ping.Version.Build,
+               ping.IsInitialized,
+               ping.IsInitializing,
+               ping.LastError);
+
+        printf("Running kernel self-test (IOCTL_FCL_SELF_TEST)...\n");
+        FCL_SELF_TEST_RESULT self = {};
+        if (!SendIoctl(device, IOCTL_FCL_SELF_TEST, &self, sizeof(self))) {
+            printf("  [FAIL] Self-test IOCTL failed.\n");
+            return true;
+        }
+
+        auto printStatus = [](const char* name, int32_t status) {
+            if (status == 0) {
+                printf("  [OK]   %-16s (0x%08X)\n", name, status);
+            } else {
+                printf("  [FAIL] %-16s (0x%08X)\n", name, status);
+            }
+        };
+
+        printStatus("Initialize", self.InitializeStatus);
+        printStatus("Collision", self.CollisionStatus);
+        printStatus("Broadphase", self.BroadphaseStatus);
+        printStatus("MeshGjk", self.MeshGjkStatus);
+        printStatus("CCD", self.ContinuousCollisionStatus);
+
+        const bool overallOk = (self.OverallStatus == 0) && (self.Passed != 0);
+        printf("Summary: %s (overall=0x%08X, passed=%u)\n",
+               overallOk ? "PASSED" : "FAILED",
+               self.OverallStatus,
+               self.Passed);
+        printf("  CollisionDetected=%u BroadphasePairs=%u Distance=%.4f\n",
+               self.CollisionDetected,
+               self.BroadphasePairCount,
+               self.DistanceValue);
     } else if (cmd == "run") {
         if (tokens.size() != 2) {
             printf("Usage: run <script_path>\n");

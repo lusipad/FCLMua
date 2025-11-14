@@ -50,6 +50,26 @@ NTSTATUS HandleSelfTest(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
     return status;
 }
 
+NTSTATUS HandleSelfTestScenario(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
+    if (stack->Parameters.DeviceIoControl.InputBufferLength < sizeof(FCL_SELF_TEST_SCENARIO_REQUEST) ||
+        stack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(FCL_SELF_TEST_SCENARIO_RESULT)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    auto* request = reinterpret_cast<FCL_SELF_TEST_SCENARIO_REQUEST*>(irp->AssociatedIrp.SystemBuffer);
+    auto* result = reinterpret_cast<FCL_SELF_TEST_SCENARIO_RESULT*>(irp->AssociatedIrp.SystemBuffer);
+
+    const FCL_SELF_TEST_SCENARIO_ID scenarioId = request->ScenarioId;
+    RtlZeroMemory(result, sizeof(*result));
+
+    NTSTATUS status = FclRunSelfTestScenario(scenarioId, result);
+    if (NT_SUCCESS(status)) {
+        irp->IoStatus.Information = sizeof(*result);
+    }
+
+    return status;
+}
+
 NTSTATUS HandleCollisionQuery(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
     if (stack->Parameters.DeviceIoControl.InputBufferLength < sizeof(FCL_COLLISION_IO_BUFFER) ||
         stack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(FCL_COLLISION_IO_BUFFER)) {
@@ -243,6 +263,9 @@ FclDispatchDeviceControl(_In_ PDEVICE_OBJECT deviceObject, _Inout_ PIRP irp) {
             break;
         case IOCTL_FCL_SELF_TEST:
             status = HandleSelfTest(irp, stack);
+            break;
+        case IOCTL_FCL_SELF_TEST_SCENARIO:
+            status = HandleSelfTestScenario(irp, stack);
             break;
         case IOCTL_FCL_QUERY_COLLISION:
             status = HandleCollisionQuery(irp, stack);
