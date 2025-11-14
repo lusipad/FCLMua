@@ -578,7 +578,9 @@ void Scene::HandleInput(Window* window, float deltaTime)
         {
             m_isRotatingCamera = true;
         }
-        else
+
+        // Apply rotation based on mouse delta (skip only if delta is zero)
+        if (mouseDX != 0 || mouseDY != 0)
         {
             float sensitivity = 0.005f;
             m_camera.Rotate(-mouseDX * sensitivity, -mouseDY * sensitivity);
@@ -596,7 +598,9 @@ void Scene::HandleInput(Window* window, float deltaTime)
         {
             m_isPanning = true;
         }
-        else
+
+        // Apply panning based on mouse delta (skip only if delta is zero)
+        if (mouseDX != 0 || mouseDY != 0)
         {
             float sensitivity = 0.01f * m_camera.GetDistance();
             m_camera.Pan(-mouseDX * sensitivity, mouseDY * sensitivity);
@@ -607,12 +611,13 @@ void Scene::HandleInput(Window* window, float deltaTime)
         m_isPanning = false;
     }
 
-    // Camera zoom (Mouse wheel)
+    // Camera zoom (Mouse wheel) - improved with better scaling
     int mouseWheel = window->GetMouseWheel();
     if (mouseWheel != 0)
     {
         float zoomAmount = mouseWheel / 120.0f;
-        m_camera.Zoom(-zoomAmount * m_camera.GetDistance() * 0.1f);
+        // Use a smoother zoom factor
+        m_camera.Zoom(-zoomAmount * m_camera.GetDistance() * 0.15f);
     }
 
     // Object dragging (Left mouse button)
@@ -731,6 +736,9 @@ void Scene::HandleInput(Window* window, float deltaTime)
     {
         deletePressed = false;
     }
+
+    // Reset mouse input after processing to ensure smooth input next frame
+    window->ResetMouseInput();
 }
 
 void Scene::RenderObjects()

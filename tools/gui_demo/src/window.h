@@ -32,6 +32,7 @@ public:
     void GetMousePosition(int& x, int& y) const { x = m_mouseX; y = m_mouseY; }
     void GetMouseDelta(int& dx, int& dy) const { dx = m_mouseDX; dy = m_mouseDY; }
     int GetMouseWheel() const { return m_mouseWheel; }
+    void ResetMouseInput() { m_mouseDX = 0; m_mouseDY = 0; m_mouseWheel = 0; }
 
 private:
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);

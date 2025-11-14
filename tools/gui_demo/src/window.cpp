@@ -712,8 +712,9 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         int newMouseX = GET_X_LPARAM(lParam);
         int newMouseY = GET_Y_LPARAM(lParam);
 
-        m_mouseDX = newMouseX - m_lastMouseX;
-        m_mouseDY = newMouseY - m_lastMouseY;
+        // Accumulate delta for smooth tracking
+        m_mouseDX += newMouseX - m_lastMouseX;
+        m_mouseDY += newMouseY - m_lastMouseY;
 
         m_mouseX = newMouseX;
         m_mouseY = newMouseY;
@@ -723,7 +724,8 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
 
     case WM_MOUSEWHEEL:
-        m_mouseWheel = GET_WHEEL_DELTA_WPARAM(wParam);
+        // Accumulate wheel delta for smooth scrolling
+        m_mouseWheel += GET_WHEEL_DELTA_WPARAM(wParam);
         return 0;
     }
 
