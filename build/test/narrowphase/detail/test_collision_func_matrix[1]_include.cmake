@@ -1,5 +1,0 @@
-if(EXISTS "/home/user/FCLMua/build/test/narrowphase/detail/test_collision_func_matrix[1]_tests.cmake")
-  include("/home/user/FCLMua/build/test/narrowphase/detail/test_collision_func_matrix[1]_tests.cmake")
-else()
-  add_test(test_collision_func_matrix_NOT_BUILT test_collision_func_matrix_NOT_BUILT)
-endif()

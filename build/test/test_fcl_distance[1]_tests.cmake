@@ -1,5 +1,0 @@
-add_test([=[FCL_DISTANCE.mesh_distance]=]  /home/user/FCLMua/build/test/test_fcl_distance [==[--gtest_filter=FCL_DISTANCE.mesh_distance]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[FCL_DISTANCE.mesh_distance]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-add_test([=[FCL_DISTANCE.NearestPointFromDegenerateSimplex]=]  /home/user/FCLMua/build/test/test_fcl_distance [==[--gtest_filter=FCL_DISTANCE.NearestPointFromDegenerateSimplex]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[FCL_DISTANCE.NearestPointFromDegenerateSimplex]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-set(  test_fcl_distance_TESTS FCL_DISTANCE.mesh_distance FCL_DISTANCE.NearestPointFromDegenerateSimplex)

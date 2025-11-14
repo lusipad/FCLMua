@@ -1,5 +1,0 @@
-if(EXISTS "/home/user/FCLMua/build/test/geometry/shape/test_cylinder[1]_tests.cmake")
-  include("/home/user/FCLMua/build/test/geometry/shape/test_cylinder[1]_tests.cmake")
-else()
-  add_test(test_cylinder_NOT_BUILT test_cylinder_NOT_BUILT)
-endif()

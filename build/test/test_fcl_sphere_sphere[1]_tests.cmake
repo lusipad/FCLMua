@@ -1,5 +1,0 @@
-add_test([=[FCL_SPHERE_SPHERE.Separating_Spheres_INDEP]=]  /home/user/FCLMua/build/test/test_fcl_sphere_sphere [==[--gtest_filter=FCL_SPHERE_SPHERE.Separating_Spheres_INDEP]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[FCL_SPHERE_SPHERE.Separating_Spheres_INDEP]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-add_test([=[FCL_SPHERE_SPHERE.Separating_Spheres_LIBCCD]=]  /home/user/FCLMua/build/test/test_fcl_sphere_sphere [==[--gtest_filter=FCL_SPHERE_SPHERE.Separating_Spheres_LIBCCD]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[FCL_SPHERE_SPHERE.Separating_Spheres_LIBCCD]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-set(  test_fcl_sphere_sphere_TESTS FCL_SPHERE_SPHERE.Separating_Spheres_INDEP FCL_SPHERE_SPHERE.Separating_Spheres_LIBCCD)

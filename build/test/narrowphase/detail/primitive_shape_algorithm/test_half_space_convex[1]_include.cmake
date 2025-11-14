@@ -1,5 +1,0 @@
-if(EXISTS "/home/user/FCLMua/build/test/narrowphase/detail/primitive_shape_algorithm/test_half_space_convex[1]_tests.cmake")
-  include("/home/user/FCLMua/build/test/narrowphase/detail/primitive_shape_algorithm/test_half_space_convex[1]_tests.cmake")
-else()
-  add_test(test_half_space_convex_NOT_BUILT test_half_space_convex_NOT_BUILT)
-endif()

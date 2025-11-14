@@ -1,5 +1,0 @@
-add_test([=[FCL_CONSTANTS_EPS.precision_dependent]=]  /home/user/FCLMua/build/test/test_fcl_constant_eps [==[--gtest_filter=FCL_CONSTANTS_EPS.precision_dependent]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[FCL_CONSTANTS_EPS.precision_dependent]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-add_test([=[FCL_CONSTANTS_EPS.autodiff_compatibility]=]  /home/user/FCLMua/build/test/test_fcl_constant_eps [==[--gtest_filter=FCL_CONSTANTS_EPS.autodiff_compatibility]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[FCL_CONSTANTS_EPS.autodiff_compatibility]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-set(  test_fcl_constant_eps_TESTS FCL_CONSTANTS_EPS.precision_dependent FCL_CONSTANTS_EPS.autodiff_compatibility)

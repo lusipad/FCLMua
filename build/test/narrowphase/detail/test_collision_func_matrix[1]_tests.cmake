@@ -1,5 +1,0 @@
-add_test([=[CollisionFuncMatrix.LibCccdSolverSupport]=]  /home/user/FCLMua/build/test/narrowphase/detail/test_collision_func_matrix [==[--gtest_filter=CollisionFuncMatrix.LibCccdSolverSupport]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[CollisionFuncMatrix.LibCccdSolverSupport]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test/narrowphase/detail SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-add_test([=[CollisionFuncMatrix.IndepSolverSupport]=]  /home/user/FCLMua/build/test/narrowphase/detail/test_collision_func_matrix [==[--gtest_filter=CollisionFuncMatrix.IndepSolverSupport]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[CollisionFuncMatrix.IndepSolverSupport]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test/narrowphase/detail SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-set(  test_collision_func_matrix_TESTS CollisionFuncMatrix.LibCccdSolverSupport CollisionFuncMatrix.IndepSolverSupport)

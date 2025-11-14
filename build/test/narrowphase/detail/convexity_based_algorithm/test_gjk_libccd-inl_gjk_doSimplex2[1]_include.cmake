@@ -1,5 +1,0 @@
-if(EXISTS "/home/user/FCLMua/build/test/narrowphase/detail/convexity_based_algorithm/test_gjk_libccd-inl_gjk_doSimplex2[1]_tests.cmake")
-  include("/home/user/FCLMua/build/test/narrowphase/detail/convexity_based_algorithm/test_gjk_libccd-inl_gjk_doSimplex2[1]_tests.cmake")
-else()
-  add_test(test_gjk_libccd-inl_gjk_doSimplex2_NOT_BUILT test_gjk_libccd-inl_gjk_doSimplex2_NOT_BUILT)
-endif()

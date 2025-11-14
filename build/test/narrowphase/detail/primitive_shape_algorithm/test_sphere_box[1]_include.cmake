@@ -1,5 +1,0 @@
-if(EXISTS "/home/user/FCLMua/build/test/narrowphase/detail/primitive_shape_algorithm/test_sphere_box[1]_tests.cmake")
-  include("/home/user/FCLMua/build/test/narrowphase/detail/primitive_shape_algorithm/test_sphere_box[1]_tests.cmake")
-else()
-  add_test(test_sphere_box_NOT_BUILT test_sphere_box_NOT_BUILT)
-endif()

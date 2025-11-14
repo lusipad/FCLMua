@@ -1,1 +1,0 @@
-/usr/bin/c++ -O3 -DNDEBUG CMakeFiles/test_fcl_bvh_models.dir/test_fcl_bvh_models.cpp.o -o test_fcl_bvh_models   -L/home/user/FCLMua/build/test  -Wl,-rpath,/home/user/FCLMua/build/test:/home/user/FCLMua/build/lib:/usr/local/lib ../lib/libtest_fcl_utility.a ../lib/libgtest_main.a ../lib/libfcl.so.0.7.0 /usr/local/lib/libccd.so.2.0 -lm ../lib/libgtest.a 

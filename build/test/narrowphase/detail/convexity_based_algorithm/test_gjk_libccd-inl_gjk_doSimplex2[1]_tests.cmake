@@ -1,5 +1,0 @@
-add_test([=[DoSimplex2Test.OriginInSimplex]=]  /home/user/FCLMua/build/test/narrowphase/detail/convexity_based_algorithm/test_gjk_libccd-inl_gjk_doSimplex2 [==[--gtest_filter=DoSimplex2Test.OriginInSimplex]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[DoSimplex2Test.OriginInSimplex]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test/narrowphase/detail/convexity_based_algorithm SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-add_test([=[DoSimplex2Test.NeedMoreComputing]=]  /home/user/FCLMua/build/test/narrowphase/detail/convexity_based_algorithm/test_gjk_libccd-inl_gjk_doSimplex2 [==[--gtest_filter=DoSimplex2Test.NeedMoreComputing]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[DoSimplex2Test.NeedMoreComputing]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test/narrowphase/detail/convexity_based_algorithm SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-set(  test_gjk_libccd-inl_gjk_doSimplex2_TESTS DoSimplex2Test.OriginInSimplex DoSimplex2Test.NeedMoreComputing)

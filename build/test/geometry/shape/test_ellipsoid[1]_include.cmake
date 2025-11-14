@@ -1,5 +1,0 @@
-if(EXISTS "/home/user/FCLMua/build/test/geometry/shape/test_ellipsoid[1]_tests.cmake")
-  include("/home/user/FCLMua/build/test/geometry/shape/test_ellipsoid[1]_tests.cmake")
-else()
-  add_test(test_ellipsoid_NOT_BUILT test_ellipsoid_NOT_BUILT)
-endif()

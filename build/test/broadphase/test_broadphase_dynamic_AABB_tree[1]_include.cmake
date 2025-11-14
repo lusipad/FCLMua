@@ -1,5 +1,0 @@
-if(EXISTS "/home/user/FCLMua/build/test/broadphase/test_broadphase_dynamic_AABB_tree[1]_tests.cmake")
-  include("/home/user/FCLMua/build/test/broadphase/test_broadphase_dynamic_AABB_tree[1]_tests.cmake")
-else()
-  add_test(test_broadphase_dynamic_AABB_tree_NOT_BUILT test_broadphase_dynamic_AABB_tree_NOT_BUILT)
-endif()

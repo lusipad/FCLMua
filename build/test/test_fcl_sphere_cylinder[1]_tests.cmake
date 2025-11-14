@@ -1,5 +1,0 @@
-add_test([=[FCL_SPHERE_CYLINDER.LargCylinderSmallSphere_ccd]=]  /home/user/FCLMua/build/test/test_fcl_sphere_cylinder [==[--gtest_filter=FCL_SPHERE_CYLINDER.LargCylinderSmallSphere_ccd]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[FCL_SPHERE_CYLINDER.LargCylinderSmallSphere_ccd]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-add_test([=[FCL_SPHERE_CYLINDER.LargBoxSmallSphere_indep]=]  /home/user/FCLMua/build/test/test_fcl_sphere_cylinder [==[--gtest_filter=FCL_SPHERE_CYLINDER.LargBoxSmallSphere_indep]==] --gtest_also_run_disabled_tests)
-set_tests_properties([=[FCL_SPHERE_CYLINDER.LargBoxSmallSphere_indep]=]  PROPERTIES WORKING_DIRECTORY /home/user/FCLMua/build/test SKIP_REGULAR_EXPRESSION [==[\[  SKIPPED \]]==])
-set(  test_fcl_sphere_cylinder_TESTS FCL_SPHERE_CYLINDER.LargCylinderSmallSphere_ccd FCL_SPHERE_CYLINDER.LargBoxSmallSphere_indep)
