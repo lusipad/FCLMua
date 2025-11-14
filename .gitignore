@@ -4,6 +4,12 @@ build_output.log
 build_driver.log
 build_run.log
 
+# CMake 构建目录
+build/
+build-*/
+**/build/
+**/build-*/
+
 # 临时文件
 temp.txt
 nul
