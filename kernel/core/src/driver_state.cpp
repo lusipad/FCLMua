@@ -83,6 +83,83 @@ LARGE_INTEGER QuerySystemTime100ns() {
 #endif
 }
 
+struct DetectionTimingAccumulator {
+    volatile LONG64 CallCount;
+    volatile LONG64 TotalDurationMicroseconds;
+    volatile LONG64 MinDurationMicroseconds;
+    volatile LONG64 MaxDurationMicroseconds;
+};
+
+DetectionTimingAccumulator g_CollisionTiming = {};
+DetectionTimingAccumulator g_DistanceTiming = {};
+DetectionTimingAccumulator g_ContinuousCollisionTiming = {};
+
+void ResetDetectionTimingUnsafe() noexcept {
+    g_CollisionTiming.CallCount = 0;
+    g_CollisionTiming.TotalDurationMicroseconds = 0;
+    g_CollisionTiming.MinDurationMicroseconds = 0;
+    g_CollisionTiming.MaxDurationMicroseconds = 0;
+
+    g_DistanceTiming.CallCount = 0;
+    g_DistanceTiming.TotalDurationMicroseconds = 0;
+    g_DistanceTiming.MinDurationMicroseconds = 0;
+    g_DistanceTiming.MaxDurationMicroseconds = 0;
+
+    g_ContinuousCollisionTiming.CallCount = 0;
+    g_ContinuousCollisionTiming.TotalDurationMicroseconds = 0;
+    g_ContinuousCollisionTiming.MinDurationMicroseconds = 0;
+    g_ContinuousCollisionTiming.MaxDurationMicroseconds = 0;
+}
+
+void RecordDuration(DetectionTimingAccumulator& acc, ULONGLONG durationMicroseconds) noexcept {
+    if (durationMicroseconds == 0) {
+        durationMicroseconds = 1;
+    }
+
+    InterlockedIncrement64(&acc.CallCount);
+    InterlockedAdd64(&acc.TotalDurationMicroseconds, static_cast<LONGLONG>(durationMicroseconds));
+
+    LONGLONG observedMin = acc.MinDurationMicroseconds;
+    if (observedMin == 0 || durationMicroseconds < static_cast<ULONGLONG>(observedMin)) {
+        for (;;) {
+            if (observedMin != 0 && durationMicroseconds >= static_cast<ULONGLONG>(observedMin)) {
+                break;
+            }
+            const LONGLONG exchanged = InterlockedCompareExchange64(
+                &acc.MinDurationMicroseconds,
+                static_cast<LONGLONG>(durationMicroseconds),
+                observedMin);
+            if (exchanged == observedMin) {
+                break;
+            }
+            observedMin = exchanged;
+        }
+    }
+
+    LONGLONG observedMax = acc.MaxDurationMicroseconds;
+    while (durationMicroseconds > static_cast<ULONGLONG>(observedMax)) {
+        const LONGLONG exchanged = InterlockedCompareExchange64(
+            &acc.MaxDurationMicroseconds,
+            static_cast<LONGLONG>(durationMicroseconds),
+            observedMax);
+        if (exchanged == observedMax) {
+            break;
+        }
+        observedMax = exchanged;
+    }
+}
+
+void SnapshotTiming(const DetectionTimingAccumulator& acc, PFCL_DETECTION_TIMING_STATS snapshot) noexcept {
+    if (snapshot == nullptr) {
+        return;
+    }
+
+    snapshot->CallCount = static_cast<ULONGLONG>(acc.CallCount);
+    snapshot->TotalDurationMicroseconds = static_cast<ULONGLONG>(acc.TotalDurationMicroseconds);
+    snapshot->MinDurationMicroseconds = static_cast<ULONGLONG>(acc.MinDurationMicroseconds);
+    snapshot->MaxDurationMicroseconds = static_cast<ULONGLONG>(acc.MaxDurationMicroseconds);
+}
+
 }  // namespace
 
 extern "C" const FCL_DRIVER_VERSION* FclGetDriverVersion() {
@@ -111,6 +188,7 @@ FclInitialize() {
     ExReleasePushLockExclusiveAndLeaveCriticalRegion(&g_DriverState.Lock);
 
     fclmusa::memory::InitializePoolTracking();
+    ResetDetectionTimingUnsafe();
 
     status = FclGeometrySubsystemInitialize();
     if (!NT_SUCCESS(status)) {
@@ -177,5 +255,39 @@ FclQueryHealth(_Out_ FCL_PING_RESPONSE* response) {
     ExReleasePushLockSharedAndLeaveCriticalRegion(&g_DriverState.Lock);
 
     response->Pool = fclmusa::memory::QueryStats();
+    return STATUS_SUCCESS;
+}
+
+extern "C"
+VOID
+FclDiagnosticsRecordCollisionDuration(_In_ ULONGLONG durationMicroseconds) noexcept {
+    RecordDuration(g_CollisionTiming, durationMicroseconds);
+}
+
+extern "C"
+VOID
+FclDiagnosticsRecordDistanceDuration(_In_ ULONGLONG durationMicroseconds) noexcept {
+    RecordDuration(g_DistanceTiming, durationMicroseconds);
+}
+
+extern "C"
+VOID
+FclDiagnosticsRecordContinuousCollisionDuration(_In_ ULONGLONG durationMicroseconds) noexcept {
+    RecordDuration(g_ContinuousCollisionTiming, durationMicroseconds);
+}
+
+extern "C"
+NTSTATUS
+FclQueryDiagnostics(_Out_ FCL_DIAGNOSTICS_RESPONSE* response) noexcept {
+    if (response == nullptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    RtlZeroMemory(response, sizeof(*response));
+
+    SnapshotTiming(g_CollisionTiming, &response->Collision);
+    SnapshotTiming(g_DistanceTiming, &response->Distance);
+    SnapshotTiming(g_ContinuousCollisionTiming, &response->ContinuousCollision);
+
     return STATUS_SUCCESS;
 }

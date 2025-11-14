@@ -22,6 +22,7 @@ public:
     std::function<void()> OnDeleteObject;
     std::function<void(int)> OnSceneModeChanged;  // 0=Default, 1=SolarSystem, 2=Crossroad
     std::function<void(float)> OnSimulationSpeedChanged;
+    std::function<void(int)> OnPerformanceModeChanged;  // 0=High, 1=Medium, 2=Low
     std::function<void(float, float, float, float)> OnCreateAsteroid;  // vx, vy, vz, radius
     std::function<void(int, int, int, float)> OnCreateVehicle;  // vehicleType, direction, intention, speed
     std::function<void(std::string, int, int, float, float)> OnLoadVehicleFromOBJ;  // objPath, direction, intention, speed, scale
@@ -44,6 +45,16 @@ public:
     void UpdatePropertiesPanel(size_t selectedIndex, const std::string& objectName,
                               float posX, float posY, float posZ,
                               float rotY);
+
+    // Overlay diagnostics for collision stats
+    void SetOverlayText(const std::wstring& text);
+
+    // Enhanced status panel
+    void UpdateStatusPanel(float fps, float frameTime, size_t objectCount,
+                           const std::wstring& sceneMode, const std::wstring& selectedObject);
+
+    // Access to raw overlay label (for advanced overlays)
+    HWND GetOverlayHandle() const { return m_overlayLabel; }
 
 private:
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -86,6 +97,12 @@ private:
     HWND m_btnSpeed2;
     HWND m_btnSpeed5;
 
+    // Performance mode controls
+    HWND m_labelPerformance;
+    HWND m_btnPerfHigh;
+    HWND m_btnPerfMedium;
+    HWND m_btnPerfLow;
+
     // Asteroid controls
     HWND m_labelAsteroid;
     HWND m_editAsteroidVX, m_editAsteroidVY, m_editAsteroidVZ, m_editAsteroidRadius;
@@ -118,6 +135,13 @@ private:
     HWND m_editPosX, m_editPosY, m_editPosZ;
     HWND m_labelRotY;
     HWND m_editRotY;
+
+    // Overlay diagnostics (semi-transparent label over 3D view)
+    HWND m_overlayLabel;
+
+    // Enhanced status panel (semi-transparent, detailed info)
+    HWND m_statusPanel;
+    HWND m_statusPanelBackground;
 
     void CreateUIControls();
 };

@@ -2,6 +2,7 @@
 #include <wdm.h>
 
 #include "fclmusa/collision.h"
+#include "fclmusa/driver.h"
 #include "fclmusa/geometry/math_utils.h"
 #include "fclmusa/upstream/upstream_bridge.h"
 
@@ -41,6 +42,23 @@ NTSTATUS InitializeMotionObject(
     object->Reference = {};
     object->Snapshot = {};
     return FclAcquireGeometryReference(handle, &object->Reference, &object->Snapshot);
+}
+
+ULONGLONG QueryTimeMicroseconds() noexcept {
+    LARGE_INTEGER frequency = {};
+    const LARGE_INTEGER counter = KeQueryPerformanceCounter(&frequency);
+    if (frequency.QuadPart == 0) {
+        return 0;
+    }
+    const LONGLONG ticks = counter.QuadPart;
+    const ULONGLONG absoluteTicks = (ticks >= 0)
+        ? static_cast<ULONGLONG>(ticks)
+        : static_cast<ULONGLONG>(-ticks);
+    return (absoluteTicks * 1'000'000ULL) / static_cast<ULONGLONG>(frequency.QuadPart);
+}
+
+ULONGLONG AbsoluteDifference(ULONGLONG a, ULONGLONG b) noexcept {
+    return (a > b) ? (a - b) : (b - a);
 }
 
 }  // namespace
@@ -116,7 +134,8 @@ FclContinuousCollision(
     const double tolerance = (query->Tolerance > 0.0) ? query->Tolerance : kDefaultTolerance;
     const ULONG iterations = (query->MaxIterations > 0) ? query->MaxIterations : kDefaultIterations;
 
-    return FclUpstreamContinuousCollision(
+    const ULONGLONG start = QueryTimeMicroseconds();
+    status = FclUpstreamContinuousCollision(
         objectA.Snapshot,
         query->Motion1,
         objectB.Snapshot,
@@ -124,4 +143,14 @@ FclContinuousCollision(
         tolerance,
         iterations,
         result);
+    const ULONGLONG end = QueryTimeMicroseconds();
+
+    if (NT_SUCCESS(status) && start != 0 && end != 0) {
+        const ULONGLONG elapsed = AbsoluteDifference(end, start);
+        if (elapsed != 0) {
+            FclDiagnosticsRecordContinuousCollisionDuration(elapsed);
+        }
+    }
+
+    return status;
 }

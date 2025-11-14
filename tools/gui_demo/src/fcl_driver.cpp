@@ -42,18 +42,20 @@ FCL_GEOMETRY_HANDLE FclDriver::CreateSphere(const XMFLOAT3& center, float radius
     if (!IsConnected())
         return FCL_GEOMETRY_HANDLE{ 0 };
 
-    FCL_CREATE_SPHERE_BUFFER buffer = {};
-    buffer.Center = ToFclVector(center);
-    buffer.Radius = radius;
+    FCL_CREATE_SPHERE_INPUT input = {};
+    input.Desc.Center = ToFclVector(center);
+    input.Desc.Radius = radius;
+
+    FCL_CREATE_SPHERE_OUTPUT output = {};
 
     DWORD bytesReturned = 0;
     BOOL success = DeviceIoControl(
         m_device,
         IOCTL_FCL_CREATE_SPHERE,
-        &buffer,
-        sizeof(buffer),
-        &buffer,
-        sizeof(buffer),
+        &input,
+        static_cast<DWORD>(sizeof(input)),
+        &output,
+        static_cast<DWORD>(sizeof(output)),
         &bytesReturned,
         nullptr
     );
@@ -61,7 +63,50 @@ FCL_GEOMETRY_HANDLE FclDriver::CreateSphere(const XMFLOAT3& center, float radius
     if (!success)
         return FCL_GEOMETRY_HANDLE{ 0 };
 
-    return buffer.Handle;
+    return output.Handle;
+}
+
+FCL_GEOMETRY_HANDLE FclDriver::CreateBox(const XMFLOAT3& center, const XMFLOAT3& extents)
+{
+    UNREFERENCED_PARAMETER(center);
+
+    // Represent box as a mesh centered at origin; translation/rotation are provided
+    // per-query via FCL_TRANSFORM in collision/distance calls.
+    std::vector<XMFLOAT3> vertices(8);
+
+    const float ex = extents.x;
+    const float ey = extents.y;
+    const float ez = extents.z;
+
+    // 8 corners of axis-aligned box around origin
+    vertices[0] = XMFLOAT3(-ex, -ey, -ez);
+    vertices[1] = XMFLOAT3(ex, -ey, -ez);
+    vertices[2] = XMFLOAT3(ex, ey, -ez);
+    vertices[3] = XMFLOAT3(-ex, ey, -ez);
+    vertices[4] = XMFLOAT3(-ex, -ey, ez);
+    vertices[5] = XMFLOAT3(ex, -ey, ez);
+    vertices[6] = XMFLOAT3(ex, ey, ez);
+    vertices[7] = XMFLOAT3(-ex, ey, ez);
+
+    // 12 triangles (two per face)
+    static const uint32_t indicesArray[] = {
+        // Front (-Z)
+        0, 1, 2, 0, 2, 3,
+        // Back (+Z)
+        4, 5, 6, 4, 6, 7,
+        // Left (-X)
+        0, 3, 7, 0, 7, 4,
+        // Right (+X)
+        1, 2, 6, 1, 6, 5,
+        // Bottom (-Y)
+        0, 1, 5, 0, 5, 4,
+        // Top (+Y)
+        3, 2, 6, 3, 6, 7,
+    };
+
+    std::vector<uint32_t> indices(std::begin(indicesArray), std::end(indicesArray));
+
+    return CreateMesh(vertices, indices);
 }
 
 FCL_GEOMETRY_HANDLE FclDriver::CreateMesh(const std::vector<XMFLOAT3>& vertices,
@@ -71,25 +116,28 @@ FCL_GEOMETRY_HANDLE FclDriver::CreateMesh(const std::vector<XMFLOAT3>& vertices,
         return FCL_GEOMETRY_HANDLE{ 0 };
 
     // Calculate buffer size
-    size_t bufferSize = sizeof(FCL_CREATE_MESH_BUFFER) +
+    const size_t headerSize = sizeof(FCL_CREATE_MESH_BUFFER);
+    size_t bufferSize = headerSize +
                         vertices.size() * sizeof(FCL_VECTOR3) +
                         indices.size() * sizeof(uint32_t);
 
     std::vector<BYTE> buffer(bufferSize);
-    FCL_CREATE_MESH_BUFFER* meshBuffer = reinterpret_cast<FCL_CREATE_MESH_BUFFER*>(buffer.data());
+    auto* meshBuffer = reinterpret_cast<FCL_CREATE_MESH_BUFFER*>(buffer.data());
 
     meshBuffer->VertexCount = static_cast<UINT32>(vertices.size());
     meshBuffer->IndexCount = static_cast<UINT32>(indices.size());
+    meshBuffer->Reserved0 = 0;
+    meshBuffer->Reserved1 = 0;
 
     // Copy vertices
-    FCL_VECTOR3* vertexData = reinterpret_cast<FCL_VECTOR3*>(meshBuffer + 1);
+    auto* vertexData = reinterpret_cast<FCL_VECTOR3*>(meshBuffer + 1);
     for (size_t i = 0; i < vertices.size(); ++i)
     {
         vertexData[i] = ToFclVector(vertices[i]);
     }
 
     // Copy indices
-    uint32_t* indexData = reinterpret_cast<uint32_t*>(vertexData + vertices.size());
+    auto* indexData = reinterpret_cast<uint32_t*>(vertexData + vertices.size());
     memcpy(indexData, indices.data(), indices.size() * sizeof(uint32_t));
 
     DWORD bytesReturned = 0;
@@ -115,12 +163,15 @@ bool FclDriver::DestroyGeometry(FCL_GEOMETRY_HANDLE handle)
     if (!IsConnected())
         return false;
 
+    FCL_DESTROY_INPUT input = {};
+    input.Handle = handle;
+
     DWORD bytesReturned = 0;
     BOOL success = DeviceIoControl(
         m_device,
         IOCTL_FCL_DESTROY_GEOMETRY,
-        &handle,
-        sizeof(handle),
+        &input,
+        static_cast<DWORD>(sizeof(input)),
         nullptr,
         0,
         &bytesReturned,
@@ -148,9 +199,9 @@ bool FclDriver::QueryCollision(FCL_GEOMETRY_HANDLE obj1, const FCL_TRANSFORM& tr
         m_device,
         IOCTL_FCL_QUERY_COLLISION,
         &buffer,
-        sizeof(buffer),
+        static_cast<DWORD>(sizeof(buffer)),
         &buffer,
-        sizeof(buffer),
+        static_cast<DWORD>(sizeof(buffer)),
         &bytesReturned,
         nullptr
     );
@@ -170,16 +221,7 @@ bool FclDriver::QueryDistance(FCL_GEOMETRY_HANDLE obj1, const FCL_TRANSFORM& tra
     if (!IsConnected())
         return false;
 
-    struct {
-        struct {
-            FCL_GEOMETRY_HANDLE Object1;
-            FCL_TRANSFORM Transform1;
-            FCL_GEOMETRY_HANDLE Object2;
-            FCL_TRANSFORM Transform2;
-        } Query;
-        FCL_DISTANCE_RESULT Result;
-    } buffer = {};
-
+    FCL_DISTANCE_IO_BUFFER buffer = {};
     buffer.Query.Object1 = obj1;
     buffer.Query.Transform1 = transform1;
     buffer.Query.Object2 = obj2;
@@ -190,9 +232,9 @@ bool FclDriver::QueryDistance(FCL_GEOMETRY_HANDLE obj1, const FCL_TRANSFORM& tra
         m_device,
         IOCTL_FCL_QUERY_DISTANCE,
         &buffer,
-        sizeof(buffer),
+        static_cast<DWORD>(sizeof(buffer)),
         &buffer,
-        sizeof(buffer),
+        static_cast<DWORD>(sizeof(buffer)),
         &bytesReturned,
         nullptr
     );
@@ -204,20 +246,45 @@ bool FclDriver::QueryDistance(FCL_GEOMETRY_HANDLE obj1, const FCL_TRANSFORM& tra
     return true;
 }
 
-FCL_TRANSFORM FclDriver::CreateTransform(const XMFLOAT3& position, const XMMATRIX& rotation)
+bool FclDriver::QueryDiagnostics(FCL_DIAGNOSTICS_RESPONSE& diagnostics)
+{
+    if (!IsConnected())
+        return false;
+
+    DWORD bytesReturned = 0;
+    BOOL success = DeviceIoControl(
+        m_device,
+        IOCTL_FCL_QUERY_DIAGNOSTICS,
+        nullptr,
+        0,
+        &diagnostics,
+        static_cast<DWORD>(sizeof(diagnostics)),
+        &bytesReturned,
+        nullptr
+    );
+
+    return success != FALSE;
+}
+
+FCL_TRANSFORM FclDriver::CreateTransform(const XMFLOAT3& position, const XMMATRIX& rotation, const XMFLOAT3& scale)
 {
     FCL_TRANSFORM transform = {};
     transform.Translation = ToFclVector(position);
 
-    // Extract rotation matrix (3x3 from 4x4)
-    XMFLOAT4X4 rot4x4;
-    XMStoreFloat4x4(&rot4x4, rotation);
+    // Combine scale and rotation matrices
+    // FCL_TRANSFORM only has rotation matrix, so we bake the scale into it
+    XMMATRIX scaleMatrix = XMMatrixScaling(scale.x, scale.y, scale.z);
+    XMMATRIX scaledRotation = scaleMatrix * rotation;
+
+    // Extract the combined scale+rotation matrix (3x3 from 4x4)
+    XMFLOAT4X4 sr4x4;
+    XMStoreFloat4x4(&sr4x4, scaledRotation);
 
     for (int i = 0; i < 3; ++i)
     {
         for (int j = 0; j < 3; ++j)
         {
-            transform.Rotation.M[i][j] = rot4x4.m[i][j];
+            transform.Rotation.M[i][j] = sr4x4.m[i][j];
         }
     }
 
@@ -236,4 +303,13 @@ FCL_VECTOR3 FclDriver::ToFclVector(const XMFLOAT3& v)
 XMFLOAT3 FclDriver::FromFclVector(const FCL_VECTOR3& v)
 {
     return XMFLOAT3(v.X, v.Y, v.Z);
+}
+
+bool FclDriver::UpdateTransform(FCL_GEOMETRY_HANDLE handle, const FCL_TRANSFORM& transform)
+{
+    UNREFERENCED_PARAMETER(handle);
+    UNREFERENCED_PARAMETER(transform);
+    // Current driver API is stateless with respect to transforms; they are provided
+    // per-query in collision/distance requests. This is a no-op kept for API compatibility.
+    return true;
 }

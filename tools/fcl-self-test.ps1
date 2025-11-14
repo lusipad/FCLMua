@@ -30,9 +30,14 @@ namespace FclSelfTestTool {
 
         private const uint IOCTL_FCL_PING = 0x22E000;
         private const uint IOCTL_FCL_SELF_TEST = 0x22E004;
+        private const uint IOCTL_FCL_QUERY_DIAGNOSTICS = 0x22E00C;
 
         public static PingSummary RunPing(string devicePath) {
             return InvokeIoctl<FCL_PING_RESPONSE, PingSummary>(devicePath, IOCTL_FCL_PING, raw => new PingSummary(raw));
+        }
+
+        public static DiagnosticsSummary RunDiagnostics(string devicePath) {
+            return InvokeIoctl<FCL_DIAGNOSTICS_RESPONSE, DiagnosticsSummary>(devicePath, IOCTL_FCL_QUERY_DIAGNOSTICS, raw => new DiagnosticsSummary(raw));
         }
 
         public static SelfTestSummary RunSelfTest(string devicePath) {
@@ -114,6 +119,32 @@ namespace FclSelfTestTool {
             LastError = raw.LastError;
             Uptime = TimeSpan.FromTicks(raw.Uptime100ns);
             Pool = new PoolStats(raw.Pool);
+        }
+    }
+
+    public sealed class DetectionTimingStatsSummary {
+        public ulong CallCount { get; }
+        public ulong TotalMicroseconds { get; }
+        public ulong MinMicroseconds { get; }
+        public ulong MaxMicroseconds { get; }
+
+        internal DetectionTimingStatsSummary(FCL_DETECTION_TIMING_STATS raw) {
+            CallCount = raw.CallCount;
+            TotalMicroseconds = raw.TotalDurationMicroseconds;
+            MinMicroseconds = raw.MinDurationMicroseconds;
+            MaxMicroseconds = raw.MaxDurationMicroseconds;
+        }
+    }
+
+    public sealed class DiagnosticsSummary {
+        public DetectionTimingStatsSummary Collision { get; }
+        public DetectionTimingStatsSummary Distance { get; }
+        public DetectionTimingStatsSummary ContinuousCollision { get; }
+
+        internal DiagnosticsSummary(FCL_DIAGNOSTICS_RESPONSE raw) {
+            Collision = new DetectionTimingStatsSummary(raw.Collision);
+            Distance = new DetectionTimingStatsSummary(raw.Distance);
+            ContinuousCollision = new DetectionTimingStatsSummary(raw.ContinuousCollision);
         }
     }
 
@@ -218,6 +249,21 @@ namespace FclSelfTestTool {
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    internal struct FCL_DETECTION_TIMING_STATS {
+        public ulong CallCount;
+        public ulong TotalDurationMicroseconds;
+        public ulong MinDurationMicroseconds;
+        public ulong MaxDurationMicroseconds;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct FCL_DIAGNOSTICS_RESPONSE {
+        public FCL_DETECTION_TIMING_STATS Collision;
+        public FCL_DETECTION_TIMING_STATS Distance;
+        public FCL_DETECTION_TIMING_STATS ContinuousCollision;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     internal struct FCL_PING_RESPONSE {
         public FCL_DRIVER_VERSION Version;
         public byte IsInitialized;
@@ -286,6 +332,7 @@ try {
 
     if (-not $SkipPing) {
         $ping = [FclSelfTestTool.Native]::RunPing($DevicePath)
+        $diag = [FclSelfTestTool.Native]::RunDiagnostics($DevicePath)
         $report.Ping = [pscustomobject]@{
             Version        = $ping.Version.ToString()
             IsInitialized  = $ping.IsInitialized
@@ -293,6 +340,11 @@ try {
             LastError      = (Format-NtStatus -Status $ping.LastError)
             Uptime         = $ping.Uptime.ToString()
             Pool           = $ping.Pool
+        }
+        $report.Diagnostics = [pscustomobject]@{
+            Collision           = $diag.Collision
+            Distance            = $diag.Distance
+            ContinuousCollision = $diag.ContinuousCollision
         }
     }
 
@@ -327,6 +379,10 @@ try {
         if ($report.Contains('Ping')) {
             Write-Host '--- IOCTL_FCL_PING ---'
             $report.Ping | Format-List
+        }
+        if ($report.Contains('Diagnostics')) {
+            Write-Host '--- IOCTL_FCL_QUERY_DIAGNOSTICS ---'
+            $report.Diagnostics | Format-List
         }
         Write-Host '--- IOCTL_FCL_SELF_TEST ---'
         $report.SelfTest | Format-List

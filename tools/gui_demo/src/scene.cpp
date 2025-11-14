@@ -26,6 +26,8 @@ Scene::Scene(Renderer* renderer, FclDriver* driver)
     , m_selectedObjectIndex(static_cast<size_t>(-1))
     , m_sceneMode(SceneMode::Default)
     , m_simulationSpeed(1.0f)
+    , m_performanceMode(PerformanceMode::High)
+    , m_collisionFrameSkipCounter(0)
     , m_isDragging(false)
     , m_isPanning(false)
     , m_isRotatingCamera(false)
@@ -83,7 +85,7 @@ void Scene::InitializeSolarSystem()
     sun->name = "Sun";
     sun->type = GeometryType::Sphere;
     sun->position = sunCenter;
-    sun->data.sphere.radius = 3.0f;
+    sun->data.sphere.radius = 2.0f;  // Reduced from 3.0f to avoid overlap with Mercury (orbit 5.0f)
     sun->color = XMFLOAT4(1.0f, 0.9f, 0.2f, 1.0f); // Yellow
     sun->isOrbiting = false;
     if (m_driver && m_driver->IsConnected())
@@ -299,8 +301,30 @@ void Scene::Update(float deltaTime)
     // Update physics (for asteroids and other objects with velocity)
     UpdatePhysics(scaledDeltaTime);
 
-    // Detect collisions
-    DetectCollisions();
+    // Detect collisions with frame skip based on performance mode
+    int skipInterval = 0;
+    switch (m_performanceMode)
+    {
+    case PerformanceMode::High:
+        skipInterval = 0;  // Every frame
+        break;
+    case PerformanceMode::Medium:
+        skipInterval = 1;  // Every 2nd frame
+        break;
+    case PerformanceMode::Low:
+        skipInterval = 2;  // Every 3rd frame
+        break;
+    }
+
+    if (skipInterval == 0 || m_collisionFrameSkipCounter >= skipInterval)
+    {
+        DetectCollisions();
+        m_collisionFrameSkipCounter = 0;
+    }
+    else
+    {
+        m_collisionFrameSkipCounter++;
+    }
 }
 
 void Scene::UpdateOrbitalMotion(float deltaTime)
@@ -533,7 +557,7 @@ void Scene::UpdateVehicleMovement(float deltaTime)
         if (m_driver && m_driver->IsConnected() && obj->fclHandle.Value != 0)
         {
             FCL_TRANSFORM transform = FclDriver::CreateTransform(
-                obj->position, obj->GetRotationMatrix());
+                obj->position, obj->GetRotationMatrix(), obj->scale);
             m_driver->UpdateTransform(obj->fclHandle, transform);
         }
     }
@@ -791,13 +815,14 @@ void Scene::RenderObjects()
     {
         // Determine color (highlight if selected or colliding)
         XMFLOAT4 color = obj->color;
-        if (obj->isSelected)
-        {
-            color = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f); // Yellow for selected
-        }
-        else if (obj->isColliding)
+        // Collision has higher priority than selection for visualization.
+        if (obj->isColliding)
         {
             color = XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f); // Red for colliding
+        }
+        else if (obj->isSelected)
+        {
+            color = XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f); // Yellow for selected
         }
 
         switch (obj->type)
@@ -1056,6 +1081,14 @@ void Scene::DetectCollisions()
         obj->isColliding = false;
     }
 
+    // Update statistics for this frame
+    m_collisionStats.FrameCount++;
+    m_collisionStats.LastFramePairs = 0;
+    m_collisionStats.LastFrameHits = 0;
+
+    const bool crossroadMode = (m_sceneMode == SceneMode::CrossroadSimulation);
+    const bool solarSystemMode = (m_sceneMode == SceneMode::SolarSystem);
+
     // Check all pairs
     for (size_t i = 0; i < m_objects.size(); ++i)
     {
@@ -1067,9 +1100,38 @@ void Scene::DetectCollisions()
             if (obj1->fclHandle.Value == 0 || obj2->fclHandle.Value == 0)
                 continue;
 
-            // Create transforms
-            FCL_TRANSFORM transform1 = FclDriver::CreateTransform(obj1->position, obj1->GetRotationMatrix());
-            FCL_TRANSFORM transform2 = FclDriver::CreateTransform(obj2->position, obj2->GetRotationMatrix());
+            // In crossroad scene, only check vehicle-vehicle pairs to reduce IO and focus on cars.
+            if (crossroadMode)
+            {
+                if (!(obj1->isVehicle && obj2->isVehicle))
+                {
+                    continue;
+                }
+            }
+
+            // In solar system scene, skip collision detection for orbiting objects
+            // Only check collisions between asteroids (hasVelocity) and other objects
+            if (solarSystemMode)
+            {
+                // Skip if both objects are orbiting (planets don't collide with each other or the sun)
+                if (obj1->isOrbiting && obj2->isOrbiting)
+                {
+                    continue;
+                }
+
+                // Skip if one is orbiting and the other has no velocity (sun vs planets)
+                if ((obj1->isOrbiting && !obj2->hasVelocity) ||
+                    (obj2->isOrbiting && !obj1->hasVelocity))
+                {
+                    continue;
+                }
+
+                // Only check: asteroids (hasVelocity) vs anything
+            }
+
+            // Create transforms (include scale to match rendering)
+            FCL_TRANSFORM transform1 = FclDriver::CreateTransform(obj1->position, obj1->GetRotationMatrix(), obj1->scale);
+            FCL_TRANSFORM transform2 = FclDriver::CreateTransform(obj2->position, obj2->GetRotationMatrix(), obj2->scale);
 
             // Query collision
             bool isColliding = false;
@@ -1078,10 +1140,15 @@ void Scene::DetectCollisions()
             if (m_driver->QueryCollision(obj1->fclHandle, transform1, obj2->fclHandle, transform2,
                                          isColliding, contactInfo))
             {
+                m_collisionStats.LastFramePairs++;
+                m_collisionStats.TotalPairs++;
+
                 if (isColliding)
                 {
                     obj1->isColliding = true;
                     obj2->isColliding = true;
+                    m_collisionStats.LastFrameHits++;
+                    m_collisionStats.TotalHits++;
                 }
             }
         }
@@ -1127,7 +1194,7 @@ static void AddBoxToMesh(std::vector<XMFLOAT3>& vertices,
                          const XMFLOAT3& center,
                          const XMFLOAT3& extents)
 {
-    size_t baseIdx = vertices.size();
+    const uint32_t baseIdx = static_cast<uint32_t>(vertices.size());
 
     // 8 vertices of the box
     XMFLOAT3 boxVerts[8] = {
@@ -1388,30 +1455,14 @@ void Scene::AddVehicle(const std::string& name, VehicleType type,
     // Create mesh in renderer
     if (m_renderer)
     {
-        auto mesh = m_renderer->CreateMesh(vertices, indices);
-        obj->data.customMesh.mesh = mesh;
+        Mesh mesh = Renderer::CreateMeshFromData(vertices, indices);
+        m_renderer->UploadMesh(mesh);
+        obj->data.customMesh.mesh = new Mesh(std::move(mesh));
 
-        // Create FCL collision geometry (use bounding box for simplicity)
+        // Create FCL collision geometry using full mesh
         if (m_driver && m_driver->IsConnected())
         {
-            // Calculate bounding box
-            XMFLOAT3 minBounds(FLT_MAX, FLT_MAX, FLT_MAX);
-            XMFLOAT3 maxBounds(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-            for (const auto& v : vertices)
-            {
-                minBounds.x = std::min(minBounds.x, v.x);
-                minBounds.y = std::min(minBounds.y, v.y);
-                minBounds.z = std::min(minBounds.z, v.z);
-                maxBounds.x = std::max(maxBounds.x, v.x);
-                maxBounds.y = std::max(maxBounds.y, v.y);
-                maxBounds.z = std::max(maxBounds.z, v.z);
-            }
-            XMFLOAT3 extents(
-                (maxBounds.x - minBounds.x) / 2.0f,
-                (maxBounds.y - minBounds.y) / 2.0f,
-                (maxBounds.z - minBounds.z) / 2.0f
-            );
-            obj->fclHandle = m_driver->CreateBox(startPos, extents);
+            obj->fclHandle = m_driver->CreateMesh(vertices, indices);
         }
     }
 
@@ -1489,18 +1540,14 @@ void Scene::AddVehicleFromOBJ(const std::string& name, const std::string& objFil
     // Create mesh in renderer
     if (m_renderer)
     {
-        auto mesh = m_renderer->CreateMesh(meshData.vertices, meshData.indices);
-        obj->data.customMesh.mesh = mesh;
+        Mesh mesh = Renderer::CreateMeshFromData(meshData.vertices, meshData.indices);
+        m_renderer->UploadMesh(mesh);
+        obj->data.customMesh.mesh = new Mesh(std::move(mesh));
 
-        // Create FCL collision geometry using bounding box
+        // Create FCL collision geometry using full mesh
         if (m_driver && m_driver->IsConnected())
         {
-            XMFLOAT3 extents(
-                (meshData.maxBounds.x - meshData.minBounds.x) / 2.0f,
-                (meshData.maxBounds.y - meshData.minBounds.y) / 2.0f,
-                (meshData.maxBounds.z - meshData.minBounds.z) / 2.0f
-            );
-            obj->fclHandle = m_driver->CreateBox(startPos, extents);
+            obj->fclHandle = m_driver->CreateMesh(meshData.vertices, meshData.indices);
         }
     }
 

@@ -47,8 +47,9 @@ int WINAPI WinMain(
             return -1;
         }
 
-        // Create window
-        auto window = std::make_unique<Window>(hInst, L"FCL Collision Demo", 1280, 720);
+        // Create window (use a slightly larger default size so that
+        // left-side controls are fully visible without manual resize)
+        auto window = std::make_unique<Window>(hInst, L"FCL Collision Demo", 1400, 900);
         if (!window->Initialize())
         {
             MessageBoxA(nullptr, "Failed to create window", "Error", MB_OK | MB_ICONERROR);
@@ -79,6 +80,10 @@ int WINAPI WinMain(
         // Create scene
         auto scene = std::make_unique<Scene>(renderer.get(), driver.get());
         scene->Initialize();
+
+        // Prime kernel diagnostics once to avoid showing empty data for users
+        FCL_DIAGNOSTICS_RESPONSE initialDiag = {};
+        driver->QueryDiagnostics(initialDiag);
 
         // Connect UI events to scene
         window->OnCreateSphere = [&scene, &window](float radius) {
@@ -142,6 +147,27 @@ int WINAPI WinMain(
                 swprintf_s(msg, L"Simulation paused");
             else
                 swprintf_s(msg, L"Simulation speed: %.1fx", speed);
+            window->SetStatusText(msg);
+        };
+
+        window->OnPerformanceModeChanged = [&scene, &window](int mode) {
+            scene->SetPerformanceMode(static_cast<PerformanceMode>(mode));
+            wchar_t msg[128];
+            switch (mode)
+            {
+            case 0:
+                swprintf_s(msg, L"Performance mode: High (every frame collision detection)");
+                break;
+            case 1:
+                swprintf_s(msg, L"Performance mode: Medium (every 2nd frame)");
+                break;
+            case 2:
+                swprintf_s(msg, L"Performance mode: Low (every 3rd frame, optimized for VMs)");
+                break;
+            default:
+                swprintf_s(msg, L"Performance mode changed");
+                break;
+            }
             window->SetStatusText(msg);
         };
 
@@ -245,11 +271,12 @@ int WINAPI WinMain(
                 // Handle input
                 scene->HandleInput(window.get(), deltaTime);
 
-                // Update and render
+                // Update scene (physics, vehicles, collisions)
                 scene->Update(deltaTime);
 
                 // Update properties panel with selected object info
                 size_t selectedIdx = scene->GetSelectedObjectIndex();
+                std::wstring selectedObjName = L"None";
                 if (selectedIdx != static_cast<size_t>(-1))
                 {
                     auto* obj = scene->GetObject(selectedIdx);
@@ -258,6 +285,10 @@ int WINAPI WinMain(
                         window->UpdatePropertiesPanel(selectedIdx, obj->name,
                                                      obj->position.x, obj->position.y, obj->position.z,
                                                      obj->rotation.y);
+                        // Convert object name to wstring for status panel
+                        int size_needed = MultiByteToWideChar(CP_UTF8, 0, obj->name.c_str(), -1, NULL, 0);
+                        selectedObjName.resize(size_needed - 1);
+                        MultiByteToWideChar(CP_UTF8, 0, obj->name.c_str(), -1, &selectedObjName[0], size_needed);
                     }
                 }
                 else
@@ -265,9 +296,80 @@ int WINAPI WinMain(
                     window->UpdatePropertiesPanel(static_cast<size_t>(-1), "", 0, 0, 0, 0);
                 }
 
+                // Update enhanced status panel
+                std::wstring sceneModeName;
+                switch (scene->GetSceneMode())
+                {
+                case SceneMode::Default:
+                    sceneModeName = L"Default";
+                    break;
+                case SceneMode::SolarSystem:
+                    sceneModeName = L"Solar System";
+                    break;
+                case SceneMode::CrossroadSimulation:
+                    sceneModeName = L"Crossroad";
+                    break;
+                default:
+                    sceneModeName = L"Unknown";
+                    break;
+                }
+
+                window->UpdateStatusPanel(currentFPS, avgFrameTime, scene->GetObjectCount(),
+                                         sceneModeName, selectedObjName);
+
                 renderer->BeginFrame();
                 scene->Render();
                 renderer->EndFrame();
+
+                // Update overlay with collision + kernel timing diagnostics
+                const auto& stats = scene->GetCollisionStats();
+
+                FCL_DIAGNOSTICS_RESPONSE diag = {};
+                bool diagOk = driver->QueryDiagnostics(diag);
+
+                const double collisionAvgMs = (diag.Collision.CallCount > 0)
+                    ? static_cast<double>(diag.Collision.TotalDurationMicroseconds) /
+                          (1000.0 * static_cast<double>(diag.Collision.CallCount))
+                    : 0.0;
+                const double distanceAvgMs = (diag.Distance.CallCount > 0)
+                    ? static_cast<double>(diag.Distance.TotalDurationMicroseconds) /
+                          (1000.0 * static_cast<double>(diag.Distance.CallCount))
+                    : 0.0;
+                const double ccdAvgMs = (diag.ContinuousCollision.CallCount > 0)
+                    ? static_cast<double>(diag.ContinuousCollision.TotalDurationMicroseconds) /
+                          (1000.0 * static_cast<double>(diag.ContinuousCollision.CallCount))
+                    : 0.0;
+
+                wchar_t overlay[512];
+                if (diagOk)
+                {
+                    swprintf_s(
+                        overlay,
+                        L"Collision Stats  |  Frames: %llu  |  LastPairs: %u  Hits: %u  |  TotalPairs: %llu  TotalHits: %llu\n"
+                        L"Kernel Timing (avg, ms)  |  Collision: %.3f  Distance: %.3f  CCD: %.3f",
+                        static_cast<unsigned long long>(stats.FrameCount),
+                        stats.LastFramePairs,
+                        stats.LastFrameHits,
+                        static_cast<unsigned long long>(stats.TotalPairs),
+                        static_cast<unsigned long long>(stats.TotalHits),
+                        collisionAvgMs,
+                        distanceAvgMs,
+                        ccdAvgMs);
+                }
+                else
+                {
+                    swprintf_s(
+                        overlay,
+                        L"Collision Stats  |  Frames: %llu  |  LastPairs: %u  Hits: %u  |  TotalPairs: %llu  TotalHits: %llu\n"
+                        L"Kernel Timing: unavailable (driver not connected or IOCTL failed)",
+                        static_cast<unsigned long long>(stats.FrameCount),
+                        stats.LastFramePairs,
+                        stats.LastFrameHits,
+                        static_cast<unsigned long long>(stats.TotalPairs),
+                        static_cast<unsigned long long>(stats.TotalHits));
+                }
+
+                window->SetOverlayText(overlay);
             }
         }
 

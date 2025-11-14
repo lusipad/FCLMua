@@ -4,9 +4,6 @@
 #include <vector>
 #include <directxmath.h>
 
-// FCL driver structures (from kernel headers)
-#pragma pack(push, 1)
-
 struct FCL_VECTOR3 {
     float X, Y, Z;
 };
@@ -31,48 +28,89 @@ struct FCL_CONTACT_INFO {
     float PenetrationDepth;
 };
 
-struct FCL_COLLISION_IO_BUFFER {
-    struct {
-        FCL_GEOMETRY_HANDLE Object1;
-        FCL_TRANSFORM Transform1;
-        FCL_GEOMETRY_HANDLE Object2;
-        FCL_TRANSFORM Transform2;
-    } Query;
-
-    struct {
-        UCHAR IsColliding;
-        FCL_CONTACT_INFO Contact;
-    } Result;
+struct FCL_COLLISION_QUERY {
+    FCL_GEOMETRY_HANDLE Object1;
+    FCL_TRANSFORM Transform1;
+    FCL_GEOMETRY_HANDLE Object2;
+    FCL_TRANSFORM Transform2;
 };
 
 struct FCL_DISTANCE_RESULT {
     float Distance;
-    FCL_VECTOR3 PointOnObject1;
-    FCL_VECTOR3 PointOnObject2;
+    FCL_VECTOR3 ClosestPoint1;
+    FCL_VECTOR3 ClosestPoint2;
 };
 
-struct FCL_CREATE_SPHERE_BUFFER {
+struct FCL_COLLISION_RESULT {
+    UCHAR IsColliding;
+    UCHAR Reserved[3];
+    FCL_CONTACT_INFO Contact;
+};
+
+struct FCL_COLLISION_IO_BUFFER {
+    FCL_COLLISION_QUERY Query;
+    FCL_COLLISION_RESULT Result;
+};
+
+struct FCL_DISTANCE_QUERY {
+    FCL_GEOMETRY_HANDLE Object1;
+    FCL_TRANSFORM Transform1;
+    FCL_GEOMETRY_HANDLE Object2;
+    FCL_TRANSFORM Transform2;
+};
+
+struct FCL_DISTANCE_IO_BUFFER {
+    FCL_DISTANCE_QUERY Query;
+    FCL_DISTANCE_RESULT Result;
+};
+
+struct FCL_SPHERE_GEOMETRY_DESC {
     FCL_VECTOR3 Center;
     float Radius;
-    FCL_GEOMETRY_HANDLE Handle; // Output
+};
+
+struct FCL_CREATE_SPHERE_INPUT {
+    FCL_SPHERE_GEOMETRY_DESC Desc;
+};
+
+struct FCL_CREATE_SPHERE_OUTPUT {
+    FCL_GEOMETRY_HANDLE Handle;
+};
+
+struct FCL_DESTROY_INPUT {
+    FCL_GEOMETRY_HANDLE Handle;
 };
 
 struct FCL_CREATE_MESH_BUFFER {
     UINT32 VertexCount;
     UINT32 IndexCount;
+    UINT32 Reserved0;
+    UINT32 Reserved1;
     FCL_GEOMETRY_HANDLE Handle; // Output
     // Followed by: VertexCount * FCL_VECTOR3, then IndexCount * UINT32
 };
 
-#pragma pack(pop)
+struct FCL_DETECTION_TIMING_STATS {
+    ULONGLONG CallCount;
+    ULONGLONG TotalDurationMicroseconds;
+    ULONGLONG MinDurationMicroseconds;
+    ULONGLONG MaxDurationMicroseconds;
+};
 
-// IOCTL codes
-#define IOCTL_FCL_PING                CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
-#define IOCTL_FCL_CREATE_SPHERE       CTL_CODE(FILE_DEVICE_UNKNOWN, 0x812, METHOD_BUFFERED, FILE_ANY_ACCESS)
-#define IOCTL_FCL_CREATE_MESH         CTL_CODE(FILE_DEVICE_UNKNOWN, 0x814, METHOD_BUFFERED, FILE_ANY_ACCESS)
-#define IOCTL_FCL_DESTROY_GEOMETRY    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x813, METHOD_BUFFERED, FILE_ANY_ACCESS)
-#define IOCTL_FCL_QUERY_COLLISION     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x810, METHOD_BUFFERED, FILE_ANY_ACCESS)
-#define IOCTL_FCL_QUERY_DISTANCE      CTL_CODE(FILE_DEVICE_UNKNOWN, 0x811, METHOD_BUFFERED, FILE_ANY_ACCESS)
+struct FCL_DIAGNOSTICS_RESPONSE {
+    FCL_DETECTION_TIMING_STATS Collision;
+    FCL_DETECTION_TIMING_STATS Distance;
+    FCL_DETECTION_TIMING_STATS ContinuousCollision;
+};
+
+// IOCTL codes (must match kernel/core/include/fclmusa/ioctl.h)
+#define IOCTL_FCL_PING                CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_QUERY_DIAGNOSTICS   CTL_CODE(FILE_DEVICE_UNKNOWN, 0x803, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_CREATE_SPHERE       CTL_CODE(FILE_DEVICE_UNKNOWN, 0x812, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_CREATE_MESH         CTL_CODE(FILE_DEVICE_UNKNOWN, 0x814, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_DESTROY_GEOMETRY    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x813, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_QUERY_COLLISION     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x810, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_QUERY_DISTANCE      CTL_CODE(FILE_DEVICE_UNKNOWN, 0x811, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 
 class FclDriver
 {
@@ -87,6 +125,7 @@ public:
 
     // Geometry creation
     FCL_GEOMETRY_HANDLE CreateSphere(const DirectX::XMFLOAT3& center, float radius);
+    FCL_GEOMETRY_HANDLE CreateBox(const DirectX::XMFLOAT3& center, const DirectX::XMFLOAT3& extents);
     FCL_GEOMETRY_HANDLE CreateMesh(const std::vector<DirectX::XMFLOAT3>& vertices,
                                     const std::vector<uint32_t>& indices);
     bool DestroyGeometry(FCL_GEOMETRY_HANDLE handle);
@@ -100,11 +139,17 @@ public:
                        FCL_GEOMETRY_HANDLE obj2, const FCL_TRANSFORM& transform2,
                        FCL_DISTANCE_RESULT& result);
 
+    // Transform updates (no-op in current thin driver, kept for API compatibility)
+    bool UpdateTransform(FCL_GEOMETRY_HANDLE handle, const FCL_TRANSFORM& transform);
+
     // Utility
     static FCL_TRANSFORM CreateTransform(const DirectX::XMFLOAT3& position,
-                                          const DirectX::XMMATRIX& rotation);
+                                          const DirectX::XMMATRIX& rotation,
+                                          const DirectX::XMFLOAT3& scale = DirectX::XMFLOAT3(1.0f, 1.0f, 1.0f));
     static FCL_VECTOR3 ToFclVector(const DirectX::XMFLOAT3& v);
     static DirectX::XMFLOAT3 FromFclVector(const FCL_VECTOR3& v);
+
+    bool QueryDiagnostics(FCL_DIAGNOSTICS_RESPONSE& diagnostics);
 
 private:
     HANDLE m_device;

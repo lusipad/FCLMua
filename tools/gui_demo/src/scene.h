@@ -18,6 +18,14 @@ enum class SceneMode
     CrossroadSimulation
 };
 
+// Performance mode (for optimization in virtual machines)
+enum class PerformanceMode
+{
+    High,      // Full collision detection every frame, max quality
+    Medium,    // Collision detection every 2 frames
+    Low        // Collision detection every 3 frames, optimized for VMs
+};
+
 // Geometry types
 enum class GeometryType
 {
@@ -187,6 +195,10 @@ public:
     void SetSimulationSpeed(float speed) { m_simulationSpeed = speed; }
     float GetSimulationSpeed() const { return m_simulationSpeed; }
 
+    // Performance mode control
+    void SetPerformanceMode(PerformanceMode mode) { m_performanceMode = mode; }
+    PerformanceMode GetPerformanceMode() const { return m_performanceMode; }
+
     // Scene save/load
     bool SaveScene(const std::string& filename);
     bool LoadScene(const std::string& filename);
@@ -195,6 +207,17 @@ public:
     size_t GetObjectCount() const { return m_objects.size(); }
     SceneObject* GetObject(size_t index);
     Camera& GetCamera() { return m_camera; }
+
+    // Collision statistics (for diagnostics/overlay)
+    struct CollisionStats {
+        uint64_t FrameCount = 0;         // Number of frames where DetectCollisions() was called
+        uint64_t TotalPairs = 0;         // Total pairs checked over lifetime
+        uint64_t TotalHits = 0;          // Total colliding pairs over lifetime
+        uint32_t LastFramePairs = 0;     // Pairs checked in the most recent frame
+        uint32_t LastFrameHits = 0;      // Colliding pairs in the most recent frame
+    };
+
+    const CollisionStats& GetCollisionStats() const { return m_collisionStats; }
 
     // Input handling (called by main loop)
     void HandleInput(Window* window, float deltaTime);
@@ -221,6 +244,10 @@ private:
     SceneMode m_sceneMode;
     float m_simulationSpeed;
 
+    // Performance optimization
+    PerformanceMode m_performanceMode;
+    int m_collisionFrameSkipCounter;
+
     // Input state
     bool m_isDragging;
     bool m_isPanning;
@@ -231,4 +258,7 @@ private:
     // Asteroid creation state (for solar system scene)
     bool m_isCreatingAsteroid;
     XMFLOAT3 m_asteroidVelocity;
+
+    // Collision statistics
+    CollisionStats m_collisionStats;
 };

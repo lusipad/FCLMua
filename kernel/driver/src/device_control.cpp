@@ -70,6 +70,22 @@ NTSTATUS HandleSelfTestScenario(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack)
     return status;
 }
 
+NTSTATUS HandleDiagnosticsQuery(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
+    if (stack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(FCL_DIAGNOSTICS_RESPONSE)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    auto* response = reinterpret_cast<FCL_DIAGNOSTICS_RESPONSE*>(irp->AssociatedIrp.SystemBuffer);
+    RtlZeroMemory(response, sizeof(*response));
+
+    NTSTATUS status = FclQueryDiagnostics(response);
+    if (NT_SUCCESS(status)) {
+        irp->IoStatus.Information = sizeof(*response);
+    }
+
+    return status;
+}
+
 NTSTATUS HandleCollisionQuery(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
     if (stack->Parameters.DeviceIoControl.InputBufferLength < sizeof(FCL_COLLISION_IO_BUFFER) ||
         stack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(FCL_COLLISION_IO_BUFFER)) {
@@ -266,6 +282,9 @@ FclDispatchDeviceControl(_In_ PDEVICE_OBJECT deviceObject, _Inout_ PIRP irp) {
             break;
         case IOCTL_FCL_SELF_TEST_SCENARIO:
             status = HandleSelfTestScenario(irp, stack);
+            break;
+        case IOCTL_FCL_QUERY_DIAGNOSTICS:
+            status = HandleDiagnosticsQuery(irp, stack);
             break;
         case IOCTL_FCL_QUERY_COLLISION:
             status = HandleCollisionQuery(irp, stack);

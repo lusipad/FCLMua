@@ -23,6 +23,7 @@
 #define IOCTL_FCL_PING                 CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 #define IOCTL_FCL_SELF_TEST            CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 #define IOCTL_FCL_SELF_TEST_SCENARIO   CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#define IOCTL_FCL_QUERY_DIAGNOSTICS    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x803, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 #define IOCTL_FCL_QUERY_COLLISION      CTL_CODE(FILE_DEVICE_UNKNOWN, 0x810, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 #define IOCTL_FCL_QUERY_DISTANCE       CTL_CODE(FILE_DEVICE_UNKNOWN, 0x811, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
 #define IOCTL_FCL_CREATE_SPHERE        CTL_CODE(FILE_DEVICE_UNKNOWN, 0x812, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
@@ -78,6 +79,19 @@ struct FCL_PING_RESPONSE {
     FCL_POOL_STATS Pool;
 };
 static_assert(sizeof(FCL_PING_RESPONSE) == 88, "Unexpected FCL_PING_RESPONSE size");
+
+struct FCL_DETECTION_TIMING_STATS {
+    uint64_t CallCount;
+    uint64_t TotalDurationMicroseconds;
+    uint64_t MinDurationMicroseconds;
+    uint64_t MaxDurationMicroseconds;
+};
+
+struct FCL_DIAGNOSTICS_RESPONSE {
+    FCL_DETECTION_TIMING_STATS Collision;
+    FCL_DETECTION_TIMING_STATS Distance;
+    FCL_DETECTION_TIMING_STATS ContinuousCollision;
+};
 
 struct FCL_SPHERE_GEOMETRY_DESC {
     FCL_VECTOR3 Center;
@@ -331,6 +345,22 @@ bool RunSelfTestScenario(HANDLE device, const std::string& name) {
            result.Contact.PenetrationDepth);
 
     return true;
+}
+
+void PrintTimingStats(const char* name, const FCL_DETECTION_TIMING_STATS& stats) {
+    if (stats.CallCount == 0) {
+        printf("  %-20s: no samples\n", name);
+        return;
+    }
+
+    const double avg = static_cast<double>(stats.TotalDurationMicroseconds) / static_cast<double>(stats.CallCount);
+    printf("  %-20s: calls=%llu total=%.3f ms min=%.3f ms max=%.3f ms avg=%.3f ms\n",
+           name,
+           static_cast<unsigned long long>(stats.CallCount),
+           static_cast<double>(stats.TotalDurationMicroseconds) / 1000.0,
+           static_cast<double>(stats.MinDurationMicroseconds) / 1000.0,
+           static_cast<double>(stats.MaxDurationMicroseconds) / 1000.0,
+           avg / 1000.0);
 }
 
 bool SendIoctl(HANDLE device, DWORD code, void* buffer, DWORD size) {
@@ -648,6 +678,7 @@ void PrintHelp() {
     printf("  demo                                 Run legacy sphere demo\n");
     printf("  selftest                             Run driver self-test (ping + IOCTL_FCL_SELF_TEST)\n");
     printf("  selftest <scenario>                  Run single self-test scenario (runtime|sphere|broadphase|mesh|ccd)\n");
+    printf("  diag                                 Query kernel detection timing diagnostics\n");
     printf("  quit                                 Exit the tool\n");
 }
 
@@ -722,6 +753,17 @@ bool ExecuteCommand(const std::vector<std::string>& tokens, HANDLE device, Scene
         ListObjects(objects);
     } else if (cmd == "demo") {
         RunLegacyDemo(device);
+    } else if (cmd == "diag") {
+        FCL_DIAGNOSTICS_RESPONSE diag = {};
+        if (!SendIoctl(device, IOCTL_FCL_QUERY_DIAGNOSTICS, &diag, sizeof(diag))) {
+            printf("  [FAIL] Diagnostics IOCTL failed.\n");
+            return true;
+        }
+
+        printf("Kernel detection timing diagnostics (microseconds aggregated):\n");
+        PrintTimingStats("Collision", diag.Collision);
+        PrintTimingStats("Distance", diag.Distance);
+        PrintTimingStats("ContinuousCollision", diag.ContinuousCollision);
     } else if (cmd == "selftest") {
         if (tokens.size() == 2) {
             return RunSelfTestScenario(device, tokens[1]);

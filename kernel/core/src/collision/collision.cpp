@@ -3,6 +3,7 @@
 #include <wdm.h>
 
 #include "fclmusa/collision.h"
+#include "fclmusa/driver.h"
 #include "fclmusa/geometry/math_utils.h"
 #include "fclmusa/logging.h"
 #include "fclmusa/upstream/upstream_bridge.h"
@@ -38,6 +39,23 @@ NTSTATUS InitializeCollisionObject(
     }
 
     return FclAcquireGeometryReference(handle, &object->Reference, &object->Snapshot);
+}
+
+ULONGLONG QueryTimeMicroseconds() noexcept {
+    LARGE_INTEGER frequency = {};
+    const LARGE_INTEGER counter = KeQueryPerformanceCounter(&frequency);
+    if (frequency.QuadPart == 0) {
+        return 0;
+    }
+    const LONGLONG ticks = counter.QuadPart;
+    const ULONGLONG absoluteTicks = (ticks >= 0)
+        ? static_cast<ULONGLONG>(ticks)
+        : static_cast<ULONGLONG>(-ticks);
+    return (absoluteTicks * 1'000'000ULL) / static_cast<ULONGLONG>(frequency.QuadPart);
+}
+
+ULONGLONG AbsoluteDifference(ULONGLONG a, ULONGLONG b) noexcept {
+    return (a > b) ? (a - b) : (b - a);
 }
 
 }  // namespace
@@ -76,13 +94,24 @@ FclCollisionDetect(
         return status;
     }
 
-    return FclUpstreamCollide(
+    const ULONGLONG start = QueryTimeMicroseconds();
+    status = FclUpstreamCollide(
         objectA.Snapshot,
         objectA.Transform,
         objectB.Snapshot,
         objectB.Transform,
         isColliding,
         contactInfo);
+    const ULONGLONG end = QueryTimeMicroseconds();
+
+    if (NT_SUCCESS(status) && start != 0 && end != 0) {
+        const ULONGLONG elapsed = AbsoluteDifference(end, start);
+        if (elapsed != 0) {
+            FclDiagnosticsRecordCollisionDuration(elapsed);
+        }
+    }
+
+    return status;
 }
 
 extern "C"
