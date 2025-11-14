@@ -1,6 +1,5 @@
 #pragma once
 
-#include <iostream>
 #include <ostream>
 #include <charconv>
 #include <system_error>
@@ -15,6 +14,8 @@ namespace fcl {
 namespace logging {
 
 #if FCL_ENABLE_STD_LOGGING
+
+#include <iostream>
 
 inline std::ostream& GetCerr() noexcept {
     return std::cerr;
