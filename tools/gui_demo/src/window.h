@@ -20,6 +20,9 @@ public:
     std::function<void(float)> OnCreateSphere;
     std::function<void(float, float, float)> OnCreateBox;
     std::function<void()> OnDeleteObject;
+    std::function<void(int)> OnSceneModeChanged;  // 0=Default, 1=SolarSystem
+    std::function<void(float)> OnSimulationSpeedChanged;
+    std::function<void(float, float, float, float)> OnCreateAsteroid;  // vx, vy, vz, radius
 
     // Input state
     bool IsKeyDown(int vkCode) const { return m_keys[vkCode]; }
@@ -54,6 +57,26 @@ private:
     HWND m_editBoxX, m_editBoxY, m_editBoxZ;
     HWND m_labelSphereRadius;
     HWND m_labelBox;
+
+    // Scene mode controls
+    HWND m_labelSceneMode;
+    HWND m_btnSceneDefault;
+    HWND m_btnSceneSolarSystem;
+
+    // Speed controls
+    HWND m_labelSpeed;
+    HWND m_btnSpeedPause;
+    HWND m_btnSpeed05;
+    HWND m_btnSpeed1;
+    HWND m_btnSpeed2;
+    HWND m_btnSpeed5;
+
+    // Asteroid controls
+    HWND m_labelAsteroid;
+    HWND m_editAsteroidVX, m_editAsteroidVY, m_editAsteroidVZ, m_editAsteroidRadius;
+    HWND m_btnCreateAsteroid;
+    HWND m_labelAsteroidVelocity;
+    HWND m_labelAsteroidRadius;
 
     void CreateUIControls();
 };

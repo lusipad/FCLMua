@@ -10,6 +10,13 @@
 
 using namespace DirectX;
 
+// Scene mode
+enum class SceneMode
+{
+    Default,
+    SolarSystem
+};
+
 // Geometry types
 enum class GeometryType
 {
@@ -29,6 +36,17 @@ struct SceneObject
     XMFLOAT4 color;
     bool isSelected;
     bool isColliding;
+
+    // Orbital motion data (for solar system scene)
+    bool isOrbiting;
+    float orbitalRadius;      // Distance from orbit center
+    float orbitalSpeed;       // Radians per second
+    float currentAngle;       // Current angle in orbit
+    XMFLOAT3 orbitCenter;     // Point to orbit around
+
+    // Physics data (for asteroids)
+    bool hasVelocity;
+    XMFLOAT3 velocity;        // Linear velocity
 
     // Geometry-specific data
     union {
@@ -53,6 +71,13 @@ struct SceneObject
         , color(0.7f, 0.7f, 0.7f, 1.0f)
         , isSelected(false)
         , isColliding(false)
+        , isOrbiting(false)
+        , orbitalRadius(0)
+        , orbitalSpeed(0)
+        , currentAngle(0)
+        , orbitCenter(0, 0, 0)
+        , hasVelocity(false)
+        , velocity(0, 0, 0)
         , fclHandle{ 0 }
     {
         memset(&data, 0, sizeof(data));
@@ -72,6 +97,12 @@ public:
     void Update(float deltaTime);
     void Render();
 
+    // Scene mode management
+    void SetSceneMode(SceneMode mode);
+    SceneMode GetSceneMode() const { return m_sceneMode; }
+    void InitializeDefaultScene();
+    void InitializeSolarSystem();
+
     // Object management
     void AddSphere(const std::string& name, const XMFLOAT3& position, float radius);
     void AddBox(const std::string& name, const XMFLOAT3& position, const XMFLOAT3& extents);
@@ -81,6 +112,11 @@ public:
     void DeleteObject(size_t index);
     void ClearAllObjects();
 
+    // Asteroid management (for solar system scene)
+    void AddAsteroid(const std::string& name, const XMFLOAT3& position,
+                     const XMFLOAT3& velocity, float radius);
+    void SetAsteroidVelocity(size_t index, const XMFLOAT3& velocity);
+
     // Selection and transformation
     void SelectObject(size_t index);
     void DeselectAll();
@@ -89,6 +125,10 @@ public:
 
     // Collision detection
     void DetectCollisions();
+
+    // Simulation speed control
+    void SetSimulationSpeed(float speed) { m_simulationSpeed = speed; }
+    float GetSimulationSpeed() const { return m_simulationSpeed; }
 
     // Accessors
     size_t GetObjectCount() const { return m_objects.size(); }
@@ -102,6 +142,11 @@ private:
     void RenderObjects();
     void RenderGrid();
     void RenderGizmo();
+    void RenderOrbits();
+
+    // Update orbital positions
+    void UpdateOrbitalMotion(float deltaTime);
+    void UpdatePhysics(float deltaTime);
 
     Renderer* m_renderer;
     FclDriver* m_driver;
@@ -110,10 +155,18 @@ private:
     std::vector<std::unique_ptr<SceneObject>> m_objects;
     size_t m_selectedObjectIndex;
 
+    // Scene mode
+    SceneMode m_sceneMode;
+    float m_simulationSpeed;
+
     // Input state
     bool m_isDragging;
     bool m_isPanning;
     bool m_isRotatingCamera;
     int m_lastMouseX;
     int m_lastMouseY;
+
+    // Asteroid creation state (for solar system scene)
+    bool m_isCreatingAsteroid;
+    XMFLOAT3 m_asteroidVelocity;
 };

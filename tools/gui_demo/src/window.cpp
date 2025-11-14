@@ -23,6 +23,23 @@ Window::Window(HINSTANCE hInstance, const std::wstring& title, int width, int he
     , m_editBoxZ(nullptr)
     , m_labelSphereRadius(nullptr)
     , m_labelBox(nullptr)
+    , m_labelSceneMode(nullptr)
+    , m_btnSceneDefault(nullptr)
+    , m_btnSceneSolarSystem(nullptr)
+    , m_labelSpeed(nullptr)
+    , m_btnSpeedPause(nullptr)
+    , m_btnSpeed05(nullptr)
+    , m_btnSpeed1(nullptr)
+    , m_btnSpeed2(nullptr)
+    , m_btnSpeed5(nullptr)
+    , m_labelAsteroid(nullptr)
+    , m_editAsteroidVX(nullptr)
+    , m_editAsteroidVY(nullptr)
+    , m_editAsteroidVZ(nullptr)
+    , m_editAsteroidRadius(nullptr)
+    , m_btnCreateAsteroid(nullptr)
+    , m_labelAsteroidVelocity(nullptr)
+    , m_labelAsteroidRadius(nullptr)
 {
     ZeroMemory(m_keys, sizeof(m_keys));
     ZeroMemory(m_mouseButtons, sizeof(m_mouseButtons));
@@ -166,6 +183,122 @@ void Window::CreateUIControls()
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
         panelX, y, 180, buttonHeight,
         m_hwnd, (HMENU)2003, m_hInstance, nullptr);
+    y += spacing + 15;
+
+    // Scene mode section
+    m_labelSceneMode = CreateWindowW(
+        L"STATIC", L"Scene Mode:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 200, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += spacing;
+
+    m_btnSceneDefault = CreateWindowW(
+        L"BUTTON", L"Default",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX, y, 85, buttonHeight,
+        m_hwnd, (HMENU)3001, m_hInstance, nullptr);
+
+    m_btnSceneSolarSystem = CreateWindowW(
+        L"BUTTON", L"Solar System",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX + 90, y, 95, buttonHeight,
+        m_hwnd, (HMENU)3002, m_hInstance, nullptr);
+    y += spacing + 10;
+
+    // Speed controls section
+    m_labelSpeed = CreateWindowW(
+        L"STATIC", L"Simulation Speed:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 200, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += spacing;
+
+    const int speedBtnWidth = 35;
+    m_btnSpeedPause = CreateWindowW(
+        L"BUTTON", L"||",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX, y, speedBtnWidth, buttonHeight,
+        m_hwnd, (HMENU)4001, m_hInstance, nullptr);
+
+    m_btnSpeed05 = CreateWindowW(
+        L"BUTTON", L"0.5x",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX + speedBtnWidth + 2, y, speedBtnWidth, buttonHeight,
+        m_hwnd, (HMENU)4002, m_hInstance, nullptr);
+
+    m_btnSpeed1 = CreateWindowW(
+        L"BUTTON", L"1x",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX + (speedBtnWidth + 2) * 2, y, speedBtnWidth, buttonHeight,
+        m_hwnd, (HMENU)4003, m_hInstance, nullptr);
+
+    m_btnSpeed2 = CreateWindowW(
+        L"BUTTON", L"2x",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX + (speedBtnWidth + 2) * 3, y, speedBtnWidth, buttonHeight,
+        m_hwnd, (HMENU)4004, m_hInstance, nullptr);
+
+    m_btnSpeed5 = CreateWindowW(
+        L"BUTTON", L"5x",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX + (speedBtnWidth + 2) * 4, y, speedBtnWidth, buttonHeight,
+        m_hwnd, (HMENU)4005, m_hInstance, nullptr);
+    y += spacing + 10;
+
+    // Asteroid section
+    m_labelAsteroid = CreateWindowW(
+        L"STATIC", L"Create Asteroid:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 200, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += spacing;
+
+    m_labelAsteroidVelocity = CreateWindowW(
+        L"STATIC", L"Velocity (X,Y,Z):",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 120, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += labelHeight + 5;
+
+    const int smallEditWidth = 45;
+    m_editAsteroidVX = CreateWindowW(
+        L"EDIT", L"5.0",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        panelX, y, smallEditWidth, editHeight,
+        m_hwnd, (HMENU)1005, m_hInstance, nullptr);
+
+    m_editAsteroidVY = CreateWindowW(
+        L"EDIT", L"0.0",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        panelX + smallEditWidth + 5, y, smallEditWidth, editHeight,
+        m_hwnd, (HMENU)1006, m_hInstance, nullptr);
+
+    m_editAsteroidVZ = CreateWindowW(
+        L"EDIT", L"0.0",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        panelX + (smallEditWidth + 5) * 2, y, smallEditWidth, editHeight,
+        m_hwnd, (HMENU)1007, m_hInstance, nullptr);
+    y += editHeight + 10;
+
+    m_labelAsteroidRadius = CreateWindowW(
+        L"STATIC", L"Radius:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 60, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+
+    m_editAsteroidRadius = CreateWindowW(
+        L"EDIT", L"0.3",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        panelX + 65, y, smallEditWidth, editHeight,
+        m_hwnd, (HMENU)1008, m_hInstance, nullptr);
+    y += editHeight + 5;
+
+    m_btnCreateAsteroid = CreateWindowW(
+        L"BUTTON", L"Create Asteroid",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX, y, 180, buttonHeight,
+        m_hwnd, (HMENU)5001, m_hInstance, nullptr);
 
     // Set font for all controls
     HFONT hFont = CreateFontW(
@@ -183,6 +316,26 @@ void Window::CreateUIControls()
     SendMessage(m_editBoxZ, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_btnCreateBox, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_btnDelete, WM_SETFONT, (WPARAM)hFont, TRUE);
+
+    SendMessage(m_labelSceneMode, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnSceneDefault, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnSceneSolarSystem, WM_SETFONT, (WPARAM)hFont, TRUE);
+
+    SendMessage(m_labelSpeed, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnSpeedPause, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnSpeed05, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnSpeed1, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnSpeed2, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnSpeed5, WM_SETFONT, (WPARAM)hFont, TRUE);
+
+    SendMessage(m_labelAsteroid, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_labelAsteroidVelocity, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editAsteroidVX, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editAsteroidVY, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editAsteroidVZ, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_labelAsteroidRadius, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editAsteroidRadius, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnCreateAsteroid, WM_SETFONT, (WPARAM)hFont, TRUE);
 }
 
 void Window::Show(int nCmdShow)
@@ -254,6 +407,64 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         {
             if (OnDeleteObject)
                 OnDeleteObject();
+            break;
+        }
+        case 3001: // Scene mode: Default
+        {
+            if (OnSceneModeChanged)
+                OnSceneModeChanged(0);
+            break;
+        }
+        case 3002: // Scene mode: Solar System
+        {
+            if (OnSceneModeChanged)
+                OnSceneModeChanged(1);
+            break;
+        }
+        case 4001: // Speed: Pause
+        {
+            if (OnSimulationSpeedChanged)
+                OnSimulationSpeedChanged(0.0f);
+            break;
+        }
+        case 4002: // Speed: 0.5x
+        {
+            if (OnSimulationSpeedChanged)
+                OnSimulationSpeedChanged(0.5f);
+            break;
+        }
+        case 4003: // Speed: 1x
+        {
+            if (OnSimulationSpeedChanged)
+                OnSimulationSpeedChanged(1.0f);
+            break;
+        }
+        case 4004: // Speed: 2x
+        {
+            if (OnSimulationSpeedChanged)
+                OnSimulationSpeedChanged(2.0f);
+            break;
+        }
+        case 4005: // Speed: 5x
+        {
+            if (OnSimulationSpeedChanged)
+                OnSimulationSpeedChanged(5.0f);
+            break;
+        }
+        case 5001: // Create Asteroid button
+        {
+            wchar_t bufferVX[32], bufferVY[32], bufferVZ[32], bufferRadius[32];
+            GetWindowTextW(m_editAsteroidVX, bufferVX, 32);
+            GetWindowTextW(m_editAsteroidVY, bufferVY, 32);
+            GetWindowTextW(m_editAsteroidVZ, bufferVZ, 32);
+            GetWindowTextW(m_editAsteroidRadius, bufferRadius, 32);
+            float vx = static_cast<float>(_wtof(bufferVX));
+            float vy = static_cast<float>(_wtof(bufferVY));
+            float vz = static_cast<float>(_wtof(bufferVZ));
+            float radius = static_cast<float>(_wtof(bufferRadius));
+            if (radius <= 0.0f) radius = 0.3f;
+            if (OnCreateAsteroid)
+                OnCreateAsteroid(vx, vy, vz, radius);
             break;
         }
         }
