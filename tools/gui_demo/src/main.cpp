@@ -151,11 +151,17 @@ int WINAPI WinMain(
         // Show window
         window->Show(nCmdShow);
 
-        // Main message loop
+        // Main message loop with FPS tracking
         MSG msg = {};
         LARGE_INTEGER frequency, lastTime, currentTime;
         QueryPerformanceFrequency(&frequency);
         QueryPerformanceCounter(&lastTime);
+
+        // FPS tracking variables
+        int frameCount = 0;
+        float fpsTimer = 0.0f;
+        float currentFPS = 0.0f;
+        float avgFrameTime = 0.0f;
 
         while (msg.message != WM_QUIT)
         {
@@ -171,6 +177,26 @@ int WINAPI WinMain(
                 float deltaTime = static_cast<float>(currentTime.QuadPart - lastTime.QuadPart) /
                                   static_cast<float>(frequency.QuadPart);
                 lastTime = currentTime;
+
+                // Update FPS counter
+                frameCount++;
+                fpsTimer += deltaTime;
+
+                // Update FPS display every 0.5 seconds
+                if (fpsTimer >= 0.5f)
+                {
+                    currentFPS = frameCount / fpsTimer;
+                    avgFrameTime = (fpsTimer / frameCount) * 1000.0f; // Convert to ms
+
+                    // Update window title with performance stats
+                    wchar_t titleBuffer[256];
+                    swprintf_s(titleBuffer, L"FCL Collision Demo - FPS: %.1f | Frame: %.2f ms | Objects: %zu",
+                              currentFPS, avgFrameTime, scene->GetObjectCount());
+                    SetWindowTextW(window->GetHWND(), titleBuffer);
+
+                    frameCount = 0;
+                    fpsTimer = 0.0f;
+                }
 
                 // Handle input
                 scene->HandleInput(window.get(), deltaTime);
