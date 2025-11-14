@@ -8,8 +8,13 @@ save
 *.old
 *.gmo
 *.qm
+# Core dumps only (not Eigen headers)
 core
 core.*
+# But allow Eigen's Core header and related files
+!Eigen/Core
+!Eigen/src/Core/
+!Eigen/src/Core/**
 *.bak
 *~
 *build*
