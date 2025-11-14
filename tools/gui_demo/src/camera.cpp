@@ -29,7 +29,8 @@ void Camera::Rotate(float deltaYaw, float deltaPitch)
 void Camera::Pan(float deltaX, float deltaY)
 {
     // Calculate right and up vectors
-    XMVECTOR eye = XMLoadFloat3(&GetPosition());
+    XMFLOAT3 position = GetPosition();
+    XMVECTOR eye = XMLoadFloat3(&position);
     XMVECTOR target = XMLoadFloat3(&m_target);
     XMVECTOR forward = XMVector3Normalize(XMVectorSubtract(target, eye));
     XMVECTOR worldUp = XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f);

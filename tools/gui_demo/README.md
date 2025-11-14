@@ -33,7 +33,7 @@
 build_gui_demo.cmd
 ```
 
-编译成功后，可执行文件位于：`build/fcl_gui_demo.exe`
+编译成功后，可执行文件位于：`build/Release/fcl_gui_demo.exe`
 
 ## 运行
 
@@ -46,7 +46,7 @@ build_gui_demo.cmd
 
 2. 运行GUI demo：
    ```cmd
-   build\fcl_gui_demo.exe
+   build\Release\fcl_gui_demo.exe
    ```
 
 ### 方法2：独立运行（仅UI测试）
@@ -54,7 +54,7 @@ build_gui_demo.cmd
 直接运行，不连接驱动也可以测试UI和3D渲染功能：
 
 ```cmd
-build\fcl_gui_demo.exe
+build\Release\fcl_gui_demo.exe
 ```
 
 **注意**: 不连接驱动时，碰撞检测功能将不可用。
