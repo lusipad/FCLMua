@@ -85,6 +85,7 @@ public:
     void SelectObject(size_t index);
     void DeselectAll();
     SceneObject* GetSelectedObject();
+    size_t GetSelectedObjectIndex() const { return m_selectedObjectIndex; }
 
     // Collision detection
     void DetectCollisions();

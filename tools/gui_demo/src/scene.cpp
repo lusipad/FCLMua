@@ -190,6 +190,65 @@ void Scene::HandleInput(Window* window, float deltaTime)
     {
         DeselectAll();
     }
+
+    // Create new objects (C/B/M keys with Ctrl)
+    static bool ctrlCPressed = false;
+    static bool ctrlBPressed = false;
+    static bool ctrlMPressed = false;
+
+    bool ctrlDown = window->IsKeyDown(VK_CONTROL);
+
+    // Create Sphere (Ctrl+C)
+    if (ctrlDown && window->IsKeyDown('C'))
+    {
+        if (!ctrlCPressed)
+        {
+            XMFLOAT3 cameraTarget = m_camera.GetTarget();
+            float radius = 1.0f;
+            std::string name = "Sphere " + std::to_string(m_objects.size() + 1);
+            AddSphere(name, XMFLOAT3(cameraTarget.x, cameraTarget.y + 2.0f, cameraTarget.z), radius);
+            SelectObject(m_objects.size() - 1);
+            ctrlCPressed = true;
+        }
+    }
+    else
+    {
+        ctrlCPressed = false;
+    }
+
+    // Create Box (Ctrl+B)
+    if (ctrlDown && window->IsKeyDown('B'))
+    {
+        if (!ctrlBPressed)
+        {
+            XMFLOAT3 cameraTarget = m_camera.GetTarget();
+            XMFLOAT3 extents(1.0f, 1.0f, 1.0f);
+            std::string name = "Box " + std::to_string(m_objects.size() + 1);
+            AddBox(name, XMFLOAT3(cameraTarget.x, cameraTarget.y + 2.0f, cameraTarget.z), extents);
+            SelectObject(m_objects.size() - 1);
+            ctrlBPressed = true;
+        }
+    }
+    else
+    {
+        ctrlBPressed = false;
+    }
+
+    // Delete selected object (Delete key)
+    static bool deletePressed = false;
+    if (window->IsKeyDown(VK_DELETE))
+    {
+        if (!deletePressed && m_selectedObjectIndex < m_objects.size())
+        {
+            DeleteObject(m_selectedObjectIndex);
+            m_selectedObjectIndex = static_cast<size_t>(-1);
+            deletePressed = true;
+        }
+    }
+    else
+    {
+        deletePressed = false;
+    }
 }
 
 void Scene::RenderObjects()

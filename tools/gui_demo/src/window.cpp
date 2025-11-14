@@ -14,6 +14,15 @@ Window::Window(HINSTANCE hInstance, const std::wstring& title, int width, int he
     , m_lastMouseX(0)
     , m_lastMouseY(0)
     , m_mouseWheel(0)
+    , m_btnCreateSphere(nullptr)
+    , m_btnCreateBox(nullptr)
+    , m_btnDelete(nullptr)
+    , m_editSphereRadius(nullptr)
+    , m_editBoxX(nullptr)
+    , m_editBoxY(nullptr)
+    , m_editBoxZ(nullptr)
+    , m_labelSphereRadius(nullptr)
+    , m_labelBox(nullptr)
 {
     ZeroMemory(m_keys, sizeof(m_keys));
     ZeroMemory(m_mouseButtons, sizeof(m_mouseButtons));
@@ -80,7 +89,100 @@ bool Window::Initialize()
         return false;
     }
 
+    // Create UI controls
+    CreateUIControls();
+
     return true;
+}
+
+void Window::CreateUIControls()
+{
+    const int panelX = 10;
+    int y = 10;
+    const int spacing = 30;
+    const int labelHeight = 20;
+    const int buttonHeight = 30;
+    const int editHeight = 25;
+    const int editWidth = 60;
+
+    // Sphere section
+    m_labelSphereRadius = CreateWindowW(
+        L"STATIC", L"Create Sphere - Radius:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 200, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += spacing;
+
+    m_editSphereRadius = CreateWindowW(
+        L"EDIT", L"1.0",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        panelX, y, editWidth, editHeight,
+        m_hwnd, (HMENU)1001, m_hInstance, nullptr);
+
+    m_btnCreateSphere = CreateWindowW(
+        L"BUTTON", L"Create Sphere",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX + editWidth + 10, y, 100, buttonHeight,
+        m_hwnd, (HMENU)2001, m_hInstance, nullptr);
+    y += spacing + 10;
+
+    // Box section
+    m_labelBox = CreateWindowW(
+        L"STATIC", L"Create Box - X, Y, Z:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 200, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += spacing;
+
+    m_editBoxX = CreateWindowW(
+        L"EDIT", L"1.0",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        panelX, y, editWidth, editHeight,
+        m_hwnd, (HMENU)1002, m_hInstance, nullptr);
+
+    m_editBoxY = CreateWindowW(
+        L"EDIT", L"1.0",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        panelX + editWidth + 5, y, editWidth, editHeight,
+        m_hwnd, (HMENU)1003, m_hInstance, nullptr);
+
+    m_editBoxZ = CreateWindowW(
+        L"EDIT", L"1.0",
+        WS_CHILD | WS_VISIBLE | WS_BORDER,
+        panelX + (editWidth + 5) * 2, y, editWidth, editHeight,
+        m_hwnd, (HMENU)1004, m_hInstance, nullptr);
+    y += editHeight + 5;
+
+    m_btnCreateBox = CreateWindowW(
+        L"BUTTON", L"Create Box",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX, y, 180, buttonHeight,
+        m_hwnd, (HMENU)2002, m_hInstance, nullptr);
+    y += spacing + 10;
+
+    // Delete button
+    m_btnDelete = CreateWindowW(
+        L"BUTTON", L"Delete Selected",
+        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
+        panelX, y, 180, buttonHeight,
+        m_hwnd, (HMENU)2003, m_hInstance, nullptr);
+
+    // Set font for all controls
+    HFONT hFont = CreateFontW(
+        16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        DEFAULT_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
+        L"Microsoft YaHei");
+
+    SendMessage(m_labelSphereRadius, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editSphereRadius, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnCreateSphere, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_labelBox, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editBoxX, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editBoxY, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editBoxZ, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnCreateBox, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_btnDelete, WM_SETFONT, (WPARAM)hFont, TRUE);
 }
 
 void Window::Show(int nCmdShow)
@@ -98,6 +200,7 @@ LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM 
         CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
         window = reinterpret_cast<Window*>(pCreate->lpCreateParams);
         SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
+        window->m_hwnd = hwnd;  // Set hwnd early
     }
     else
     {
@@ -116,6 +219,47 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
     {
+    case WM_COMMAND:
+    {
+        int wmId = LOWORD(wParam);
+        switch (wmId)
+        {
+        case 2001: // Create Sphere button
+        {
+            wchar_t buffer[32];
+            GetWindowTextW(m_editSphereRadius, buffer, 32);
+            float radius = static_cast<float>(_wtof(buffer));
+            if (radius <= 0.0f) radius = 1.0f;
+            if (OnCreateSphere)
+                OnCreateSphere(radius);
+            break;
+        }
+        case 2002: // Create Box button
+        {
+            wchar_t bufferX[32], bufferY[32], bufferZ[32];
+            GetWindowTextW(m_editBoxX, bufferX, 32);
+            GetWindowTextW(m_editBoxY, bufferY, 32);
+            GetWindowTextW(m_editBoxZ, bufferZ, 32);
+            float x = static_cast<float>(_wtof(bufferX));
+            float y = static_cast<float>(_wtof(bufferY));
+            float z = static_cast<float>(_wtof(bufferZ));
+            if (x <= 0.0f) x = 1.0f;
+            if (y <= 0.0f) y = 1.0f;
+            if (z <= 0.0f) z = 1.0f;
+            if (OnCreateBox)
+                OnCreateBox(x, y, z);
+            break;
+        }
+        case 2003: // Delete button
+        {
+            if (OnDeleteObject)
+                OnDeleteObject();
+            break;
+        }
+        }
+        return 0;
+    }
+
     case WM_DESTROY:
         PostQuitMessage(0);
         return 0;

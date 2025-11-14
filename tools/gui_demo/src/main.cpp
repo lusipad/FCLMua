@@ -39,8 +39,16 @@ int WINAPI WinMain(
 
     try
     {
+        // Get module handle (safer than relying on hInstance parameter)
+        HINSTANCE hInst = GetModuleHandle(NULL);
+        if (!hInst)
+        {
+            MessageBoxA(nullptr, "Failed to get module handle", "Error", MB_OK | MB_ICONERROR);
+            return -1;
+        }
+
         // Create window
-        auto window = std::make_unique<Window>(hInstance, L"FCL Collision Demo", 1280, 720);
+        auto window = std::make_unique<Window>(hInst, L"FCL Collision Demo", 1280, 720);
         if (!window->Initialize())
         {
             MessageBoxA(nullptr, "Failed to create window", "Error", MB_OK | MB_ICONERROR);
@@ -71,6 +79,30 @@ int WINAPI WinMain(
         // Create scene
         auto scene = std::make_unique<Scene>(renderer.get(), driver.get());
         scene->Initialize();
+
+        // Connect UI events to scene
+        window->OnCreateSphere = [&scene](float radius) {
+            XMFLOAT3 pos(0, 2, 0);
+            std::string name = "Sphere " + std::to_string(scene->GetObjectCount() + 1);
+            scene->AddSphere(name, pos, radius);
+            scene->SelectObject(scene->GetObjectCount() - 1);
+        };
+
+        window->OnCreateBox = [&scene](float x, float y, float z) {
+            XMFLOAT3 pos(0, 2, 0);
+            XMFLOAT3 extents(x, y, z);
+            std::string name = "Box " + std::to_string(scene->GetObjectCount() + 1);
+            scene->AddBox(name, pos, extents);
+            scene->SelectObject(scene->GetObjectCount() - 1);
+        };
+
+        window->OnDeleteObject = [&scene]() {
+            size_t selected = scene->GetSelectedObjectIndex();
+            if (selected != static_cast<size_t>(-1))
+            {
+                scene->DeleteObject(selected);
+            }
+        };
 
         // Show window
         window->Show(nCmdShow);

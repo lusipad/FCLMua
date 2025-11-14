@@ -1,6 +1,7 @@
 #pragma once
 #include <windows.h>
 #include <string>
+#include <functional>
 
 class Window
 {
@@ -14,6 +15,11 @@ public:
     HWND GetHWND() const { return m_hwnd; }
     int GetWidth() const { return m_width; }
     int GetHeight() const { return m_height; }
+
+    // UI events
+    std::function<void(float)> OnCreateSphere;
+    std::function<void(float, float, float)> OnCreateBox;
+    std::function<void()> OnDeleteObject;
 
     // Input state
     bool IsKeyDown(int vkCode) const { return m_keys[vkCode]; }
@@ -39,4 +45,15 @@ private:
     int m_mouseDX, m_mouseDY;
     int m_lastMouseX, m_lastMouseY;
     int m_mouseWheel;
+
+    // UI controls
+    HWND m_btnCreateSphere;
+    HWND m_btnCreateBox;
+    HWND m_btnDelete;
+    HWND m_editSphereRadius;
+    HWND m_editBoxX, m_editBoxY, m_editBoxZ;
+    HWND m_labelSphereRadius;
+    HWND m_labelBox;
+
+    void CreateUIControls();
 };
