@@ -248,6 +248,23 @@ int WINAPI WinMain(
                 // Update and render
                 scene->Update(deltaTime);
 
+                // Update properties panel with selected object info
+                size_t selectedIdx = scene->GetSelectedObjectIndex();
+                if (selectedIdx != static_cast<size_t>(-1))
+                {
+                    auto* obj = scene->GetObject(selectedIdx);
+                    if (obj)
+                    {
+                        window->UpdatePropertiesPanel(selectedIdx, obj->name,
+                                                     obj->position.x, obj->position.y, obj->position.z,
+                                                     obj->rotation.y);
+                    }
+                }
+                else
+                {
+                    window->UpdatePropertiesPanel(static_cast<size_t>(-1), "", 0, 0, 0, 0);
+                }
+
                 renderer->BeginFrame();
                 scene->Render();
                 renderer->EndFrame();

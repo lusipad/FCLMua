@@ -41,6 +41,12 @@ Window::Window(HINSTANCE hInstance, const std::wstring& title, int width, int he
     , m_labelAsteroidVelocity(nullptr)
     , m_labelAsteroidRadius(nullptr)
     , m_statusBar(nullptr)
+    , m_labelProperties(nullptr)
+    , m_labelObjectName(nullptr)
+    , m_labelPosX(nullptr), m_labelPosY(nullptr), m_labelPosZ(nullptr)
+    , m_editPosX(nullptr), m_editPosY(nullptr), m_editPosZ(nullptr)
+    , m_labelRotY(nullptr)
+    , m_editRotY(nullptr)
 {
     ZeroMemory(m_keys, sizeof(m_keys));
     ZeroMemory(m_mouseButtons, sizeof(m_mouseButtons));
@@ -462,6 +468,70 @@ void Window::CreateUIControls()
     SendMessage(m_editOBJScale, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_btnLoadOBJ, WM_SETFONT, (WPARAM)hFont, TRUE);
 
+    // Properties panel section
+    m_labelProperties = CreateWindowW(
+        L"STATIC", L"Object Properties:",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 200, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += spacing;
+
+    m_labelObjectName = CreateWindowW(
+        L"STATIC", L"None selected",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 180, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += spacing;
+
+    // Position section
+    CreateWindowW(
+        L"STATIC", L"Position (X, Y, Z):",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 120, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += labelHeight + 5;
+
+    const int propEditWidth = 55;
+    m_editPosX = CreateWindowW(
+        L"EDIT", L"0.00",
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_READONLY,
+        panelX, y, propEditWidth, editHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+
+    m_editPosY = CreateWindowW(
+        L"EDIT", L"0.00",
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_READONLY,
+        panelX + propEditWidth + 5, y, propEditWidth, editHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+
+    m_editPosZ = CreateWindowW(
+        L"EDIT", L"0.00",
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_READONLY,
+        panelX + (propEditWidth + 5) * 2, y, propEditWidth, editHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += editHeight + 10;
+
+    // Rotation section
+    CreateWindowW(
+        L"STATIC", L"Rotation Y (deg):",
+        WS_CHILD | WS_VISIBLE,
+        panelX, y, 120, labelHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+
+    m_editRotY = CreateWindowW(
+        L"EDIT", L"0.00",
+        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_READONLY,
+        panelX + 125, y, propEditWidth, editHeight,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    y += editHeight + 10;
+
+    SendMessage(m_labelProperties, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_labelObjectName, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editPosX, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editPosY, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editPosZ, WM_SETFONT, (WPARAM)hFont, TRUE);
+    SendMessage(m_editRotY, WM_SETFONT, (WPARAM)hFont, TRUE);
+
     // Create status bar at bottom of window
     m_statusBar = CreateWindowExW(
         0,
@@ -799,4 +869,45 @@ void Window::ShowHelpDialog()
         L"Press F1 at any time to show this help.";
 
     MessageBoxW(m_hwnd, helpText, L"Help - Controls and Features", MB_OK | MB_ICONINFORMATION);
+}
+
+void Window::UpdatePropertiesPanel(size_t selectedIndex, const std::string& objectName,
+                                  float posX, float posY, float posZ,
+                                  float rotY)
+{
+    if (!m_labelObjectName) return;
+
+    if (selectedIndex == static_cast<size_t>(-1))
+    {
+        // No object selected
+        SetWindowTextW(m_labelObjectName, L"None selected");
+        SetWindowTextW(m_editPosX, L"-");
+        SetWindowTextW(m_editPosY, L"-");
+        SetWindowTextW(m_editPosZ, L"-");
+        SetWindowTextW(m_editRotY, L"-");
+    }
+    else
+    {
+        // Object selected - show properties
+        wchar_t buffer[256];
+
+        // Object name
+        int size_needed = MultiByteToWideChar(CP_UTF8, 0, objectName.c_str(), -1, NULL, 0);
+        std::wstring wObjectName(size_needed - 1, 0);
+        MultiByteToWideChar(CP_UTF8, 0, objectName.c_str(), -1, &wObjectName[0], size_needed);
+        SetWindowTextW(m_labelObjectName, wObjectName.c_str());
+
+        // Position
+        swprintf_s(buffer, L"%.2f", posX);
+        SetWindowTextW(m_editPosX, buffer);
+        swprintf_s(buffer, L"%.2f", posY);
+        SetWindowTextW(m_editPosY, buffer);
+        swprintf_s(buffer, L"%.2f", posZ);
+        SetWindowTextW(m_editPosZ, buffer);
+
+        // Rotation (convert radians to degrees)
+        float rotDegrees = rotY * 180.0f / 3.14159265f;
+        swprintf_s(buffer, L"%.1f", rotDegrees);
+        SetWindowTextW(m_editRotY, buffer);
+    }
 }

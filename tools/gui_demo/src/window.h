@@ -40,6 +40,11 @@ public:
     // Help dialog
     void ShowHelpDialog();
 
+    // Properties panel
+    void UpdatePropertiesPanel(size_t selectedIndex, const std::string& objectName,
+                              float posX, float posY, float posZ,
+                              float rotY);
+
 private:
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -105,6 +110,14 @@ private:
 
     // Status bar
     HWND m_statusBar;
+
+    // Properties panel
+    HWND m_labelProperties;
+    HWND m_labelObjectName;
+    HWND m_labelPosX, m_labelPosY, m_labelPosZ;
+    HWND m_editPosX, m_editPosY, m_editPosZ;
+    HWND m_labelRotY;
+    HWND m_editRotY;
 
     void CreateUIControls();
 };
