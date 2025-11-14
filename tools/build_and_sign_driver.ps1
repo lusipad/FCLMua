@@ -13,11 +13,47 @@ $ErrorActionPreference = 'Stop'
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).ProviderPath
 
+function Ensure-MusaRuntimePublish {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoRoot
+    )
+
+    $publishConfig = Join-Path $RepoRoot 'external/Musa.Runtime/Publish/Config/Musa.Runtime.Config.props'
+    if (Test-Path -Path $publishConfig -PathType Leaf) {
+        return
+    }
+
+    Write-Host "[0/3] Musa.Runtime publish config not found. Building external runtime..." -ForegroundColor Cyan
+
+    $buildScript = Join-Path $RepoRoot 'external/Musa.Runtime/BuildAllTargets.cmd'
+    if (-not (Test-Path -Path $buildScript -PathType Leaf)) {
+        throw "Musa.Runtime BuildAllTargets.cmd not found: $buildScript. Ensure external/Musa.Runtime is present."
+    }
+
+    Push-Location (Split-Path -Parent $buildScript)
+    try {
+        & $buildScript
+        if ($LASTEXITCODE -ne 0) {
+            throw "Musa.Runtime BuildAllTargets.cmd failed with exit code $LASTEXITCODE."
+        }
+    }
+    finally {
+        Pop-Location
+    }
+
+    if (-not (Test-Path -Path $publishConfig -PathType Leaf)) {
+        throw "Musa.Runtime publish config is still missing after BuildAllTargets: $publishConfig"
+    }
+}
+
 $kernelDir = Join-Path $repoRoot 'kernel/FclMusaDriver'
 $outputDir = Join-Path $kernelDir "out\$Platform\$Configuration"
 $driverSys = Join-Path $outputDir 'FclMusaDriver.sys'
 $driverPdb = Join-Path $outputDir 'FclMusaDriver.pdb'
 $distDir = Join-Path $repoRoot "dist\driver\$Platform\$Configuration"
+
+Ensure-MusaRuntimePublish -RepoRoot $repoRoot
 
 Write-Host "[1/3] Building driver solution ($Configuration|$Platform)..." -ForegroundColor Cyan
 & (Join-Path $scriptDir 'manual_build.cmd')
@@ -54,4 +90,3 @@ if (Test-Path -Path $pfxPath -PathType Leaf) {
 
 Write-Host 'Done. Signed driver and symbols are under:' -ForegroundColor Green
 Write-Host "  $distDir"
-
