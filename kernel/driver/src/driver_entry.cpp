@@ -4,6 +4,8 @@
 #include "fclmusa/logging.h"
 #include "fclmusa/version.h"
 
+#include "periodic_scheduler.h"
+
 EXTERN_C NTSTATUS FclDispatchDeviceControl(_In_ PDEVICE_OBJECT deviceObject, _Inout_ PIRP irp);
 
 namespace {
@@ -55,6 +57,12 @@ NTSTATUS FclDriverCreateDevice(_In_ PDRIVER_OBJECT driverObject) {
 }
 
 VOID FclDriverUnload(_In_ PDRIVER_OBJECT /*driverObject*/) {
+    //
+    // 先停止任何可能存在的周期性调度，确保内部线程退出，避免在
+    // FclCleanup 之后仍有 Fcl* API 被调用。
+    //
+    FclPeriodicSchedulerShutdown();
+
     FclCleanup();
     if (g_FclDeviceObject != nullptr) {
         IoDeleteSymbolicLink(&g_FclDosDeviceName);
