@@ -1,0 +1,236 @@
+name: Windows Build and Test
+
+on:
+  push:
+    branches: [ main, master, 'claude/**' ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+env:
+  WDK_VERSION: '10.0.26100.0'
+  BUILD_CONFIGURATION: Debug
+  BUILD_PLATFORM: x64
+
+jobs:
+  build:
+    name: Build on Windows
+    runs-on: windows-2022
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Setup MSBuild
+      uses: microsoft/setup-msbuild@v2
+      with:
+        vs-version: '17.0'
+
+    - name: Check Visual Studio installation
+      shell: powershell
+      run: |
+        $vsPath = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise"
+        if (-not (Test-Path $vsPath)) {
+          Write-Host "Visual Studio 2022 Enterprise not found, checking other editions..."
+          $vsPath = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\" -Directory | Select-Object -First 1 -ExpandProperty FullName
+          Write-Host "Found: $vsPath"
+        }
+        Write-Host "Visual Studio Path: $vsPath"
+        echo "VS_PATH=$vsPath" >> $env:GITHUB_ENV
+
+    - name: Install Windows Driver Kit
+      shell: powershell
+      run: |
+        Write-Host "Checking WDK installation..."
+        $wdkPath = "${env:ProgramFiles(x86)}\Windows Kits\10\Include\$env:WDK_VERSION"
+
+        if (Test-Path $wdkPath) {
+          Write-Host "WDK $env:WDK_VERSION already installed"
+        } else {
+          Write-Host "Installing WDK $env:WDK_VERSION..."
+
+          # Download WDK installer
+          $wdkUrl = "https://go.microsoft.com/fwlink/?linkid=2249371"
+          $installerPath = "$env:TEMP\wdksetup.exe"
+
+          Write-Host "Downloading WDK installer..."
+          Invoke-WebRequest -Uri $wdkUrl -OutFile $installerPath -UseBasicParsing
+
+          Write-Host "Running WDK installer (this may take several minutes)..."
+          Start-Process -FilePath $installerPath -ArgumentList "/quiet", "/norestart" -Wait -NoNewWindow
+
+          Write-Host "WDK installation completed"
+        }
+
+        # Verify installation
+        if (Test-Path "${env:ProgramFiles(x86)}\Windows Kits\10\Include\$env:WDK_VERSION\km\ntddk.h") {
+          Write-Host "WDK verification successful"
+        } else {
+          Write-Error "WDK verification failed - ntddk.h not found"
+          exit 1
+        }
+
+    - name: Setup WDK environment
+      shell: cmd
+      run: |
+        set "WINDOWS_KITS_ROOT=%ProgramFiles(x86)%\Windows Kits\10"
+        set "WDK_INCLUDE=%WINDOWS_KITS_ROOT%\Include\%WDK_VERSION%"
+        set "WDK_LIB=%WINDOWS_KITS_ROOT%\Lib\%WDK_VERSION%"
+
+        echo WINDOWS_KITS_ROOT=%WINDOWS_KITS_ROOT%>> %GITHUB_ENV%
+        echo WDK_INCLUDE=%WDK_INCLUDE%>> %GITHUB_ENV%
+        echo WDK_LIB=%WDK_LIB%>> %GITHUB_ENV%
+
+    - name: Build Driver
+      shell: cmd
+      run: |
+        echo Building FCL+Musa Driver...
+        call "%VS_PATH%\Common7\Tools\VsDevCmd.bat" -arch=amd64 -host_arch=amd64
+
+        set "INCLUDE=%WDK_INCLUDE%\km;%WDK_INCLUDE%\shared;%WDK_INCLUDE%\ucrt;%WDK_INCLUDE%\um;%INCLUDE%"
+        set "LIB=%WDK_LIB%\km\x64;%WDK_LIB%\um\x64;%LIB%"
+        set "PATH=%WINDOWS_KITS_ROOT%\bin\%WDK_VERSION%\x64;%PATH%"
+
+        cd kernel\FclMusaDriver
+
+        msbuild FclMusaDriver.sln /t:Clean /p:Configuration=%BUILD_CONFIGURATION% /p:Platform=%BUILD_PLATFORM% /v:minimal /nologo
+        if errorlevel 1 exit /b 1
+
+        msbuild FclMusaDriver.sln /t:Build /p:Configuration=%BUILD_CONFIGURATION% /p:Platform=%BUILD_PLATFORM% /v:normal /nologo
+        if errorlevel 1 exit /b 1
+
+        echo Driver build completed successfully
+
+    - name: Build User-Mode Demo
+      shell: cmd
+      run: |
+        echo Building user-mode demo...
+        call "%VS_PATH%\Common7\Tools\VsDevCmd.bat" -arch=amd64 -host_arch=amd64
+
+        cd tools
+        if not exist build mkdir build
+        cd build
+
+        cl /EHsc /std:c++17 /nologo /W4 ..\fcl_demo.cpp /link /out:fcl_demo.exe
+        if errorlevel 1 exit /b 1
+
+        echo Copying demo assets...
+        if exist "..\assets" (
+          robocopy "..\assets" "assets" /E /NFL /NDL /NJH /NJS /NC /NS
+          if errorlevel 8 (
+            echo Failed to copy assets
+            exit /b 1
+          )
+        ) else (
+          echo Assets directory not found, skipping...
+        )
+
+        echo Copying demo scenes...
+        if exist "..\scenes" (
+          robocopy "..\scenes" "scenes" /E /NFL /NDL /NJH /NJS /NC /NS
+          if errorlevel 8 (
+            echo Failed to copy scenes
+            exit /b 1
+          )
+        ) else (
+          echo Scenes directory not found, skipping...
+        )
+
+        echo Demo build completed successfully
+
+    - name: List build artifacts
+      shell: powershell
+      run: |
+        Write-Host "`n=== Driver Build Artifacts ==="
+        Get-ChildItem -Path "kernel\FclMusaDriver\out\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION" -ErrorAction SilentlyContinue | Format-Table Name, Length, LastWriteTime
+
+        Write-Host "`n=== Demo Build Artifacts ==="
+        Get-ChildItem -Path "tools\build" -ErrorAction SilentlyContinue | Format-Table Name, Length, LastWriteTime
+
+    - name: Upload driver artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: fclmusa-driver-${{ env.BUILD_PLATFORM }}-${{ env.BUILD_CONFIGURATION }}
+        path: |
+          kernel/FclMusaDriver/out/${{ env.BUILD_PLATFORM }}/${{ env.BUILD_CONFIGURATION }}/FclMusaDriver.sys
+          kernel/FclMusaDriver/out/${{ env.BUILD_PLATFORM }}/${{ env.BUILD_CONFIGURATION }}/FclMusaDriver.pdb
+        retention-days: 30
+        if-no-files-found: error
+
+    - name: Upload demo artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: fcl-demo-${{ env.BUILD_PLATFORM }}-${{ env.BUILD_CONFIGURATION }}
+        path: |
+          tools/build/fcl_demo.exe
+          tools/build/assets/**
+          tools/build/scenes/**
+        retention-days: 30
+        if-no-files-found: error
+
+    - name: Create release package
+      shell: powershell
+      run: |
+        $packageDir = "FCLMusa-Package"
+        New-Item -ItemType Directory -Force -Path $packageDir
+
+        # Copy driver files
+        Copy-Item "kernel\FclMusaDriver\out\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\FclMusaDriver.sys" -Destination $packageDir
+        Copy-Item "kernel\FclMusaDriver\out\$env:BUILD_PLATFORM\$env:BUILD_CONFIGURATION\FclMusaDriver.pdb" -Destination $packageDir
+
+        # Copy demo files
+        Copy-Item "tools\build\fcl_demo.exe" -Destination $packageDir
+        Copy-Item "tools\build\assets" -Destination "$packageDir\assets" -Recurse -ErrorAction SilentlyContinue
+        Copy-Item "tools\build\scenes" -Destination "$packageDir\scenes" -Recurse -ErrorAction SilentlyContinue
+
+        # Copy documentation
+        Copy-Item "README.md" -Destination $packageDir
+        Copy-Item "docs" -Destination "$packageDir\docs" -Recurse -ErrorAction SilentlyContinue
+
+        # Create archive
+        Compress-Archive -Path $packageDir -DestinationPath "FCLMusa-$env:BUILD_PLATFORM-$env:BUILD_CONFIGURATION.zip"
+
+        Write-Host "Release package created successfully"
+
+    - name: Upload release package
+      uses: actions/upload-artifact@v4
+      with:
+        name: fclmusa-release-${{ env.BUILD_PLATFORM }}-${{ env.BUILD_CONFIGURATION }}
+        path: FCLMusa-*.zip
+        retention-days: 90
+        if-no-files-found: error
+
+  # Optional: Add a job for running tests if test infrastructure exists
+  test:
+    name: Run Tests
+    needs: build
+    runs-on: windows-2022
+    if: false  # Disabled by default - enable when test infrastructure is ready
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Download driver artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: fclmusa-driver-${{ env.BUILD_PLATFORM }}-${{ env.BUILD_CONFIGURATION }}
+        path: kernel/FclMusaDriver/out/${{ env.BUILD_PLATFORM }}/${{ env.BUILD_CONFIGURATION }}
+
+    - name: Download demo artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: fcl-demo-${{ env.BUILD_PLATFORM }}-${{ env.BUILD_CONFIGURATION }}
+        path: tools/build
+
+    - name: Run self-tests
+      shell: powershell
+      run: |
+        # TODO: Implement test execution
+        # This would typically involve:
+        # 1. Loading the driver in a test environment
+        # 2. Running the fcl-self-test.ps1 script
+        # 3. Verifying test results
+        Write-Host "Test execution not yet implemented"
