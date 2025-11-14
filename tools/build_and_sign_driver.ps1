@@ -24,6 +24,23 @@ function Ensure-MusaRuntimePublish {
         return
     }
 
+    $nugetConfigDir = Join-Path $RepoRoot 'external/Musa.Runtime/Musa.Runtime.NuGet'
+    $nugetConfig = Join-Path $nugetConfigDir 'Musa.Runtime.Config.props'
+    if (Test-Path -Path $nugetConfig -PathType Leaf) {
+        $publishConfigDir = Split-Path -Parent $publishConfig
+        if (-not (Test-Path -Path $publishConfigDir -PathType Container)) {
+            New-Item -ItemType Directory -Force -Path $publishConfigDir | Out-Null
+        }
+
+        Copy-Item -Path $nugetConfig -Destination $publishConfig -Force
+
+        $nugetTargets = Join-Path $nugetConfigDir 'Musa.Runtime.Config.targets'
+        if (Test-Path -Path $nugetTargets -PathType Leaf) {
+            $publishTargets = Join-Path $publishConfigDir 'Musa.Runtime.Config.targets'
+            Copy-Item -Path $nugetTargets -Destination $publishTargets -Force
+        }
+    }
+
     Write-Host "[0/3] Musa.Runtime publish config not found. Building external runtime..." -ForegroundColor Cyan
 
     $buildScript = Join-Path $RepoRoot 'external/Musa.Runtime/BuildAllTargets.cmd'
