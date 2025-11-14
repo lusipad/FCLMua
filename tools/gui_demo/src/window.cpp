@@ -39,9 +39,18 @@ bool Window::Initialize()
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
     wc.lpszClassName = L"FclDemoWindowClass";
 
-    if (!RegisterClassExW(&wc))
+    ATOM result = RegisterClassExW(&wc);
+    if (!result)
     {
-        return false;
+        DWORD error = GetLastError();
+        // CLASS_ALREADY_EXISTS (1410) is OK - window class was already registered
+        if (error != ERROR_CLASS_ALREADY_EXISTS)
+        {
+            wchar_t errorMsg[256];
+            swprintf_s(errorMsg, L"Failed to register window class. Error code: 0x%08X", error);
+            MessageBoxW(nullptr, errorMsg, L"Window Error", MB_OK | MB_ICONERROR);
+            return false;
+        }
     }
 
     // Calculate window size
@@ -51,7 +60,7 @@ bool Window::Initialize()
     // Create window
     m_hwnd = CreateWindowExW(
         0,
-        wc.lpszClassName,
+        L"FclDemoWindowClass",
         m_title.c_str(),
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT,
@@ -62,7 +71,16 @@ bool Window::Initialize()
         this
     );
 
-    return m_hwnd != nullptr;
+    if (!m_hwnd)
+    {
+        DWORD error = GetLastError();
+        wchar_t errorMsg[256];
+        swprintf_s(errorMsg, L"Failed to create window. Error code: 0x%08X", error);
+        MessageBoxW(nullptr, errorMsg, L"Window Error", MB_OK | MB_ICONERROR);
+        return false;
+    }
+
+    return true;
 }
 
 void Window::Show(int nCmdShow)
