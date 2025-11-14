@@ -72,13 +72,13 @@
 
   <ItemDefinitionGroup Condition="'$(IsKernelModeToolset)'=='true'">
     <ClCompile>
-      <PreprocessorDefinitions>_HAS_EXCEPTIONS;NTOS_KERNEL_RUNTIME;_KERNEL_MODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_HAS_EXCEPTIONS=1;NTOS_KERNEL_RUNTIME;_KERNEL_MODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <MASM Condition="'$(Platform)'=='Win32' Or '$(Platform)'=='x64'">
-      <PreprocessorDefinitions>_HAS_EXCEPTIONS;NTOS_KERNEL_RUNTIME;_KERNEL_MODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_HAS_EXCEPTIONS=1;NTOS_KERNEL_RUNTIME;_KERNEL_MODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </MASM>
     <MARMASM Condition="'$(Platform)'=='ARM64'">
-      <PreprocessorDefinitions>_HAS_EXCEPTIONS;NTOS_KERNEL_RUNTIME;_KERNEL_MODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_HAS_EXCEPTIONS=1;NTOS_KERNEL_RUNTIME;_KERNEL_MODE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </MARMASM>
   </ItemDefinitionGroup>
 </Project>
