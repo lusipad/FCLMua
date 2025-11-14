@@ -34,6 +34,9 @@ public:
     int GetMouseWheel() const { return m_mouseWheel; }
     void ResetMouseInput() { m_mouseDX = 0; m_mouseDY = 0; m_mouseWheel = 0; }
 
+    // Status bar
+    void SetStatusText(const std::wstring& text);
+
 private:
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -96,6 +99,9 @@ private:
     HWND m_btnLoadOBJ;
     HWND m_labelOBJScale;
     HWND m_editOBJScale;
+
+    // Status bar
+    HWND m_statusBar;
 
     void CreateUIControls();
 };

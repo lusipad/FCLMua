@@ -40,6 +40,7 @@ Window::Window(HINSTANCE hInstance, const std::wstring& title, int width, int he
     , m_btnCreateAsteroid(nullptr)
     , m_labelAsteroidVelocity(nullptr)
     , m_labelAsteroidRadius(nullptr)
+    , m_statusBar(nullptr)
 {
     ZeroMemory(m_keys, sizeof(m_keys));
     ZeroMemory(m_mouseButtons, sizeof(m_mouseButtons));
@@ -460,6 +461,20 @@ void Window::CreateUIControls()
     SendMessage(m_labelOBJScale, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_editOBJScale, WM_SETFONT, (WPARAM)hFont, TRUE);
     SendMessage(m_btnLoadOBJ, WM_SETFONT, (WPARAM)hFont, TRUE);
+
+    // Create status bar at bottom of window
+    m_statusBar = CreateWindowExW(
+        0,
+        L"STATIC",
+        L"Ready | Right-click: Rotate | Middle-click: Pan | Scroll: Zoom | Left-click: Drag object",
+        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE,
+        0, m_height - 25, m_width, 25,
+        m_hwnd, nullptr, m_hInstance, nullptr);
+    SendMessage(m_statusBar, WM_SETFONT, (WPARAM)hFont, TRUE);
+
+    // Add colored background for status bar
+    HBRUSH statusBrush = CreateSolidBrush(RGB(240, 240, 240));
+    SetClassLongPtr(m_statusBar, GCLP_HBRBACKGROUND, (LONG_PTR)statusBrush);
 }
 
 void Window::Show(int nCmdShow)
@@ -665,6 +680,11 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_SIZE:
         m_width = LOWORD(lParam);
         m_height = HIWORD(lParam);
+        // Resize status bar to fit window width
+        if (m_statusBar)
+        {
+            SetWindowPos(m_statusBar, nullptr, 0, m_height - 25, m_width, 25, SWP_NOZORDER);
+        }
         return 0;
 
     case WM_KEYDOWN:
@@ -730,4 +750,12 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     }
 
     return DefWindowProc(m_hwnd, uMsg, wParam, lParam);
+}
+
+void Window::SetStatusText(const std::wstring& text)
+{
+    if (m_statusBar)
+    {
+        SetWindowTextW(m_statusBar, text.c_str());
+    }
 }
