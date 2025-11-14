@@ -228,6 +228,29 @@ void Scene::InitializeCrossroadScene()
     lineWest->color = lineColor;
     m_objects.push_back(std::move(lineWest));
 
+    // Add default sample vehicles for demonstration
+    // These vehicles showcase different types, directions, and movement intentions
+
+    // 1. Red Sedan going straight from South to North (speed 3.0)
+    AddVehicle("Demo Sedan", VehicleType::Sedan,
+               VehicleDirection::North, MovementIntention::GoStraight, 3.0f);
+
+    // 2. Blue SUV turning left from East to North (speed 2.5)
+    AddVehicle("Demo SUV", VehicleType::SUV,
+               VehicleDirection::East, MovementIntention::TurnLeft, 2.5f);
+
+    // 3. Yellow Truck going straight from West to East (speed 2.0)
+    AddVehicle("Demo Truck", VehicleType::Truck,
+               VehicleDirection::West, MovementIntention::GoStraight, 2.0f);
+
+    // 4. Green Sports Car turning right from North to East (speed 4.0)
+    AddVehicle("Demo Sports Car", VehicleType::SportsCar,
+               VehicleDirection::South, MovementIntention::TurnRight, 4.0f);
+
+    // 5. Orange Bus going straight from North to South (speed 1.5)
+    AddVehicle("Demo Bus", VehicleType::Bus,
+               VehicleDirection::North, MovementIntention::GoStraight, 1.5f);
+
     // Adjust camera for top-down view of crossroad
     m_camera.SetTarget(XMFLOAT3(0, 0, 0));
     m_camera.SetDistance(35.0f);
@@ -1046,7 +1069,49 @@ void Scene::SetAsteroidVelocity(size_t index, const XMFLOAT3& velocity)
     obj->velocity = velocity;
 }
 
-// Helper function to create vehicle mesh vertices
+// Helper function to add a box to the mesh
+static void AddBoxToMesh(std::vector<XMFLOAT3>& vertices,
+                         std::vector<uint32_t>& indices,
+                         const XMFLOAT3& center,
+                         const XMFLOAT3& extents)
+{
+    size_t baseIdx = vertices.size();
+
+    // 8 vertices of the box
+    XMFLOAT3 boxVerts[8] = {
+        {center.x - extents.x, center.y - extents.y, center.z - extents.z},
+        {center.x + extents.x, center.y - extents.y, center.z - extents.z},
+        {center.x + extents.x, center.y - extents.y, center.z + extents.z},
+        {center.x - extents.x, center.y - extents.y, center.z + extents.z},
+        {center.x - extents.x, center.y + extents.y, center.z - extents.z},
+        {center.x + extents.x, center.y + extents.y, center.z - extents.z},
+        {center.x + extents.x, center.y + extents.y, center.z + extents.z},
+        {center.x - extents.x, center.y + extents.y, center.z + extents.z}
+    };
+
+    for (int i = 0; i < 8; i++)
+        vertices.push_back(boxVerts[i]);
+
+    // 6 faces (2 triangles each)
+    uint32_t boxIndices[] = {
+        // Bottom
+        baseIdx+0, baseIdx+1, baseIdx+2,  baseIdx+0, baseIdx+2, baseIdx+3,
+        // Top
+        baseIdx+4, baseIdx+6, baseIdx+5,  baseIdx+4, baseIdx+7, baseIdx+6,
+        // Front
+        baseIdx+0, baseIdx+4, baseIdx+5,  baseIdx+0, baseIdx+5, baseIdx+1,
+        // Back
+        baseIdx+2, baseIdx+6, baseIdx+7,  baseIdx+2, baseIdx+7, baseIdx+3,
+        // Left
+        baseIdx+0, baseIdx+3, baseIdx+7,  baseIdx+0, baseIdx+7, baseIdx+4,
+        // Right
+        baseIdx+1, baseIdx+5, baseIdx+6,  baseIdx+1, baseIdx+6, baseIdx+2
+    };
+
+    indices.insert(indices.end(), boxIndices, boxIndices + 36);
+}
+
+// Helper function to create vehicle mesh vertices with wheels
 static void CreateVehicleMesh(VehicleType type,
                              std::vector<XMFLOAT3>& vertices,
                              std::vector<uint32_t>& indices)
@@ -1054,146 +1119,135 @@ static void CreateVehicleMesh(VehicleType type,
     vertices.clear();
     indices.clear();
 
-    // We'll create detailed box-based vehicles with multiple components
+    // We'll create detailed box-based vehicles with multiple components including wheels
     // All measurements are relative to a standard sedan size
 
     switch (type)
     {
     case VehicleType::Sedan:
     {
-        // Sedan: compact car with main body + cabin
+        // Sedan: compact car with main body + cabin + wheels
         float length = 2.5f, width = 1.2f, height = 0.8f;
         float cabinHeight = 0.6f, cabinLength = 1.2f;
+        float wheelRadius = 0.25f, wheelWidth = 0.2f;
 
         // Main body (lower part)
-        std::vector<XMFLOAT3> bodyVerts = {
-            // Bottom face
-            {-length/2, 0, -width/2}, {length/2, 0, -width/2}, {length/2, 0, width/2}, {-length/2, 0, width/2},
-            // Top face
-            {-length/2, height, -width/2}, {length/2, height, -width/2}, {length/2, height, width/2}, {-length/2, height, width/2}
-        };
-        vertices.insert(vertices.end(), bodyVerts.begin(), bodyVerts.end());
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
 
         // Cabin (upper part) - centered and shorter
         float cabinOffset = (length - cabinLength) / 4.0f;
-        std::vector<XMFLOAT3> cabinVerts = {
-            {-cabinLength/2 + cabinOffset, height, -width/2.5f}, {cabinLength/2 + cabinOffset, height, -width/2.5f},
-            {cabinLength/2 + cabinOffset, height, width/2.5f}, {-cabinLength/2 + cabinOffset, height, width/2.5f},
-            {-cabinLength/2 + cabinOffset, height + cabinHeight, -width/2.5f}, {cabinLength/2 + cabinOffset, height + cabinHeight, -width/2.5f},
-            {cabinLength/2 + cabinOffset, height + cabinHeight, width/2.5f}, {-cabinLength/2 + cabinOffset, height + cabinHeight, width/2.5f}
-        };
-        vertices.insert(vertices.end(), cabinVerts.begin(), cabinVerts.end());
+        AddBoxToMesh(vertices, indices,
+            XMFLOAT3(cabinOffset, height + cabinHeight/2, 0),
+            XMFLOAT3(cabinLength/2, cabinHeight/2, width/2.5f));
+
+        // 4 Wheels (front-left, front-right, back-left, back-right)
+        float wheelOffsetX = length / 3.0f;
+        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
         break;
     }
 
     case VehicleType::SUV:
     {
-        // SUV: larger and taller than sedan
+        // SUV: larger and taller than sedan + wheels
         float length = 3.0f, width = 1.5f, height = 1.2f;
         float cabinHeight = 0.8f, cabinLength = 1.8f;
+        float wheelRadius = 0.3f, wheelWidth = 0.25f;
 
-        std::vector<XMFLOAT3> bodyVerts = {
-            {-length/2, 0, -width/2}, {length/2, 0, -width/2}, {length/2, 0, width/2}, {-length/2, 0, width/2},
-            {-length/2, height, -width/2}, {length/2, height, -width/2}, {length/2, height, width/2}, {-length/2, height, width/2}
-        };
-        vertices.insert(vertices.end(), bodyVerts.begin(), bodyVerts.end());
+        // Main body
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
 
-        std::vector<XMFLOAT3> cabinVerts = {
-            {-cabinLength/2, height, -width/2.3f}, {cabinLength/2, height, -width/2.3f},
-            {cabinLength/2, height, width/2.3f}, {-cabinLength/2, height, width/2.3f},
-            {-cabinLength/2, height + cabinHeight, -width/2.3f}, {cabinLength/2, height + cabinHeight, -width/2.3f},
-            {cabinLength/2, height + cabinHeight, width/2.3f}, {-cabinLength/2, height + cabinHeight, width/2.3f}
-        };
-        vertices.insert(vertices.end(), cabinVerts.begin(), cabinVerts.end());
+        // Cabin
+        AddBoxToMesh(vertices, indices,
+            XMFLOAT3(0, height + cabinHeight/2, 0),
+            XMFLOAT3(cabinLength/2, cabinHeight/2, width/2.3f));
+
+        // 4 Wheels
+        float wheelOffsetX = length / 3.0f;
+        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
         break;
     }
 
     case VehicleType::Truck:
     {
-        // Truck: long cargo area + small cabin
+        // Truck: long cargo area + small cabin + wheels
         float length = 4.0f, width = 1.6f, height = 1.0f;
         float cabinHeight = 1.0f, cabinLength = 1.0f;
-        float cargoLength = 2.5f;
+        float wheelRadius = 0.35f, wheelWidth = 0.3f;
 
         // Cargo area (back)
-        std::vector<XMFLOAT3> cargoVerts = {
-            {-length/2, 0, -width/2}, {length/2 - cabinLength, 0, -width/2},
-            {length/2 - cabinLength, 0, width/2}, {-length/2, 0, width/2},
-            {-length/2, height, -width/2}, {length/2 - cabinLength, height, -width/2},
-            {length/2 - cabinLength, height, width/2}, {-length/2, height, width/2}
-        };
-        vertices.insert(vertices.end(), cargoVerts.begin(), cargoVerts.end());
+        float cargoCenter = -(length/2 - (length - cabinLength)/2);
+        AddBoxToMesh(vertices, indices,
+            XMFLOAT3(cargoCenter, height/2, 0),
+            XMFLOAT3((length - cabinLength)/2, height/2, width/2));
 
         // Cabin (front)
-        std::vector<XMFLOAT3> cabinVerts = {
-            {length/2 - cabinLength, 0, -width/2.5f}, {length/2, 0, -width/2.5f},
-            {length/2, 0, width/2.5f}, {length/2 - cabinLength, 0, width/2.5f},
-            {length/2 - cabinLength, cabinHeight, -width/2.5f}, {length/2, cabinHeight, -width/2.5f},
-            {length/2, cabinHeight, width/2.5f}, {length/2 - cabinLength, cabinHeight, width/2.5f}
-        };
-        vertices.insert(vertices.end(), cabinVerts.begin(), cabinVerts.end());
+        float cabinCenter = length/2 - cabinLength/2;
+        AddBoxToMesh(vertices, indices,
+            XMFLOAT3(cabinCenter, cabinHeight/2, 0),
+            XMFLOAT3(cabinLength/2, cabinHeight/2, width/2.5f));
+
+        // 4 Wheels
+        float wheelOffsetX = length / 3.5f;
+        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
         break;
     }
 
     case VehicleType::Bus:
     {
-        // Bus: very long and tall
+        // Bus: very long and tall + wheels
         float length = 5.0f, width = 1.8f, height = 2.0f;
+        float wheelRadius = 0.35f, wheelWidth = 0.3f;
 
-        std::vector<XMFLOAT3> bodyVerts = {
-            {-length/2, 0, -width/2}, {length/2, 0, -width/2}, {length/2, 0, width/2}, {-length/2, 0, width/2},
-            {-length/2, height, -width/2}, {length/2, height, -width/2}, {length/2, height, width/2}, {-length/2, height, width/2}
-        };
-        vertices.insert(vertices.end(), bodyVerts.begin(), bodyVerts.end());
+        // Main body
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
+
+        // 6 Wheels (3 per side for longer vehicle)
+        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(length/3, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(length/3, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-length/3, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-length/3, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
         break;
     }
 
     case VehicleType::SportsCar:
     {
-        // Sports car: low and sleek
+        // Sports car: low and sleek + wheels
         float length = 2.8f, width = 1.4f, height = 0.6f;
         float cabinHeight = 0.4f, cabinLength = 1.0f;
+        float wheelRadius = 0.22f, wheelWidth = 0.18f;
 
-        std::vector<XMFLOAT3> bodyVerts = {
-            {-length/2, 0, -width/2}, {length/2, 0, -width/2}, {length/2, 0, width/2}, {-length/2, 0, width/2},
-            {-length/2, height, -width/2}, {length/2, height, -width/2}, {length/2, height, width/2}, {-length/2, height, width/2}
-        };
-        vertices.insert(vertices.end(), bodyVerts.begin(), bodyVerts.end());
+        // Main body (very low)
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
 
-        std::vector<XMFLOAT3> cabinVerts = {
-            {-cabinLength/2, height, -width/3.0f}, {cabinLength/2, height, -width/3.0f},
-            {cabinLength/2, height, width/3.0f}, {-cabinLength/2, height, width/3.0f},
-            {-cabinLength/2.5f, height + cabinHeight, -width/3.5f}, {cabinLength/2.5f, height + cabinHeight, -width/3.5f},
-            {cabinLength/2.5f, height + cabinHeight, width/3.5f}, {-cabinLength/2.5f, height + cabinHeight, width/3.5f}
-        };
-        vertices.insert(vertices.end(), cabinVerts.begin(), cabinVerts.end());
+        // Cabin (sleek and aerodynamic)
+        AddBoxToMesh(vertices, indices,
+            XMFLOAT3(0, height + cabinHeight/2, 0),
+            XMFLOAT3(cabinLength/2, cabinHeight/2, width/3.0f));
+
+        // 4 Wheels (smaller for sports car)
+        float wheelOffsetX = length / 3.0f;
+        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
         break;
     }
-    }
-
-    // Generate indices for all boxes (each component is a box with 6 faces)
-    size_t numBoxes = vertices.size() / 8;  // Each box has 8 vertices
-    for (size_t box = 0; box < numBoxes; ++box)
-    {
-        uint32_t base = static_cast<uint32_t>(box * 8);
-
-        // Define 6 faces (2 triangles each)
-        uint32_t boxIndices[] = {
-            // Bottom
-            base+0, base+1, base+2,  base+0, base+2, base+3,
-            // Top
-            base+4, base+6, base+5,  base+4, base+7, base+6,
-            // Front
-            base+0, base+4, base+5,  base+0, base+5, base+1,
-            // Back
-            base+2, base+6, base+7,  base+2, base+7, base+3,
-            // Left
-            base+0, base+3, base+7,  base+0, base+7, base+4,
-            // Right
-            base+1, base+5, base+6,  base+1, base+6, base+2
-        };
-
-        indices.insert(indices.end(), boxIndices, boxIndices + 36);
     }
 }
 
