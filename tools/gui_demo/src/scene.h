@@ -187,6 +187,10 @@ public:
     void SetSimulationSpeed(float speed) { m_simulationSpeed = speed; }
     float GetSimulationSpeed() const { return m_simulationSpeed; }
 
+    // Scene save/load
+    bool SaveScene(const std::string& filename);
+    bool LoadScene(const std::string& filename);
+
     // Accessors
     size_t GetObjectCount() const { return m_objects.size(); }
     SceneObject* GetObject(size_t index);

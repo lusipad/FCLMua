@@ -32,6 +32,18 @@ public:
     void GetMousePosition(int& x, int& y) const { x = m_mouseX; y = m_mouseY; }
     void GetMouseDelta(int& dx, int& dy) const { dx = m_mouseDX; dy = m_mouseDY; }
     int GetMouseWheel() const { return m_mouseWheel; }
+    void ResetMouseInput() { m_mouseDX = 0; m_mouseDY = 0; m_mouseWheel = 0; }
+
+    // Status bar
+    void SetStatusText(const std::wstring& text);
+
+    // Help dialog
+    void ShowHelpDialog();
+
+    // Properties panel
+    void UpdatePropertiesPanel(size_t selectedIndex, const std::string& objectName,
+                              float posX, float posY, float posZ,
+                              float rotY);
 
 private:
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
@@ -95,6 +107,17 @@ private:
     HWND m_btnLoadOBJ;
     HWND m_labelOBJScale;
     HWND m_editOBJScale;
+
+    // Status bar
+    HWND m_statusBar;
+
+    // Properties panel
+    HWND m_labelProperties;
+    HWND m_labelObjectName;
+    HWND m_labelPosX, m_labelPosY, m_labelPosZ;
+    HWND m_editPosX, m_editPosY, m_editPosZ;
+    HWND m_labelRotY;
+    HWND m_editRotY;
 
     void CreateUIControls();
 };

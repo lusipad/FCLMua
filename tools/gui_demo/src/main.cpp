@@ -81,43 +81,71 @@ int WINAPI WinMain(
         scene->Initialize();
 
         // Connect UI events to scene
-        window->OnCreateSphere = [&scene](float radius) {
+        window->OnCreateSphere = [&scene, &window](float radius) {
             XMFLOAT3 pos(0, 2, 0);
             std::string name = "Sphere " + std::to_string(scene->GetObjectCount() + 1);
             scene->AddSphere(name, pos, radius);
             scene->SelectObject(scene->GetObjectCount() - 1);
+
+            wchar_t msg[128];
+            swprintf_s(msg, L"Created sphere with radius %.2f", radius);
+            window->SetStatusText(msg);
         };
 
-        window->OnCreateBox = [&scene](float x, float y, float z) {
+        window->OnCreateBox = [&scene, &window](float x, float y, float z) {
             XMFLOAT3 pos(0, 2, 0);
             XMFLOAT3 extents(x, y, z);
             std::string name = "Box " + std::to_string(scene->GetObjectCount() + 1);
             scene->AddBox(name, pos, extents);
             scene->SelectObject(scene->GetObjectCount() - 1);
+
+            wchar_t msg[128];
+            swprintf_s(msg, L"Created box with size (%.2f, %.2f, %.2f)", x, y, z);
+            window->SetStatusText(msg);
         };
 
-        window->OnDeleteObject = [&scene]() {
+        window->OnDeleteObject = [&scene, &window]() {
             size_t selected = scene->GetSelectedObjectIndex();
             if (selected != static_cast<size_t>(-1))
             {
                 scene->DeleteObject(selected);
+                window->SetStatusText(L"Object deleted");
+            }
+            else
+            {
+                window->SetStatusText(L"No object selected to delete");
             }
         };
 
-        window->OnSceneModeChanged = [&scene](int mode) {
+        window->OnSceneModeChanged = [&scene, &window](int mode) {
             if (mode == 0)
+            {
                 scene->SetSceneMode(SceneMode::Default);
+                window->SetStatusText(L"Switched to Default scene");
+            }
             else if (mode == 1)
+            {
                 scene->SetSceneMode(SceneMode::SolarSystem);
+                window->SetStatusText(L"Switched to Solar System scene");
+            }
             else if (mode == 2)
+            {
                 scene->SetSceneMode(SceneMode::CrossroadSimulation);
+                window->SetStatusText(L"Switched to Crossroad Simulation scene");
+            }
         };
 
-        window->OnSimulationSpeedChanged = [&scene](float speed) {
+        window->OnSimulationSpeedChanged = [&scene, &window](float speed) {
             scene->SetSimulationSpeed(speed);
+            wchar_t msg[128];
+            if (speed == 0.0f)
+                swprintf_s(msg, L"Simulation paused");
+            else
+                swprintf_s(msg, L"Simulation speed: %.1fx", speed);
+            window->SetStatusText(msg);
         };
 
-        window->OnCreateAsteroid = [&scene](float vx, float vy, float vz, float radius) {
+        window->OnCreateAsteroid = [&scene, &window](float vx, float vy, float vz, float radius) {
             // Create asteroid at camera target with specified velocity
             XMFLOAT3 pos = scene->GetCamera().GetTarget();
             pos.y += 2.0f; // Slightly above the target
@@ -125,9 +153,13 @@ int WINAPI WinMain(
             std::string name = "Asteroid " + std::to_string(scene->GetObjectCount() + 1);
             scene->AddAsteroid(name, pos, velocity, radius);
             scene->SelectObject(scene->GetObjectCount() - 1);
+
+            wchar_t msg[128];
+            swprintf_s(msg, L"Created asteroid with velocity (%.1f, %.1f, %.1f)", vx, vy, vz);
+            window->SetStatusText(msg);
         };
 
-        window->OnCreateVehicle = [&scene](int vehicleType, int direction, int intention, float speed) {
+        window->OnCreateVehicle = [&scene, &window](int vehicleType, int direction, int intention, float speed) {
             // Create vehicle with specified parameters
             std::string name = "Vehicle " + std::to_string(scene->GetObjectCount() + 1);
             scene->AddVehicle(name,
@@ -136,26 +168,44 @@ int WINAPI WinMain(
                 static_cast<MovementIntention>(intention),
                 speed);
             scene->SelectObject(scene->GetObjectCount() - 1);
+            window->SetStatusText(L"Created vehicle in crossroad scene");
         };
 
-        window->OnLoadVehicleFromOBJ = [&scene](std::string objPath, int direction, int intention, float speed, float scale) {
+        window->OnLoadVehicleFromOBJ = [&scene, &window](std::string objPath, int direction, int intention, float speed, float scale) {
             // Load vehicle from OBJ file
             std::string name = "Custom " + std::to_string(scene->GetObjectCount() + 1);
+            size_t before = scene->GetObjectCount();
             scene->AddVehicleFromOBJ(name, objPath,
                 static_cast<VehicleDirection>(direction),
                 static_cast<MovementIntention>(intention),
                 speed, scale);
-            scene->SelectObject(scene->GetObjectCount() - 1);
+
+            // Check if loading was successful
+            if (scene->GetObjectCount() > before)
+            {
+                scene->SelectObject(scene->GetObjectCount() - 1);
+                window->SetStatusText(L"Successfully loaded custom vehicle from OBJ file");
+            }
+            else
+            {
+                window->SetStatusText(L"Failed to load OBJ file");
+            }
         };
 
         // Show window
         window->Show(nCmdShow);
 
-        // Main message loop
+        // Main message loop with FPS tracking
         MSG msg = {};
         LARGE_INTEGER frequency, lastTime, currentTime;
         QueryPerformanceFrequency(&frequency);
         QueryPerformanceCounter(&lastTime);
+
+        // FPS tracking variables
+        int frameCount = 0;
+        float fpsTimer = 0.0f;
+        float currentFPS = 0.0f;
+        float avgFrameTime = 0.0f;
 
         while (msg.message != WM_QUIT)
         {
@@ -172,11 +222,48 @@ int WINAPI WinMain(
                                   static_cast<float>(frequency.QuadPart);
                 lastTime = currentTime;
 
+                // Update FPS counter
+                frameCount++;
+                fpsTimer += deltaTime;
+
+                // Update FPS display every 0.5 seconds
+                if (fpsTimer >= 0.5f)
+                {
+                    currentFPS = frameCount / fpsTimer;
+                    avgFrameTime = (fpsTimer / frameCount) * 1000.0f; // Convert to ms
+
+                    // Update window title with performance stats
+                    wchar_t titleBuffer[256];
+                    swprintf_s(titleBuffer, L"FCL Collision Demo - FPS: %.1f | Frame: %.2f ms | Objects: %zu",
+                              currentFPS, avgFrameTime, scene->GetObjectCount());
+                    SetWindowTextW(window->GetHWND(), titleBuffer);
+
+                    frameCount = 0;
+                    fpsTimer = 0.0f;
+                }
+
                 // Handle input
                 scene->HandleInput(window.get(), deltaTime);
 
                 // Update and render
                 scene->Update(deltaTime);
+
+                // Update properties panel with selected object info
+                size_t selectedIdx = scene->GetSelectedObjectIndex();
+                if (selectedIdx != static_cast<size_t>(-1))
+                {
+                    auto* obj = scene->GetObject(selectedIdx);
+                    if (obj)
+                    {
+                        window->UpdatePropertiesPanel(selectedIdx, obj->name,
+                                                     obj->position.x, obj->position.y, obj->position.z,
+                                                     obj->rotation.y);
+                    }
+                }
+                else
+                {
+                    window->UpdatePropertiesPanel(static_cast<size_t>(-1), "", 0, 0, 0, 0);
+                }
 
                 renderer->BeginFrame();
                 scene->Render();
