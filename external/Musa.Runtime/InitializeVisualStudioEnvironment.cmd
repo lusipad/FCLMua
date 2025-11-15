@@ -13,10 +13,14 @@
 set VisualStudioInstallerFolder="%ProgramFiles(x86)%\Microsoft Visual Studio\Installer"
 if %PROCESSOR_ARCHITECTURE%==x86 set VisualStudioInstallerFolder="%ProgramFiles%\Microsoft Visual Studio\Installer"
 
-pushd %VisualStudioInstallerFolder%
-for /f "usebackq tokens=*" %%i in (`vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
-  set VisualStudioInstallDir=%%i
-)
-popd
+rem Hardcoded to use Enterprise edition which has WDK integration
+set VisualStudioInstallDir=C:\Program Files\Microsoft Visual Studio\2022\Enterprise
+
+rem Original vswhere logic (commented out):
+rem pushd %VisualStudioInstallerFolder%
+rem for /f "usebackq tokens=*" %%i in (`vswhere -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do (
+rem   set VisualStudioInstallDir=%%i
+rem )
+rem popd
 
 call "%VisualStudioInstallDir%\VC\Auxiliary\Build\vcvarsall.bat" x64
