@@ -13,15 +13,35 @@ jobs:
     name: Build user-mode CLI demo (Debug | x64)
     runs-on: windows-latest
 
-    env:
-      FCL_REPO_ROOT: ${{ github.workspace }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Setup Visual Studio Dev Environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
       - name: Build user-mode CLI demo
         shell: pwsh
         run: |
-          cd "$env:FCL_REPO_ROOT/tools"
-          .\build_demo.cmd
+          cd tools
+          if (-not (Test-Path build)) { New-Item -ItemType Directory -Path build }
+          cd build
+
+          Write-Host "Compiling fcl_demo.cpp..."
+          cl /utf-8 /EHsc /std:c++17 /nologo /W4 ..\fcl_demo.cpp /link /out:fcl_demo.exe
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to build fcl_demo.exe"
+            exit 1
+          }
+
+          Write-Host "Build succeeded: fcl_demo.exe"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fcl-demo-cli
+          path: tools/build/fcl_demo.exe
+          retention-days: 7
