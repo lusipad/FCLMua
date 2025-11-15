@@ -716,7 +716,7 @@ bool SelfTestPass(HANDLE device) {
     b.Transform.Translation = {0.6f, 0.0f, 0.0f};
 
     const int iterations = 640;
-    printf("Running PASSIVE collision self-test: two spheres, iterations=%d...\n", iterations);
+    printf("Running PASSIVE collision self-test: two spheres, iterations=%d, period=1ms...\n", iterations);
 
     FCL_COLLISION_RESULT result = {};
     for (int i = 0; i < iterations; ++i) {
@@ -729,6 +729,7 @@ bool SelfTestPass(HANDLE device) {
             printf("  [FAIL] selftest_pass: expected collision at iteration %d.\n", i);
             break;
         }
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     DestroyGeometry(device, handleB);

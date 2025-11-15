@@ -32,6 +32,7 @@ kernel/*/Release/
 tools/build/
 tools/build_driver_latest.txt
 tools/gui_demo/build/
+tools/gui_demo/release/
 
 # 分发/二进制输出
 dist/
