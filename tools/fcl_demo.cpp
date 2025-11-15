@@ -93,6 +93,7 @@ struct FCL_DIAGNOSTICS_RESPONSE {
     FCL_DETECTION_TIMING_STATS Collision;
     FCL_DETECTION_TIMING_STATS Distance;
     FCL_DETECTION_TIMING_STATS ContinuousCollision;
+    FCL_DETECTION_TIMING_STATS DpcCollision;
 };
 
 struct FCL_SPHERE_GEOMETRY_DESC {
@@ -866,12 +867,12 @@ bool PrintDiagDpc(HANDLE device) {
     const auto& base = g_DpcBaselineDiag;
 
     const uint64_t deltaCalls =
-        (now.Collision.CallCount >= base.Collision.CallCount)
-            ? (now.Collision.CallCount - base.Collision.CallCount)
+        (now.DpcCollision.CallCount >= base.DpcCollision.CallCount)
+            ? (now.DpcCollision.CallCount - base.DpcCollision.CallCount)
             : 0;
     const uint64_t deltaTotal =
-        (now.Collision.TotalDurationMicroseconds >= base.Collision.TotalDurationMicroseconds)
-            ? (now.Collision.TotalDurationMicroseconds - base.Collision.TotalDurationMicroseconds)
+        (now.DpcCollision.TotalDurationMicroseconds >= base.DpcCollision.TotalDurationMicroseconds)
+            ? (now.DpcCollision.TotalDurationMicroseconds - base.DpcCollision.TotalDurationMicroseconds)
             : 0;
 
     printf("DPC periodic collision diagnostics (delta since selftest_dpc):\n");
@@ -881,12 +882,12 @@ bool PrintDiagDpc(HANDLE device) {
     }
 
     const double avgUs = static_cast<double>(deltaTotal) / static_cast<double>(deltaCalls);
-    printf("  Collision: calls=%llu total=%.3f ms avg=%.3f ms (global min=%.3f ms max=%.3f ms)\n",
+    printf("  Collision(DPC): calls=%llu total=%.3f ms avg=%.3f ms (global min=%.3f ms max=%.3f ms)\n",
            static_cast<unsigned long long>(deltaCalls),
            static_cast<double>(deltaTotal) / 1000.0,
            avgUs / 1000.0,
-           static_cast<double>(now.Collision.MinDurationMicroseconds) / 1000.0,
-           static_cast<double>(now.Collision.MaxDurationMicroseconds) / 1000.0);
+           static_cast<double>(now.DpcCollision.MinDurationMicroseconds) / 1000.0,
+           static_cast<double>(now.DpcCollision.MaxDurationMicroseconds) / 1000.0);
     return true;
 }
 
@@ -1037,16 +1038,17 @@ bool ExecuteCommand(const std::vector<std::string>& tokens, HANDLE device, Scene
     } else if (cmd == "demo") {
         RunLegacyDemo(device);
     } else if (cmd == "diag") {
-        FCL_DIAGNOSTICS_RESPONSE diag = {};
-        if (!SendIoctl(device, IOCTL_FCL_QUERY_DIAGNOSTICS, &diag, sizeof(diag))) {
-            printf("  [FAIL] Diagnostics IOCTL failed.\n");
-            return true;
-        }
+    FCL_DIAGNOSTICS_RESPONSE diag = {};
+    if (!SendIoctl(device, IOCTL_FCL_QUERY_DIAGNOSTICS, &diag, sizeof(diag))) {
+        printf("  [FAIL] Diagnostics IOCTL failed.\n");
+        return true;
+    }
 
-        printf("Kernel detection timing diagnostics (microseconds aggregated):\n");
-        PrintTimingStats("Collision", diag.Collision);
-        PrintTimingStats("Distance", diag.Distance);
-        PrintTimingStats("ContinuousCollision", diag.ContinuousCollision);
+    printf("Kernel detection timing diagnostics (microseconds aggregated):\n");
+    PrintTimingStats("Collision", diag.Collision);
+    PrintTimingStats("Distance", diag.Distance);
+    PrintTimingStats("ContinuousCollision", diag.ContinuousCollision);
+    PrintTimingStats("DpcCollision", diag.DpcCollision);
     } else if (cmd == "diag_pass") {
         return PrintDiagPass(device);
     } else if (cmd == "diag_dpc") {

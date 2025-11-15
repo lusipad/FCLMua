@@ -101,6 +101,7 @@ struct FCL_DIAGNOSTICS_RESPONSE {
     FCL_DETECTION_TIMING_STATS Collision;
     FCL_DETECTION_TIMING_STATS Distance;
     FCL_DETECTION_TIMING_STATS ContinuousCollision;
+    FCL_DETECTION_TIMING_STATS DpcCollision;
 };
 
 // IOCTL codes (must match kernel/core/include/fclmusa/ioctl.h)

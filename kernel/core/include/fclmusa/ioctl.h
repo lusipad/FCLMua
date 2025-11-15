@@ -148,6 +148,7 @@ typedef struct _FCL_DIAGNOSTICS_RESPONSE {
     FCL_DETECTION_TIMING_STATS Collision;
     FCL_DETECTION_TIMING_STATS Distance;
     FCL_DETECTION_TIMING_STATS ContinuousCollision;
+    FCL_DETECTION_TIMING_STATS DpcCollision;
 } FCL_DIAGNOSTICS_RESPONSE, *PFCL_DIAGNOSTICS_RESPONSE;
 
 static_assert((sizeof(FCL_DIAGNOSTICS_RESPONSE) % sizeof(ULONG)) == 0, "Diagnostics response must align to ULONG");

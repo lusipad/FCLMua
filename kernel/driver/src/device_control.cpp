@@ -59,6 +59,16 @@ struct FCL_PERIODIC_COLLISION_STATE {
     ULONGLONG Sequence;
     NTSTATUS LastStatus;
     FCL_COLLISION_RESULT LastResult;
+
+    KTIMER Timer;
+    KDPC TimerDpc;
+    KEVENT DpcIdleEvent;
+    volatile LONG DpcActiveCount;
+
+    FCL_GEOMETRY_REFERENCE Object1Ref;
+    FCL_GEOMETRY_SNAPSHOT Object1Snapshot;
+    FCL_GEOMETRY_REFERENCE Object2Ref;
+    FCL_GEOMETRY_SNAPSHOT Object2Snapshot;
 };
 
 FCL_PERIODIC_COLLISION_STATE g_PeriodicCollisionState = {
@@ -69,16 +79,235 @@ FCL_PERIODIC_COLLISION_STATE g_PeriodicCollisionState = {
     1,
     0,
     STATUS_SUCCESS,
+    {},
+    {},
+    {},
+    0,
+    {},
+    {},
+    {},
     {}
 };
+
+_Function_class_(KDEFERRED_ROUTINE)
+_IRQL_requires_(DISPATCH_LEVEL)
+VOID
+NTAPI
+FclPeriodicCollisionDpc(
+    _In_ PKDPC Dpc,
+    _In_opt_ PVOID DeferredContext,
+    _In_opt_ PVOID SystemArgument1,
+    _In_opt_ PVOID SystemArgument2
+    ) noexcept;
 
 struct PeriodicCollisionStateInitializer {
     PeriodicCollisionStateInitializer() {
         ExInitializePushLock(&g_PeriodicCollisionState.Lock);
+        KeInitializeTimerEx(&g_PeriodicCollisionState.Timer, NotificationTimer);
+        KeInitializeDpc(&g_PeriodicCollisionState.TimerDpc, FclPeriodicCollisionDpc, &g_PeriodicCollisionState);
+        KeInitializeEvent(&g_PeriodicCollisionState.DpcIdleEvent, NotificationEvent, TRUE);
+        g_PeriodicCollisionState.DpcActiveCount = 0;
     }
 };
 
 static PeriodicCollisionStateInitializer g_PeriodicCollisionStateInitializer;
+_Function_class_(KDEFERRED_ROUTINE)
+_IRQL_requires_(DISPATCH_LEVEL)
+VOID
+NTAPI
+FclPeriodicCollisionDpc(
+    _In_ PKDPC Dpc,
+    _In_opt_ PVOID DeferredContext,
+    _In_opt_ PVOID SystemArgument1,
+    _In_opt_ PVOID SystemArgument2
+    ) noexcept {
+    UNREFERENCED_PARAMETER(Dpc);
+    UNREFERENCED_PARAMETER(SystemArgument1);
+    UNREFERENCED_PARAMETER(SystemArgument2);
+
+    auto* state = static_cast<FCL_PERIODIC_COLLISION_STATE*>(DeferredContext);
+    if (state == nullptr) {
+        return;
+    }
+
+    LONG newCount = InterlockedIncrement(&state->DpcActiveCount);
+    if (newCount == 1) {
+        KeClearEvent(&state->DpcIdleEvent);
+    }
+
+    ULONG innerIterations = state->InnerIterations;
+    if (innerIterations == 0) {
+        innerIterations = 1;
+    }
+
+    const FCL_GEOMETRY_SNAPSHOT object1 = state->Object1Snapshot;
+    const FCL_GEOMETRY_SNAPSHOT object2 = state->Object2Snapshot;
+    const FCL_TRANSFORM transform1 = state->Config.Transform1;
+    const FCL_TRANSFORM transform2 = state->Config.Transform2;
+
+    for (ULONG i = 0; i < innerIterations; ++i) {
+        BOOLEAN isColliding = FALSE;
+        FCL_CONTACT_INFO contact = {};
+        NTSTATUS status = FclCollisionCoreFromSnapshots(
+            &object1,
+            &transform1,
+            &object2,
+            &transform2,
+            &isColliding,
+            &contact);
+
+        FCL_COLLISION_RESULT result = {};
+        result.IsColliding = isColliding ? 1 : 0;
+        if (isColliding) {
+            result.Contact = contact;
+        } else {
+            RtlZeroMemory(&result.Contact, sizeof(result.Contact));
+        }
+
+        state->LastStatus = status;
+        state->LastResult = result;
+        InterlockedIncrement64(reinterpret_cast<volatile LONG64*>(&state->Sequence));
+    }
+
+    newCount = InterlockedDecrement(&state->DpcActiveCount);
+    if (newCount == 0) {
+        KeSetEvent(&state->DpcIdleEvent, IO_NO_INCREMENT, FALSE);
+    }
+}
+
+NTSTATUS HandleStartPeriodicCollisionDpc(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
+    if (stack->Parameters.DeviceIoControl.InputBufferLength < sizeof(FCL_PERIODIC_COLLISION_CONFIG) ||
+        stack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(FCL_PERIODIC_COLLISION_CONFIG)) {
+        return STATUS_BUFFER_TOO_SMALL;
+    }
+
+    auto* config = reinterpret_cast<FCL_PERIODIC_COLLISION_CONFIG*>(irp->AssociatedIrp.SystemBuffer);
+
+    if (!FclIsGeometryHandleValid(config->Object1) ||
+        !FclIsGeometryHandleValid(config->Object2) ||
+        config->PeriodMicroseconds == 0) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    if (!fclmusa::geom::IsValidTransform(config->Transform1) ||
+        !fclmusa::geom::IsValidTransform(config->Transform2)) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    ExEnterCriticalRegionAndAcquirePushLockExclusive(&g_PeriodicCollisionState.Lock);
+    if (g_PeriodicCollisionState.Enabled) {
+        ExReleasePushLockExclusiveAndLeaveCriticalRegion(&g_PeriodicCollisionState.Lock);
+        return STATUS_DEVICE_BUSY;
+    }
+
+    g_PeriodicCollisionState.Config = *config;
+    {
+        ULONG configuredIterations = config->Reserved[0];
+        if (configuredIterations == 0) {
+            configuredIterations = 1;
+        }
+        if (configuredIterations > 1024) {
+            configuredIterations = 1024;
+        }
+        g_PeriodicCollisionState.InnerIterations = configuredIterations;
+    }
+    g_PeriodicCollisionState.Sequence = 0;
+    g_PeriodicCollisionState.LastStatus = STATUS_SUCCESS;
+    RtlZeroMemory(&g_PeriodicCollisionState.LastResult, sizeof(g_PeriodicCollisionState.LastResult));
+
+    // 释放旧引用（如果有）
+    if (g_PeriodicCollisionState.Object1Ref.HandleValue != 0) {
+        FclReleaseGeometryReference(&g_PeriodicCollisionState.Object1Ref);
+        RtlZeroMemory(&g_PeriodicCollisionState.Object1Snapshot, sizeof(g_PeriodicCollisionState.Object1Snapshot));
+    }
+    if (g_PeriodicCollisionState.Object2Ref.HandleValue != 0) {
+        FclReleaseGeometryReference(&g_PeriodicCollisionState.Object2Ref);
+        RtlZeroMemory(&g_PeriodicCollisionState.Object2Snapshot, sizeof(g_PeriodicCollisionState.Object2Snapshot));
+    }
+
+    NTSTATUS status = FclAcquireGeometryReference(
+        config->Object1,
+        &g_PeriodicCollisionState.Object1Ref,
+        &g_PeriodicCollisionState.Object1Snapshot);
+    if (!NT_SUCCESS(status)) {
+        ExReleasePushLockExclusiveAndLeaveCriticalRegion(&g_PeriodicCollisionState.Lock);
+        return status;
+    }
+
+    status = FclAcquireGeometryReference(
+        config->Object2,
+        &g_PeriodicCollisionState.Object2Ref,
+        &g_PeriodicCollisionState.Object2Snapshot);
+    if (!NT_SUCCESS(status)) {
+        FclReleaseGeometryReference(&g_PeriodicCollisionState.Object1Ref);
+        g_PeriodicCollisionState.Object1Ref.HandleValue = 0;
+        RtlZeroMemory(&g_PeriodicCollisionState.Object1Snapshot, sizeof(g_PeriodicCollisionState.Object1Snapshot));
+        ExReleasePushLockExclusiveAndLeaveCriticalRegion(&g_PeriodicCollisionState.Lock);
+        return status;
+    }
+
+    g_PeriodicCollisionState.Enabled = TRUE;
+    ExReleasePushLockExclusiveAndLeaveCriticalRegion(&g_PeriodicCollisionState.Lock);
+
+    // 启动周期性 DPC 计时器
+    g_PeriodicCollisionState.DpcActiveCount = 0;
+
+    const ULONG periodMs = (config->PeriodMicroseconds + 999) / 1000;
+    const LONG timerPeriodMs = (periodMs == 0) ? 1 : static_cast<LONG>(periodMs);
+
+    LARGE_INTEGER dueTime = {};
+    dueTime.QuadPart = -10LL * static_cast<LONGLONG>(timerPeriodMs) * 1000LL;
+
+    KeSetTimerEx(
+        &g_PeriodicCollisionState.Timer,
+        dueTime,
+        timerPeriodMs,
+        &g_PeriodicCollisionState.TimerDpc);
+
+    irp->IoStatus.Information = sizeof(FCL_PERIODIC_COLLISION_CONFIG);
+    return status;
+}
+
+NTSTATUS HandleStopPeriodicCollisionDpc(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
+    UNREFERENCED_PARAMETER(stack);
+
+    // 停止计时器并等待所有在途 DPC 完成
+    KeCancelTimer(&g_PeriodicCollisionState.Timer);
+    KeWaitForSingleObject(
+        &g_PeriodicCollisionState.DpcIdleEvent,
+        Executive,
+        KernelMode,
+        FALSE,
+        nullptr);
+
+    ExEnterCriticalRegionAndAcquirePushLockExclusive(&g_PeriodicCollisionState.Lock);
+
+    g_PeriodicCollisionState.Enabled = FALSE;
+
+    FCL_GEOMETRY_REFERENCE object1Ref = g_PeriodicCollisionState.Object1Ref;
+    FCL_GEOMETRY_REFERENCE object2Ref = g_PeriodicCollisionState.Object2Ref;
+    g_PeriodicCollisionState.Object1Ref.HandleValue = 0;
+    g_PeriodicCollisionState.Object2Ref.HandleValue = 0;
+    RtlZeroMemory(&g_PeriodicCollisionState.Object1Snapshot, sizeof(g_PeriodicCollisionState.Object1Snapshot));
+    RtlZeroMemory(&g_PeriodicCollisionState.Object2Snapshot, sizeof(g_PeriodicCollisionState.Object2Snapshot));
+
+    RtlZeroMemory(&g_PeriodicCollisionState.Config, sizeof(g_PeriodicCollisionState.Config));
+    g_PeriodicCollisionState.Sequence = 0;
+    g_PeriodicCollisionState.LastStatus = STATUS_SUCCESS;
+    RtlZeroMemory(&g_PeriodicCollisionState.LastResult, sizeof(g_PeriodicCollisionState.LastResult));
+
+    ExReleasePushLockExclusiveAndLeaveCriticalRegion(&g_PeriodicCollisionState.Lock);
+
+    if (object1Ref.HandleValue != 0) {
+        FclReleaseGeometryReference(&object1Ref);
+    }
+    if (object2Ref.HandleValue != 0) {
+        FclReleaseGeometryReference(&object2Ref);
+    }
+
+    irp->IoStatus.Information = 0;
+    return STATUS_SUCCESS;
+}
 
 _Use_decl_annotations_
 VOID
@@ -500,10 +729,10 @@ FclDispatchDeviceControl(_In_ PDEVICE_OBJECT deviceObject, _Inout_ PIRP irp) {
             status = HandleConvexCcdDemo(irp, stack);
             break;
         case IOCTL_FCL_START_PERIODIC_COLLISION:
-            status = HandleStartPeriodicCollision(irp, stack);
+            status = HandleStartPeriodicCollisionDpc(irp, stack);
             break;
         case IOCTL_FCL_STOP_PERIODIC_COLLISION:
-            status = HandleStopPeriodicCollision(irp, stack);
+            status = HandleStopPeriodicCollisionDpc(irp, stack);
             break;
 #ifdef FCL_MUSA_ENABLE_DEMO
         case IOCTL_FCL_DEMO_SPHERE_COLLISION:

@@ -110,4 +110,28 @@ FclContinuousCollision(
     _In_ const FCL_CONTINUOUS_COLLISION_QUERY* query,
     _Out_ PFCL_CONTINUOUS_COLLISION_RESULT result) noexcept;
 
+//
+// 内部 Snapshot Core API（IRQL <= DISPATCH_LEVEL，可在 DPC 中调用）
+// - 仅使用几何快照 / 变换 / 运动描述，不执行句柄查找或加锁
+// - 外部调用方负责确保所有指针指向 NonPagedPool 中的有效数据
+//
+NTSTATUS
+FclCollisionCoreFromSnapshots(
+    _In_ const FCL_GEOMETRY_SNAPSHOT* object1,
+    _In_ const FCL_TRANSFORM* transform1,
+    _In_ const FCL_GEOMETRY_SNAPSHOT* object2,
+    _In_ const FCL_TRANSFORM* transform2,
+    _Out_ PBOOLEAN isColliding,
+    _Out_opt_ PFCL_CONTACT_INFO contactInfo) noexcept;
+
+NTSTATUS
+FclContinuousCollisionCoreFromSnapshots(
+    _In_ const FCL_GEOMETRY_SNAPSHOT* object1,
+    _In_ const FCL_INTERP_MOTION* motion1,
+    _In_ const FCL_GEOMETRY_SNAPSHOT* object2,
+    _In_ const FCL_INTERP_MOTION* motion2,
+    _In_ double tolerance,
+    _In_ ULONG maxIterations,
+    _Out_ PFCL_CONTINUOUS_COLLISION_RESULT result) noexcept;
+
 EXTERN_C_END

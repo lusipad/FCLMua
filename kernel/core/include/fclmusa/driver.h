@@ -16,6 +16,9 @@ VOID
 FclDiagnosticsRecordCollisionDuration(_In_ ULONGLONG durationMicroseconds) noexcept;
 
 VOID
+FclDiagnosticsRecordDpcCollisionDuration(_In_ ULONGLONG durationMicroseconds) noexcept;
+
+VOID
 FclDiagnosticsRecordDistanceDuration(_In_ ULONGLONG durationMicroseconds) noexcept;
 
 VOID

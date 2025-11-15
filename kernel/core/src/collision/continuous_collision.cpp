@@ -65,6 +65,44 @@ ULONGLONG AbsoluteDifference(ULONGLONG a, ULONGLONG b) noexcept {
 
 extern "C"
 NTSTATUS
+FclContinuousCollisionCoreFromSnapshots(
+    _In_ const FCL_GEOMETRY_SNAPSHOT* object1,
+    _In_ const FCL_INTERP_MOTION* motion1,
+    _In_ const FCL_GEOMETRY_SNAPSHOT* object2,
+    _In_ const FCL_INTERP_MOTION* motion2,
+    _In_ double tolerance,
+    _In_ ULONG maxIterations,
+    _Out_ PFCL_CONTINUOUS_COLLISION_RESULT result) noexcept {
+    if (object1 == nullptr || object2 == nullptr || motion1 == nullptr || motion2 == nullptr || result == nullptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    const double resolvedTolerance = (tolerance > 0.0) ? tolerance : kDefaultTolerance;
+    const ULONG resolvedIterations = (maxIterations > 0) ? maxIterations : kDefaultIterations;
+
+    const ULONGLONG start = QueryTimeMicroseconds();
+    NTSTATUS status = FclUpstreamContinuousCollision(
+        *object1,
+        *motion1,
+        *object2,
+        *motion2,
+        resolvedTolerance,
+        resolvedIterations,
+        result);
+    const ULONGLONG end = QueryTimeMicroseconds();
+
+    if (NT_SUCCESS(status) && start != 0 && end != 0) {
+        const ULONGLONG elapsed = AbsoluteDifference(end, start);
+        if (elapsed != 0) {
+            FclDiagnosticsRecordContinuousCollisionDuration(elapsed);
+        }
+    }
+
+    return status;
+}
+
+extern "C"
+NTSTATUS
 FclInterpMotionInitialize(
     _In_ const FCL_INTERP_MOTION_DESC* desc,
     _Out_ PFCL_INTERP_MOTION motion) noexcept {
@@ -131,26 +169,12 @@ FclContinuousCollision(
         return status;
     }
 
-    const double tolerance = (query->Tolerance > 0.0) ? query->Tolerance : kDefaultTolerance;
-    const ULONG iterations = (query->MaxIterations > 0) ? query->MaxIterations : kDefaultIterations;
-
-    const ULONGLONG start = QueryTimeMicroseconds();
-    status = FclUpstreamContinuousCollision(
-        objectA.Snapshot,
-        query->Motion1,
-        objectB.Snapshot,
-        query->Motion2,
-        tolerance,
-        iterations,
+    return FclContinuousCollisionCoreFromSnapshots(
+        &objectA.Snapshot,
+        &query->Motion1,
+        &objectB.Snapshot,
+        &query->Motion2,
+        query->Tolerance,
+        query->MaxIterations,
         result);
-    const ULONGLONG end = QueryTimeMicroseconds();
-
-    if (NT_SUCCESS(status) && start != 0 && end != 0) {
-        const ULONGLONG elapsed = AbsoluteDifference(end, start);
-        if (elapsed != 0) {
-            FclDiagnosticsRecordContinuousCollisionDuration(elapsed);
-        }
-    }
-
-    return status;
 }
