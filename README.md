@@ -16,29 +16,43 @@ PS> .\build_driver.cmd          # 带交互输出，可自动调用签名脚本
 
 - `tools/manual_build.cmd` 会初始化 VsDevCmd 与 WDK 环境，执行 `msbuild Clean+Build` 并停止在构建步骤，便于在自动化流水线中使用。
 - `build_driver.cmd` 在构建成功后会继续执行 `tools/sign_driver.ps1`，生成/更新 `FclMusaTestCert.pfx/.cer` 并为 `FclMusaDriver.sys` 进行测试签名。
-- 两个脚本使用相同的解决方案（`kernel/FclMusaDriver/FclMusaDriver.sln`），产物位于 `kernel/FclMusaDriver/out/x64/Debug/`。
+- 两个脚本使用相同的解决方案（`kernel/FclMusaDriver/FclMusaDriver.sln`），产物位于 `dist/driver/x64/{Debug|Release}/`。
+- 使用 `tools/build_all.ps1` 可一键构建驱动、CLI Demo、GUI Demo 并打包到 `dist/bundle/` 目录。
 
 > 依赖：WDK 10.0.26100.0、Visual Studio 2022、Musa.Runtime（仓库自带）、Eigen、libccd。
 
-构建成功后目录包含：
+构建成功后目录结构：
 
-- `FclMusaDriver.sys / FclMusaDriver.pdb`：驱动及符号文件
-- `FclMusaTestCert.pfx / .cer`：测试证书（仅在 `build_driver.cmd` 路径下生成）
+- `dist/driver/x64/{Debug|Release}/`：驱动构建产物
+  - `FclMusaDriver.sys / FclMusaDriver.pdb`：驱动及符号文件
+  - `FclMusaTestCert.pfx / .cer`：测试证书
+- `dist/bundle/x64/{Debug|Release}/`：完整发布包（驱动 + 演示程序）
 
 ## 安装与加载
 
 1. 将 `FclMusaDriver.sys` 复制到目标机器，例如 `C:\Drivers\FclMusaDriver.sys`。
 2. 若使用测试证书，执行（管理员 PowerShell）：
    ```cmd
-   certutil -addstore Root kernel\FclMusaDriver\out\x64\Debug\FclMusaTestCert.cer
-   certutil -addstore TrustedPublisher kernel\FclMusaDriver\out\x64\Debug\FclMusaTestCert.cer
+   certutil -addstore Root dist\driver\x64\Release\FclMusaTestCert.cer
+   certutil -addstore TrustedPublisher dist\driver\x64\Release\FclMusaTestCert.cer
    ```
 3. 创建并启动驱动服务：
    ```cmd
    sc create FclMusa type= kernel binPath= C:\Drivers\FclMusaDriver.sys
    sc start FclMusa
    ```
-4. 卸载/删除：`sc stop FclMusa`，`sc delete FclMusa`。
+4. 或使用管理脚本（管理员 PowerShell）：
+   ```powershell
+   # 安装并启动
+   PS> tools\manage_driver.ps1 -Action Install
+   PS> tools\manage_driver.ps1 -Action Start
+
+   # 重启驱动
+   PS> tools\manage_driver.ps1 -Action Restart
+
+   # 卸载
+   PS> tools\manage_driver.ps1 -Action Uninstall
+   ```
 
 ## IOCTL 接口概览
 
@@ -90,13 +104,25 @@ CLI 提供命令：
 
 ## 文档与工具
 
+### 文档
 - `docs/usage.md`：快速使用指南
 - `docs/deployment.md`：证书、服务安装与卸载说明
 - `docs/testing.md`：自检/压力/对比验证步骤
 - `docs/VM_DEBUG_SETUP.md`：Hyper-V + WinDbg 配置手册
 - `docs/FILE_STRUCTURE.md`：完整目录结构说明
+
+### 构建工具
+- `tools/build_all.ps1`：一键构建驱动、CLI Demo、GUI Demo 并打包
+- `tools/build_and_sign_driver.ps1`：构建并签名驱动
+- `tools/package_bundle.ps1`：将构建产物打包到 dist/bundle/
+
+### 管理工具
+- `tools/manage_driver.ps1`：驱动服务管理（安装/启动/停止/卸载/重启）
 - `tools/fcl-self-test.ps1`：调用 `PING + SELF_TEST`
 - `tools/verify_upstream.ps1`：对比驱动输出与 upstream FCL 的参考结果
+
+### CI/CD
+- `.github/workflows/build.yml`：GitHub Actions 自动构建用户态 CLI Demo
 
 ## Upstream 版本
 

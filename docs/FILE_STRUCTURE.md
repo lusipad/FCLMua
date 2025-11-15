@@ -27,6 +27,8 @@ FCL+Musa/
 ├── AGENTS.md                  # AI 代理配置文档
 ├── build_driver.cmd           # Windows 驱动构建脚本（主入口）
 ├── .gitignore                 # Git 忽略规则
+├── .github/                   # GitHub Actions CI/CD 配置
+├── dist/                      # 构建产物输出目录
 ├── kernel/                    # 内核驱动模块
 ├── fcl-source/                # FCL 上游库源码
 ├── tools/                     # 开发工具与测试程序
@@ -43,6 +45,59 @@ FCL+Musa/
 | **build_driver.cmd** | 主构建脚本，自动初始化 VsDevCmd、WDK 环境并编译驱动 |
 | **CLAUDE.md** | Claude Code 项目指令，包含 OpenSpec 配置 |
 | **AGENTS.md** | AI 代理系统配置（任务分解、代码审查等） |
+| **.github/** | GitHub Actions 工作流配置目录 |
+| **dist/** | 构建产物输出目录（driver/ 和 bundle/ 子目录） |
+
+---
+
+## .github/ - CI/CD 配置
+
+GitHub Actions 工作流定义。
+
+```
+.github/
+└── workflows/
+    └── build.yml              # 用户态 CLI Demo 构建工作流
+```
+
+**说明：**
+- `build.yml` 在 push 和 PR 时自动构建用户态 CLI Demo
+- 使用 Windows runner 执行 `tools\build_demo.cmd`
+- 确保用户态代码始终可编译
+
+---
+
+## dist/ - 构建产物
+
+所有构建输出的统一目录。
+
+```
+dist/
+├── driver/                    # 驱动构建产物
+│   └── x64/
+│       ├── Debug/
+│       │   ├── FclMusaDriver.sys
+│       │   ├── FclMusaDriver.pdb
+│       │   ├── FclMusaTestCert.cer
+│       │   └── FclMusaTestCert.pfx
+│       └── Release/
+│           └── ...
+└── bundle/                    # 完整发布包
+    └── x64/
+        ├── Debug/
+        └── Release/
+            ├── FclMusaDriver.sys
+            ├── FclMusaDriver.pdb
+            ├── FclMusaTestCert.cer
+            ├── FclMusaTestCert.pfx
+            ├── fcl_demo.exe
+            └── fcl_gui_demo.exe
+```
+
+**说明：**
+- `dist/driver/`：由 `build_and_sign_driver.ps1` 生成
+- `dist/bundle/`：由 `build_all.ps1` 或 `package_bundle.ps1` 打包
+- `.gitignore` 已排除 `dist/` 目录
 
 ---
 
@@ -313,8 +368,14 @@ fcl-source/
 tools/
 ├── fcl_demo.cpp               # 用户态 CLI 测试程序（Ring 3）
 ├── build_demo.cmd             # 编译 fcl_demo.exe
-├── manual_build.cmd           # 驱动手动构建脚本
+├── build_all.ps1              # 一键构建驱动、CLI、GUI 并打包
+├── build_all.cmd              # build_all.ps1 的批处理包装器
+├── build_and_sign_driver.ps1  # 构建并签名驱动
+├── build_and_sign_driver.cmd  # build_and_sign_driver.ps1 的批处理包装器
+├── package_bundle.ps1         # 打包构建产物到 dist/bundle/
+├── manual_build.cmd           # 驱动手动构建脚本（仅构建）
 ├── sign_driver.ps1            # 驱动签名脚本（测试证书）
+├── manage_driver.ps1          # 驱动服务管理脚本
 ├── fcl-self-test.ps1          # 驱动自测脚本
 ├── verify_upstream.ps1        # 验证驱动输出与 FCL 一致性
 ├── setup-hyperv-lab.ps1       # Hyper-V 测试环境搭建
@@ -324,7 +385,11 @@ tools/
 │   ├── two_spheres.txt        # 双球碰撞场景
 │   ├── mesh_probe.txt         # Mesh + Sphere 探测
 │   └── arena_mix.txt          # 复杂混合场景
-└── build/                     # 编译输出目录（生成的可执行文件）
+├── gui_demo/                  # GUI 演示程序
+│   ├── build_gui_demo.cmd     # 构建 GUI Demo
+│   ├── src/                   # GUI 源代码
+│   └── build/                 # GUI 构建输出
+└── build/                     # CLI Demo 编译输出目录
 ```
 
 ### 工具文件详解
@@ -364,12 +429,42 @@ tools/
 - 使用 `signtool` 签名 `FclMusaDriver.sys`
 - 输出 `.cer` 和 `.pfx` 到输出目录
 
+#### build_all.ps1
+**功能**: 一键构建所有组件
+- 按顺序构建：驱动 → CLI Demo → GUI Demo
+- 打包所有产物到 `dist/bundle/x64/{Debug|Release}/`
+- 包含驱动签名和证书生成
+- 参数：`-Configuration {Debug|Release}`, `-Platform x64`
+
+#### build_and_sign_driver.ps1
+**功能**: 构建并签名驱动
+- 调用 `msbuild` 编译驱动
+- 自动生成/更新测试证书
+- 使用 `signtool` 签名驱动
+- 输出到 `dist/driver/x64/{Debug|Release}/`
+- 参数：`-Configuration {Debug|Release}`, `-Platform x64`
+
+#### package_bundle.ps1
+**功能**: 打包构建产物
+- 从 `dist/driver/` 复制驱动文件
+- 从 `tools/build/` 复制 CLI Demo
+- 从 `tools/gui_demo/build/` 复制 GUI Demo
+- 输出到 `dist/bundle/x64/{Debug|Release}/`
+- 参数：`-Configuration {Debug|Release}`, `-Platform x64`
+
+#### manage_driver.ps1
+**功能**: 驱动服务管理
+- 支持操作：Install, Start, Stop, Uninstall, Restart, Reinstall
+- 自动检查管理员权限
+- 自动验证驱动文件路径
+- 参数：`-Action {Install|Start|Stop|...}`, `-ServiceName FclMusa`, `-DriverPath <path>`
+
 #### manual_build.cmd
-**功能**: 驱动构建脚本
+**功能**: 驱动构建脚本（仅构建，不签名）
 - 初始化 Visual Studio 开发环境（VsDevCmd）
 - 设置 WDK 路径
 - 调用 `msbuild` 清理并编译驱动
-- 自动调用 `sign_driver.ps1` 进行签名
+- 适合 CI/CD 流水线
 
 ---
 
@@ -495,21 +590,37 @@ openspec/
 
 ## 构建流程
 
+### 完整构建流程（build_all.ps1）
+
 ```
-1. build_driver.cmd
+1. build_all.ps1 -Configuration Release
    ↓
-2. 初始化 VsDevCmd (Visual Studio 环境)
+2. [1/4] build_and_sign_driver.ps1
+   ├─ 初始化 VsDevCmd (Visual Studio 环境)
+   ├─ msbuild kernel/FclMusaDriver/FclMusaDriver.vcxproj
+   │  ├─ 编译 driver/src/*.cpp
+   │  ├─ 链接 Musa.Runtime
+   │  ├─ 链接 fcl-source (头文件引用)
+   │  └─ 生成 FclMusaDriver.sys
+   ├─ sign_driver.ps1
+   │  ├─ 生成测试证书 (CN=FclMusaTestCert)
+   │  ├─ signtool sign FclMusaDriver.sys
+   │  └─ 输出 .cer 和 .pfx
+   └─ 输出到 dist/driver/x64/Release/
    ↓
-3. msbuild kernel/FclMusaDriver/FclMusaDriver.vcxproj
-   ├─ 编译 driver/src/*.cpp
-   ├─ 链接 Musa.Runtime
-   ├─ 链接 fcl-source (头文件引用)
-   └─ 生成 FclMusaDriver.sys
+3. [2/4] build_demo.cmd
+   ├─ 编译 tools/fcl_demo.cpp
+   └─ 输出到 tools/build/fcl_demo.exe
    ↓
-4. sign_driver.ps1
-   ├─ 生成测试证书 (CN=FclMusaTestCert)
-   ├─ signtool sign FclMusaDriver.sys
-   └─ 输出 .cer 和 .pfx
+4. [3/4] build_gui_demo.cmd
+   ├─ 编译 tools/gui_demo/src/
+   └─ 输出到 tools/gui_demo/build/Release/fcl_gui_demo.exe
+   ↓
+5. [4/4] package_bundle.ps1
+   ├─ 复制 dist/driver/ → dist/bundle/
+   ├─ 复制 tools/build/fcl_demo.exe → dist/bundle/
+   ├─ 复制 tools/gui_demo/build/fcl_gui_demo.exe → dist/bundle/
+   └─ 输出完整包到 dist/bundle/x64/Release/
 ```
 
 ---

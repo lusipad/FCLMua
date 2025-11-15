@@ -64,8 +64,50 @@ sc start FclMusa
 
 ## 7. 自动化脚本
 
-- `tools/manual_build.cmd`：用于构建 `.sys`
-- `tools/sign_driver.ps1`：`build_driver.cmd` 自动调用，支持 PFX 导出/签名
-- 可结合 PowerShell 编写自定义部署脚本，典型步骤：复制文件 -> 导入证书 -> `sc create` -> `IOCTL_FCL_SELF_TEST` 验证
+### 构建脚本
+- `tools/build_all.ps1`：一键构建驱动、CLI Demo、GUI Demo 并打包到 `dist/bundle/`
+- `tools/build_and_sign_driver.ps1`：构建并签名驱动，输出到 `dist/driver/`
+- `tools/manual_build.cmd`：仅构建驱动（不签名）
+- `tools/sign_driver.ps1`：独立签名脚本，支持 PFX 导出/签名
+- `tools/package_bundle.ps1`：打包构建产物到统一目录
+
+### 驱动管理脚本
+使用 `tools/manage_driver.ps1` 简化驱动服务管理（需管理员权限）：
+
+```powershell
+# 安装驱动服务
+PS> tools\manage_driver.ps1 -Action Install
+
+# 启动驱动
+PS> tools\manage_driver.ps1 -Action Start
+
+# 停止驱动
+PS> tools\manage_driver.ps1 -Action Stop
+
+# 重启驱动
+PS> tools\manage_driver.ps1 -Action Restart
+
+# 卸载驱动服务
+PS> tools\manage_driver.ps1 -Action Uninstall
+
+# 重新安装（卸载 + 安装 + 启动）
+PS> tools\manage_driver.ps1 -Action Reinstall
+
+# 指定驱动路径
+PS> tools\manage_driver.ps1 -Action Install -DriverPath "dist\driver\x64\Release\FclMusaDriver.sys"
+```
+
+### 自定义部署流程
+典型步骤：构建 -> 打包 -> 复制文件 -> 导入证书 -> 安装服务 -> `IOCTL_FCL_SELF_TEST` 验证
+
+```powershell
+# 完整部署示例
+tools\build_all.ps1 -Configuration Release
+Copy-Item dist\bundle\x64\Release\* C:\Drivers\ -Force
+certutil -addstore Root C:\Drivers\FclMusaTestCert.cer
+certutil -addstore TrustedPublisher C:\Drivers\FclMusaTestCert.cer
+tools\manage_driver.ps1 -Action Reinstall -DriverPath "C:\Drivers\FclMusaDriver.sys"
+tools\fcl-self-test.ps1
+```
 
 完成以上配置后，驱动即可在目标系统上运行，供内核模块或用户态 IOCTL 调用。

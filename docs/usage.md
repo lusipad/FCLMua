@@ -14,30 +14,56 @@
 
 ## 2. 构建驱动
 
-### 2.1 推荐：`tools/manual_build.cmd`
+### 2.1 推荐：一键构建所有组件
 
 ```powershell
+PS> tools\build_all.ps1 -Configuration Release
+```
+
+- 自动构建驱动、CLI Demo、GUI Demo
+- 打包所有产物到 `dist/bundle/x64/Release/`
+- 包含驱动签名和证书生成
+
+### 2.2 仅构建驱动
+
+```powershell
+# 构建 + 签名
+PS> tools\build_and_sign_driver.ps1 -Configuration Debug
+
+# 仅构建（不签名）
 PS> tools\manual_build.cmd
 ```
 
-- 自动调用 VsDevCmd + WDK 环境变量，执行 `msbuild Clean+Build`（Debug|x64）
-- 产物：`kernel/FclMusaDriver/out/x64/Debug/FclMusaDriver.sys/.pdb`
-- 无额外交互，适合在 CI 或自动化脚本中调用
-
-### 2.2 可选：`build_driver.cmd`
-
-```powershell
-PS> .\build_driver.cmd
-```
-
-- 同样的构建过程，但会在成功后进一步执行 `tools/sign_driver.ps1`
-- 自动生成/更新 `FclMusaTestCert.pfx/.cer` 并对 `.sys` 进行测试签名
-- 控制台展示更详细的阶段日志（1/5 ~ 5/5）
+- 产物位于：`dist/driver/x64/{Debug|Release}/FclMusaDriver.sys`
+- `build_and_sign_driver.ps1` 会自动生成/更新测试证书并签名
+- `manual_build.cmd` 适合 CI 或自动化脚本
 
 ## 3. 部署与加载
 
+### 方法一：使用管理脚本（推荐）
+
+```powershell
+# 管理员 PowerShell
+
+# 安装并启动（默认使用 dist\driver\x64\Release\FclMusaDriver.sys）
+PS> tools\manage_driver.ps1 -Action Install
+PS> tools\manage_driver.ps1 -Action Start
+
+# 或直接重启（会自动创建服务）
+PS> tools\manage_driver.ps1 -Action Restart
+
+# 卸载
+PS> tools\manage_driver.ps1 -Action Uninstall
+```
+
+### 方法二：手动部署
+
 1. 将 `FclMusaDriver.sys` 复制至目标机器（例如 `C:\Drivers`）
 2. 若使用测试证书，导入 `FclMusaTestCert.cer` 到 **Trusted Root** 与 **Trusted Publisher**
+   ```cmd
+   certutil -addstore Root dist\driver\x64\Release\FclMusaTestCert.cer
+   certutil -addstore TrustedPublisher dist\driver\x64\Release\FclMusaTestCert.cer
+   ```
 3. 创建服务并启动：
    ```cmd
    sc create FclMusa type= kernel binPath= C:\Drivers\FclMusaDriver.sys
