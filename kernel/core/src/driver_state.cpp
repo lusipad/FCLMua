@@ -93,6 +93,7 @@ struct DetectionTimingAccumulator {
 DetectionTimingAccumulator g_CollisionTiming = {};
 DetectionTimingAccumulator g_DistanceTiming = {};
 DetectionTimingAccumulator g_ContinuousCollisionTiming = {};
+DetectionTimingAccumulator g_DpcCollisionTiming = {};
 
 void ResetDetectionTimingUnsafe() noexcept {
     g_CollisionTiming.CallCount = 0;
@@ -109,6 +110,11 @@ void ResetDetectionTimingUnsafe() noexcept {
     g_ContinuousCollisionTiming.TotalDurationMicroseconds = 0;
     g_ContinuousCollisionTiming.MinDurationMicroseconds = 0;
     g_ContinuousCollisionTiming.MaxDurationMicroseconds = 0;
+
+    g_DpcCollisionTiming.CallCount = 0;
+    g_DpcCollisionTiming.TotalDurationMicroseconds = 0;
+    g_DpcCollisionTiming.MinDurationMicroseconds = 0;
+    g_DpcCollisionTiming.MaxDurationMicroseconds = 0;
 }
 
 void RecordDuration(DetectionTimingAccumulator& acc, ULONGLONG durationMicroseconds) noexcept {
@@ -266,6 +272,12 @@ FclDiagnosticsRecordCollisionDuration(_In_ ULONGLONG durationMicroseconds) noexc
 
 extern "C"
 VOID
+FclDiagnosticsRecordDpcCollisionDuration(_In_ ULONGLONG durationMicroseconds) noexcept {
+    RecordDuration(g_DpcCollisionTiming, durationMicroseconds);
+}
+
+extern "C"
+VOID
 FclDiagnosticsRecordDistanceDuration(_In_ ULONGLONG durationMicroseconds) noexcept {
     RecordDuration(g_DistanceTiming, durationMicroseconds);
 }
@@ -288,6 +300,7 @@ FclQueryDiagnostics(_Out_ FCL_DIAGNOSTICS_RESPONSE* response) noexcept {
     SnapshotTiming(g_CollisionTiming, &response->Collision);
     SnapshotTiming(g_DistanceTiming, &response->Distance);
     SnapshotTiming(g_ContinuousCollisionTiming, &response->ContinuousCollision);
+    SnapshotTiming(g_DpcCollisionTiming, &response->DpcCollision);
 
     return STATUS_SUCCESS;
 }

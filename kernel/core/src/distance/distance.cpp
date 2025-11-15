@@ -11,6 +11,23 @@ namespace {
 
 using namespace fclmusa::geom;
 
+ULONGLONG QueryTimeMicroseconds() noexcept {
+    LARGE_INTEGER frequency = {};
+    const LARGE_INTEGER counter = KeQueryPerformanceCounter(&frequency);
+    if (frequency.QuadPart == 0) {
+        return 0;
+    }
+    const LONGLONG ticks = counter.QuadPart;
+    const ULONGLONG absoluteTicks = (ticks >= 0)
+        ? static_cast<ULONGLONG>(ticks)
+        : static_cast<ULONGLONG>(-ticks);
+    return (absoluteTicks * 1'000'000ULL) / static_cast<ULONGLONG>(frequency.QuadPart);
+}
+
+ULONGLONG AbsoluteDifference(ULONGLONG a, ULONGLONG b) noexcept {
+    return (a > b) ? (a - b) : (b - a);
+}
+
 struct DistanceObject {
     FCL_GEOMETRY_REFERENCE Reference = {};
     FCL_GEOMETRY_SNAPSHOT Snapshot = {};
@@ -39,24 +56,38 @@ NTSTATUS InitializeDistanceObject(
     return FclAcquireGeometryReference(handle, &object->Reference, &object->Snapshot);
 }
 
-ULONGLONG QueryTimeMicroseconds() noexcept {
-    LARGE_INTEGER frequency = {};
-    const LARGE_INTEGER counter = KeQueryPerformanceCounter(&frequency);
-    if (frequency.QuadPart == 0) {
-        return 0;
-    }
-    const LONGLONG ticks = counter.QuadPart;
-    const ULONGLONG absoluteTicks = (ticks >= 0)
-        ? static_cast<ULONGLONG>(ticks)
-        : static_cast<ULONGLONG>(-ticks);
-    return (absoluteTicks * 1'000'000ULL) / static_cast<ULONGLONG>(frequency.QuadPart);
-}
-
-ULONGLONG AbsoluteDifference(ULONGLONG a, ULONGLONG b) noexcept {
-    return (a > b) ? (a - b) : (b - a);
-}
-
 }  // namespace
+
+extern "C"
+NTSTATUS
+FclDistanceCoreFromSnapshots(
+    _In_ const FCL_GEOMETRY_SNAPSHOT* object1,
+    _In_ const FCL_TRANSFORM* transform1,
+    _In_ const FCL_GEOMETRY_SNAPSHOT* object2,
+    _In_ const FCL_TRANSFORM* transform2,
+    _Out_ PFCL_DISTANCE_RESULT result) noexcept {
+    if (result == nullptr || object1 == nullptr || object2 == nullptr || transform1 == nullptr || transform2 == nullptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    const ULONGLONG start = QueryTimeMicroseconds();
+    NTSTATUS status = FclUpstreamDistance(
+        *object1,
+        *transform1,
+        *object2,
+        *transform2,
+        result);
+    const ULONGLONG end = QueryTimeMicroseconds();
+
+    if (NT_SUCCESS(status) && start != 0 && end != 0) {
+        const ULONGLONG elapsed = AbsoluteDifference(end, start);
+        if (elapsed != 0) {
+            FclDiagnosticsRecordDistanceDuration(elapsed);
+        }
+    }
+
+    return status;
+}
 
 extern "C"
 NTSTATUS
@@ -86,21 +117,10 @@ FclDistanceCompute(
         return status;
     }
 
-    const ULONGLONG start = QueryTimeMicroseconds();
-    status = FclUpstreamDistance(
-        objectA.Snapshot,
-        objectA.Transform,
-        objectB.Snapshot,
-        objectB.Transform,
+    return FclDistanceCoreFromSnapshots(
+        &objectA.Snapshot,
+        &objectA.Transform,
+        &objectB.Snapshot,
+        &objectB.Transform,
         result);
-    const ULONGLONG end = QueryTimeMicroseconds();
-
-    if (NT_SUCCESS(status) && start != 0 && end != 0) {
-        const ULONGLONG elapsed = AbsoluteDifference(end, start);
-        if (elapsed != 0) {
-            FclDiagnosticsRecordDistanceDuration(elapsed);
-        }
-    }
-
-    return status;
 }

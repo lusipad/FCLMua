@@ -140,11 +140,13 @@ namespace FclSelfTestTool {
         public DetectionTimingStatsSummary Collision { get; }
         public DetectionTimingStatsSummary Distance { get; }
         public DetectionTimingStatsSummary ContinuousCollision { get; }
+        public DetectionTimingStatsSummary DpcCollision { get; }
 
         internal DiagnosticsSummary(FCL_DIAGNOSTICS_RESPONSE raw) {
             Collision = new DetectionTimingStatsSummary(raw.Collision);
             Distance = new DetectionTimingStatsSummary(raw.Distance);
             ContinuousCollision = new DetectionTimingStatsSummary(raw.ContinuousCollision);
+            DpcCollision = new DetectionTimingStatsSummary(raw.DpcCollision);
         }
     }
 
@@ -261,6 +263,7 @@ namespace FclSelfTestTool {
         public FCL_DETECTION_TIMING_STATS Collision;
         public FCL_DETECTION_TIMING_STATS Distance;
         public FCL_DETECTION_TIMING_STATS ContinuousCollision;
+        public FCL_DETECTION_TIMING_STATS DpcCollision;
     }
 
     [StructLayout(LayoutKind.Sequential)]

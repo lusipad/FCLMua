@@ -12,6 +12,23 @@ namespace {
 
 using namespace fclmusa::geom;
 
+ULONGLONG QueryTimeMicroseconds() noexcept {
+    LARGE_INTEGER frequency = {};
+    const LARGE_INTEGER counter = KeQueryPerformanceCounter(&frequency);
+    if (frequency.QuadPart == 0) {
+        return 0;
+    }
+    const LONGLONG ticks = counter.QuadPart;
+    const ULONGLONG absoluteTicks = (ticks >= 0)
+        ? static_cast<ULONGLONG>(ticks)
+        : static_cast<ULONGLONG>(-ticks);
+    return (absoluteTicks * 1'000'000ULL) / static_cast<ULONGLONG>(frequency.QuadPart);
+}
+
+ULONGLONG AbsoluteDifference(ULONGLONG a, ULONGLONG b) noexcept {
+    return (a > b) ? (a - b) : (b - a);
+}
+
 struct CollisionObject {
     FCL_GEOMETRY_REFERENCE Reference = {};
     FCL_GEOMETRY_SNAPSHOT Snapshot = {};
@@ -41,24 +58,48 @@ NTSTATUS InitializeCollisionObject(
     return FclAcquireGeometryReference(handle, &object->Reference, &object->Snapshot);
 }
 
-ULONGLONG QueryTimeMicroseconds() noexcept {
-    LARGE_INTEGER frequency = {};
-    const LARGE_INTEGER counter = KeQueryPerformanceCounter(&frequency);
-    if (frequency.QuadPart == 0) {
-        return 0;
-    }
-    const LONGLONG ticks = counter.QuadPart;
-    const ULONGLONG absoluteTicks = (ticks >= 0)
-        ? static_cast<ULONGLONG>(ticks)
-        : static_cast<ULONGLONG>(-ticks);
-    return (absoluteTicks * 1'000'000ULL) / static_cast<ULONGLONG>(frequency.QuadPart);
-}
-
-ULONGLONG AbsoluteDifference(ULONGLONG a, ULONGLONG b) noexcept {
-    return (a > b) ? (a - b) : (b - a);
-}
-
 }  // namespace
+
+extern "C"
+NTSTATUS
+FclCollisionCoreFromSnapshots(
+    _In_ const FCL_GEOMETRY_SNAPSHOT* object1,
+    _In_ const FCL_TRANSFORM* transform1,
+    _In_ const FCL_GEOMETRY_SNAPSHOT* object2,
+    _In_ const FCL_TRANSFORM* transform2,
+    _Out_ PBOOLEAN isColliding,
+    _Out_opt_ PFCL_CONTACT_INFO contactInfo) noexcept {
+    if (isColliding == nullptr || object1 == nullptr || object2 == nullptr || transform1 == nullptr || transform2 == nullptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    *isColliding = FALSE;
+    if (contactInfo != nullptr) {
+        RtlZeroMemory(contactInfo, sizeof(*contactInfo));
+    }
+
+    const ULONGLONG start = QueryTimeMicroseconds();
+    NTSTATUS status = FclUpstreamCollide(
+        *object1,
+        *transform1,
+        *object2,
+        *transform2,
+        isColliding,
+        contactInfo);
+    const ULONGLONG end = QueryTimeMicroseconds();
+
+    if (NT_SUCCESS(status) && start != 0 && end != 0) {
+        const ULONGLONG elapsed = AbsoluteDifference(end, start);
+        if (elapsed != 0) {
+            FclDiagnosticsRecordCollisionDuration(elapsed);
+            if (KeGetCurrentIrql() == DISPATCH_LEVEL) {
+                FclDiagnosticsRecordDpcCollisionDuration(elapsed);
+            }
+        }
+    }
+
+    return status;
+}
 
 extern "C"
 NTSTATUS
@@ -71,11 +112,6 @@ FclCollisionDetect(
     _Out_opt_ PFCL_CONTACT_INFO contactInfo) noexcept {
     if (isColliding == nullptr) {
         return STATUS_INVALID_PARAMETER;
-    }
-
-    *isColliding = FALSE;
-    if (contactInfo != nullptr) {
-        RtlZeroMemory(contactInfo, sizeof(*contactInfo));
     }
 
     if (KeGetCurrentIrql() != PASSIVE_LEVEL) {
@@ -94,24 +130,13 @@ FclCollisionDetect(
         return status;
     }
 
-    const ULONGLONG start = QueryTimeMicroseconds();
-    status = FclUpstreamCollide(
-        objectA.Snapshot,
-        objectA.Transform,
-        objectB.Snapshot,
-        objectB.Transform,
+    return FclCollisionCoreFromSnapshots(
+        &objectA.Snapshot,
+        &objectA.Transform,
+        &objectB.Snapshot,
+        &objectB.Transform,
         isColliding,
         contactInfo);
-    const ULONGLONG end = QueryTimeMicroseconds();
-
-    if (NT_SUCCESS(status) && start != 0 && end != 0) {
-        const ULONGLONG elapsed = AbsoluteDifference(end, start);
-        if (elapsed != 0) {
-            FclDiagnosticsRecordCollisionDuration(elapsed);
-        }
-    }
-
-    return status;
 }
 
 extern "C"

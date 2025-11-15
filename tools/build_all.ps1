@@ -37,8 +37,34 @@ finally {
     Pop-Location
 }
 
+$driverDistDir = Join-Path $repoRoot "dist\driver\$Platform\$Configuration"
+$bundleDir = Join-Path $repoRoot "dist\bundle\$Platform\$Configuration"
+
+Write-Host "[4/4] Packaging final artifacts to $bundleDir..." -ForegroundColor Cyan
+New-Item -ItemType Directory -Force -Path $bundleDir | Out-Null
+
+# Driver: SYS/PDB/Certs 从 dist\driver 复制
+if (Test-Path -Path $driverDistDir -PathType Container) {
+    Get-ChildItem -Path $driverDistDir -File | ForEach-Object {
+        Copy-Item -Path $_.FullName -Destination $bundleDir -Force
+    }
+}
+
+# CLI demo
+$cliDemo = Join-Path $scriptDir 'build\fcl_demo.exe'
+if (Test-Path -Path $cliDemo -PathType Leaf) {
+    Copy-Item -Path $cliDemo -Destination $bundleDir -Force
+}
+
+# GUI demo（Release x64）
+$guiDemo = Join-Path $scriptDir 'gui_demo\build\Release\fcl_gui_demo.exe'
+if (Test-Path -Path $guiDemo -PathType Leaf) {
+    Copy-Item -Path $guiDemo -Destination $bundleDir -Force
+}
+
 Write-Host ''
 Write-Host "All builds completed successfully." -ForegroundColor Green
 Write-Host "  Driver (dist):  dist\driver\$Platform\$Configuration\FclMusaDriver.sys"
 Write-Host "  CLI demo:       tools\build\fcl_demo.exe"
 Write-Host "  GUI demo:       tools\gui_demo\build\Release\fcl_gui_demo.exe"
+Write-Host "  Bundle:         dist\bundle\$Platform\$Configuration\ (driver + demos)"
