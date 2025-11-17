@@ -40,3 +40,74 @@ dist/
 *.pdb
 *.cer
 *.pfx
+
+# 编译器生成的其他文件
+*.ilk
+*.exp
+*.lib
+*.obj
+*.iobj
+*.ipdb
+*.tlog
+
+# IDE 配置
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.code-workspace
+
+# Visual Studio 额外文件
+*.aps
+*.ncb
+*.opendb
+*.cachefile
+*.VC.db
+*.VC.VC.opendb
+ipch/
+*.sln.docstates
+
+# CMake 额外输出
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+
+# 压缩包
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# external/ 目录的编译产物
+external/**/Output/
+external/**/.nuget/
+external/**/obj/
+external/**/bin/
+
+# 测试输出
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+
+# 包管理器缓存
+packages/
+.nuget/
+
+# Node.js（如果有前端工具）
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Python 缓存（如果有 Python 工具）
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
