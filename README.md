@@ -7,17 +7,19 @@ FCL+Musa 是一个面向 Windows 内核（Ring 0）的碰撞检测驱动。项�
 ```powershell
 PS> git clone https://github.com/lusipad/FCLMua.git
 PS> cd FCLMua
-PS> tools\manual_build.cmd      # 无交互构建，适合 CI/自动化
+PS> tools\build_all.ps1 -Configuration Release   # 推荐：一键构建所有组件
 # 或者
-PS> .\build_driver.cmd          # 带交互输出，可自动调用签名脚本
+PS> tools\build_and_sign_driver.ps1             # 仅构建+签名驱动
+# 或者
+PS> tools\manual_build.cmd                      # 仅构建驱动（不签名）
 ```
 
 说明：
 
-- `tools/manual_build.cmd` 会初始化 VsDevCmd 与 WDK 环境，执行 `msbuild Clean+Build` 并停止在构建步骤，便于在自动化流水线中使用。
-- `build_driver.cmd` 在构建成功后会继续执行 `tools/sign_driver.ps1`，生成/更新 `FclMusaTestCert.pfx/.cer` 并为 `FclMusaDriver.sys` 进行测试签名。
-- 两个脚本使用相同的解决方案（`kernel/FclMusaDriver/FclMusaDriver.sln`），产物位于 `dist/driver/x64/{Debug|Release}/`。
-- 使用 `tools/build_all.ps1` 可一键构建驱动、CLI Demo、GUI Demo 并打包到 `dist/bundle/` 目录。
+- `tools/build_all.ps1` 会依次构建驱动、CLI Demo、GUI Demo，自动签名并打包到 `dist/bundle/` 目录（推荐）。
+- `tools/build_and_sign_driver.ps1` 构建驱动并自动生成测试证书签名，产物在 `dist/driver/x64/{Debug|Release}/`。
+- `tools/manual_build.cmd` 仅构建驱动不签名，适合 CI/自动化流水线。
+- 所有脚本使用相同的解决方案（`kernel/FclMusaDriver/FclMusaDriver.sln`）。
 
 > 依赖：WDK 10.0.26100.0、Visual Studio 2022、Musa.Runtime（仓库自带）、Eigen、libccd。
 
@@ -56,19 +58,34 @@ PS> .\build_driver.cmd          # 带交互输出，可自动调用签名脚本
 
 ## IOCTL 接口概览
 
-| IOCTL                       | 说明                                            |
-|-----------------------------|-------------------------------------------------|
-| IOCTL                            | 说明                                              |
-|----------------------------------|---------------------------------------------------|
-| `IOCTL_FCL_PING`                 | 查询驱动版本、初始化状态、池使用情况             |
-| `IOCTL_FCL_SELF_TEST`            | 触发自检（几何/碰撞/CCD/压力/Verifier 等）       |
-| `IOCTL_FCL_QUERY_COLLISION`      | 使用现有几何句柄执行碰撞检测                     |
-| `IOCTL_FCL_QUERY_DISTANCE`       | 计算对象间最小距离与最近点                       |
-| `IOCTL_FCL_CREATE_SPHERE`        | 创建球体几何，返回句柄                           |
-| `IOCTL_FCL_DESTROY_GEOMETRY`     | 释放几何句柄                                     |
-| `IOCTL_FCL_CREATE_MESH`          | 传入顶点+索引缓冲，创建 Mesh 几何               |
-| `IOCTL_FCL_CONVEX_CCD`           | 运行 InterpMotion CCD，返回 TOI 信息             |
-| `IOCTL_FCL_DEMO_SPHERE_COLLISION`| Demo：创建两个球并返回碰撞测试结果（示例用途）   |
+### 诊断/查询接口（0x800-0x80F）
+| IOCTL | 代码 | 说明 |
+|-------|------|------|
+| `IOCTL_FCL_PING` | 0x800 | 查询驱动版本、初始化状态、池使用情况 |
+| `IOCTL_FCL_SELF_TEST` | 0x801 | 触发完整自检（几何/碰撞/CCD/压力/Verifier 等） |
+| `IOCTL_FCL_SELF_TEST_SCENARIO` | 0x802 | 单场景自检（runtime\|sphere\|broadphase\|mesh\|ccd） |
+| `IOCTL_FCL_QUERY_DIAGNOSTICS` | 0x803 | 查询性能计时统计（碰撞/距离/CCD） |
+
+### 正式接口（0x810-0x83F）
+| IOCTL | 代码 | 说明 |
+|-------|------|------|
+| `IOCTL_FCL_QUERY_COLLISION` | 0x810 | 使用现有几何句柄执行碰撞检测 |
+| `IOCTL_FCL_QUERY_DISTANCE` | 0x811 | 计算对象间最小距离与最近点 |
+| `IOCTL_FCL_CREATE_SPHERE` | 0x812 | 创建球体几何，返回句柄 |
+| `IOCTL_FCL_DESTROY_GEOMETRY` | 0x813 | 释放几何句柄 |
+| `IOCTL_FCL_CREATE_MESH` | 0x814 | 传入顶点+索引缓冲，创建 Mesh 几何 |
+| `IOCTL_FCL_CONVEX_CCD` | 0x815 | 运行 InterpMotion CCD，返回 TOI 信息 |
+
+### 周期性碰撞接口（0x820-0x82F）
+| IOCTL | 代码 | 说明 |
+|-------|------|------|
+| `IOCTL_FCL_START_PERIODIC_COLLISION` | 0x820 | 启动周期碰撞检测（DPC+PASSIVE 两级模型） |
+| `IOCTL_FCL_STOP_PERIODIC_COLLISION` | 0x821 | 停止周期调度 |
+
+### Demo 接口（0x900-0x9FF）
+| IOCTL | 代码 | 说明 |
+|-------|------|------|
+| `IOCTL_FCL_DEMO_SPHERE_COLLISION` | 0x900 | Demo：创建两个球并返回碰撞测试结果（示例用途） |
 
 详细结构定义见 `kernel/core/include/fclmusa/ioctl.h`。
 
@@ -82,25 +99,50 @@ PS> tools\build\fcl_demo.exe
 
 CLI 提供命令：
 
-- `sphere <name> <radius> [x y z]`：创建球体对象
-- `move <name> <x> <y> <z>`：更新位姿
-- `collide <A> <B>` / `distance <A> <B>`：静态碰撞/距离查询
-- `simulate <mov> <static> <dx> <dy> <dz> <steps> <interval_ms>`：增量移动后逐步碰撞检测
-- `ccd <mov> <static> <dx> <dy> <dz>`：执行连续碰撞
-- `load <name> <obj>`：加载 OBJ 并创建 Mesh
-- `destroy <name>` / `list` / `help` 等
+**几何管理：**
+- `sphere <name> <radius> [x y z]` - 创建球体对象
+- `load <name> <obj>` - 加载 OBJ 文件并创建 Mesh
+- `move <name> <x> <y> <z>` - 更新对象位姿
+- `destroy <name>` - 销毁对象并释放句柄
+- `list` - 列出所有场景对象
 
-也可直接执行 `run scenes\two_spheres.txt` 等脚本在 `tools/scenes` 下重放预设场景。
+**碰撞查询：**
+- `collide <A> <B>` - 静态碰撞检测
+- `distance <A> <B>` - 距离查询
+- `ccd <mov> <static> <dx> <dy> <dz>` - 连续碰撞检测（CCD）
+
+**周期碰撞（DPC+PASSIVE 模型）：**
+- `periodic <A> <B> <period_us>` - 启动周期碰撞检测（微秒）
+- `periodic_stop` - 停止周期调度
+
+**自检与诊断：**
+- `selftest` - 完整自检（所有模块）
+- `selftest <scenario>` - 场景自检（runtime|sphere|broadphase|mesh|ccd）
+- `selftest_pass` - PASSIVE_LEVEL 多次检测自检（640次）
+- `selftest_dpc` - DPC 周期自检（640ms@1ms周期）
+- `diag` - 查询性能计时统计
+- `diag_pass` / `diag_dpc` - 查看自检前后性能对比
+
+**其他：**
+- `run <script>` - 执行场景脚本（如 `run scenes\two_spheres.txt`）
+- `help` - 显示命令帮助
+
+场景脚本示例位于 `tools/scenes/` 目录。
 
 ## 内核态调用
 
 - 在 `DriverEntry` 中调用 `FclInitialize()`，`DriverUnload` 中调用 `FclCleanup()`。
 - API 位于 `kernel/core/include/fclmusa/*.h`，例如：
-  - `FclCreateGeometry / FclDestroyGeometry`
-  - `FclCollideObjects / FclCollisionDetect`
-  - `FclDistanceCompute`
-  - `FclInterpMotionInitialize / FclContinuousCollision`
-- 所有 API 要求在 `PASSIVE_LEVEL` 调用，几何句柄生命周期由驱动管理。
+  - **几何管理**：`FclCreateGeometry / FclDestroyGeometry / FclAcquireGeometryReference`
+  - **碰撞检测**：`FclCollideObjects / FclCollisionDetect`
+  - **距离计算**：`FclDistanceCompute`
+  - **连续碰撞**：`FclInterpMotionInitialize / FclContinuousCollision`
+  - **周期碰撞**：`FclStartPeriodicCollision / FclStopPeriodicCollision`
+- **IRQL 要求**：
+  - 大多数 API 要求在 `PASSIVE_LEVEL` 调用
+  - 周期碰撞回调在 `PASSIVE_LEVEL` 执行（由 DPC 触发，工作线程执行）
+  - 快照版本的 Core API（使用 `FCL_GEOMETRY_SNAPSHOT`）可在 `DISPATCH_LEVEL` 调用
+- 几何句柄生命周期由驱动管理，使用引用计数机制。
 
 ## 文档与工具
 

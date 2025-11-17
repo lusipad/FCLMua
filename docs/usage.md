@@ -27,10 +27,10 @@ PS> tools\build_all.ps1 -Configuration Release
 ### 2.2 仅构建驱动
 
 ```powershell
-# 构建 + 签名
+# 构建 + 签名（推荐）
 PS> tools\build_and_sign_driver.ps1 -Configuration Debug
 
-# 仅构建（不签名）
+# 仅构建（不签名，适合 CI）
 PS> tools\manual_build.cmd
 ```
 

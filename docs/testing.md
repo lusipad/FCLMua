@@ -4,8 +4,8 @@
 
 ## 1. 构建与部署
 
-1. 运行 `tools/manual_build.cmd`（或 `build_driver.cmd`）生成 Debug|x64 驱动  
-   产物：`kernel/FclMusaDriver/out/x64/Debug/FclMusaDriver.sys`
+1. 运行 `tools/build_all.ps1` 或 `tools/build_and_sign_driver.ps1` 生成 Debug|x64 驱动
+   产物：`dist/driver/x64/Debug/FclMusaDriver.sys`
 2. 按 `docs/deployment.md` 将驱动加载到目标测试机
 3. 确认设备名 `\\.\FclMusa` 可被打开
 
@@ -39,10 +39,16 @@ PS> tools\fcl-self-test.ps1 -DevicePath \\.\FclMusa
    > sphere b 0.5 1 0 0
    > collide a b
    > distance a b
-   > simulate a b 0.1 0 0 10 50
    > ccd a b 2 0 0
+   > periodic a b 1000
+   > periodic_stop
+   > selftest
+   > selftest sphere
+   > selftest_pass
+   > selftest_dpc
+   > diag
    ```
-3. 观察输出是否与预期一致（碰撞/距离/TOI）
+3. 观察输出是否与预期一致（碰撞/距离/TOI/周期检测）
 
 ### 3.2 自动回归脚本
 
@@ -71,9 +77,10 @@ PS> tools\verify_upstream.ps1 -DevicePath \\.\FclMusa -Tolerance 1e-4
 
 每次合入前建议至少完成：
 
-- `tools/manual_build.cmd` 构建成功
+- `tools\build_all.ps1` 或 `tools\build_and_sign_driver.ps1` 构建成功
 - `tools\fcl-self-test.ps1` 全部通过
 - `tools\verify_upstream.ps1` 无偏差
-- 关键 IOCTL（Create/Destroy/Collide/CCD）在 CLI 或脚本中验证
+- 关键 IOCTL（Create/Destroy/Collide/Distance/CCD/Periodic）在 CLI 或脚本中验证
+- 周期碰撞测试（`selftest_dpc`）无错误
 
 根据需求可叠加 WinDbg/Verifier/长时间压力测试，保证驱动在目标场景下稳定运行。

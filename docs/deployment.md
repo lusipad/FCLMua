@@ -8,7 +8,7 @@
 
 - `FclMusaDriver.sys`
 - `FclMusaDriver.pdb`（可选，用于调试）
-- 如果使用 `build_driver.cmd` 构建，还会生成 `FclMusaTestCert.pfx/.cer`
+- 如果使用 `build_and_sign_driver.ps1` 构建，还会生成 `FclMusaTestCert.pfx/.cer`
 
 ## 2. 证书处理
 
