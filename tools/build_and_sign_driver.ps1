@@ -41,26 +41,8 @@ function Ensure-MusaRuntimePublish {
         }
     }
 
-    Write-Host "[0/3] Musa.Runtime publish config not found. Building external runtime..." -ForegroundColor Cyan
-
-    $buildScript = Join-Path $RepoRoot 'external/Musa.Runtime/BuildAllTargets.cmd'
-    if (-not (Test-Path -Path $buildScript -PathType Leaf)) {
-        throw "Musa.Runtime BuildAllTargets.cmd not found: $buildScript. Ensure external/Musa.Runtime is present."
-    }
-
-    Push-Location (Split-Path -Parent $buildScript)
-    try {
-        & $buildScript
-        if ($LASTEXITCODE -ne 0) {
-            throw "Musa.Runtime BuildAllTargets.cmd failed with exit code $LASTEXITCODE."
-        }
-    }
-    finally {
-        Pop-Location
-    }
-
     if (-not (Test-Path -Path $publishConfig -PathType Leaf)) {
-        throw "Musa.Runtime publish config is still missing after BuildAllTargets: $publishConfig"
+        throw "Musa.Runtime publish config not found: $publishConfig. Please install the official Musa.Runtime package (for example via NuGet into external/Musa.Runtime/Publish) instead of building it locally."
     }
 }
 
