@@ -38,11 +38,20 @@ PS> tools\fcl-self-test.ps1
 # 构建所有组件（推荐）
 tools\build_all.ps1 -Configuration Release
 
+# 构建所有组件并签名驱动
+tools\build_all.ps1 -Configuration Release -Sign
+
+# 完整发布流程（构建+签名+打包）
+tools\build_all.ps1 -Configuration Release -Sign -Package
+
 # 仅构建驱动并签名
-tools\build_and_sign_driver.ps1 -Configuration Release
+tools\build_all.ps1 -DriverOnly -Sign -Configuration Release
 
 # 仅构建驱动（不签名，适合 CI）
 tools\manual_build.cmd
+
+# 仅构建 Demo（跳过驱动）
+tools\build_all.ps1 -SkipDriver
 
 # 仅构建 CLI Demo
 tools\build_demo.cmd
@@ -144,13 +153,13 @@ tools\build\fcl_demo.exe
 ### 场景2：发布版本
 
 ```powershell
-# 构建 Release 版本并打包
-tools\build_all.ps1 -Configuration Release
+# 完整发布流程（构建 Release + 签名 + 打包）
+tools\build_all.ps1 -Configuration Release -Sign -Package
 
 # 查看打包结果
 ls dist\bundle\x64\Release\
 # 输出：
-# - FclMusaDriver.sys
+# - FclMusaDriver.sys（已签名）
 # - FclMusaDriver.pdb
 # - FclMusaTestCert.cer
 # - FclMusaTestCert.pfx
