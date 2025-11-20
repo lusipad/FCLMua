@@ -21,7 +21,7 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Driver</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
+    <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
     <DriverType>WDM</DriverType>
@@ -61,12 +61,18 @@
   <PropertyGroup>
     <IncludePath>$(ProjectDir)..\core\include;$(ProjectDir)..\selftest\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Musa_Runtime_Library>$(Musa_Runtime_Root)\Library\Release\$(Platform)</Musa_Runtime_Library>
+    <LibraryPath>$(Musa_Runtime_Root)\Library\Release\$(Platform);$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
       <AdditionalOptions>/bigobj /FS %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PreprocessorDefinitions>FCL_MUSA_ENABLE_LOGGING=1;FCL_MUSA_ENABLE_DEMO=1;_HAS_EXCEPTIONS=1;CCD_STATIC_DEFINE;CCD_DISABLE_DEBUG_IO;FCL_STATIC_DEFINE;FCL_ENABLE_STD_LOGGING=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>FCL_MUSA_ENABLE_LOGGING=1;FCL_MUSA_ENABLE_DEMO=1;FCL_MUSA_DPC_NO_DEBUG_CRT=1;_CRT_NO_DBG_MEMORY_ALLOC;_HAS_EXCEPTIONS=1;CCD_STATIC_DEFINE;CCD_DISABLE_DEBUG_IO;FCL_STATIC_DEFINE;FCL_ENABLE_STD_LOGGING=0;NDEBUG;_ITERATOR_DEBUG_LEVEL=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <UndefinePreprocessorDefinitions>_DEBUG;%(UndefinePreprocessorDefinitions)</UndefinePreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <WarningLevel>Level4</WarningLevel>
       <TreatWarningAsError>false</TreatWarningAsError>
       <ExceptionHandling>Sync</ExceptionHandling>
@@ -74,8 +80,8 @@
       <Optimization>Disabled</Optimization>
     </ClCompile>
     <Link>
+      <AdditionalLibraryDirectories>$(Musa_Runtime_Library);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>ntoskrnl.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)..\..\external\Musa.Runtime\Publish\Library\$(Configuration)\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Native</SubSystem>
     </Link>
@@ -94,7 +100,7 @@
     </ClCompile>
     <Link>
       <AdditionalDependencies>ntoskrnl.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(ProjectDir)..\..\external\Musa.Runtime\Publish\Library\$(Configuration)\$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(Musa_Runtime_Library);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Native</SubSystem>
     </Link>

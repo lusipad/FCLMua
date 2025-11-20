@@ -21,9 +21,14 @@ set "PATH=%WINDOWS_KITS_ROOT%\bin\%WDK_VERSION%\x64;%PATH%"
 
 cd /d "%~dp0..\kernel\FclMusaDriver"
 
-msbuild FclMusaDriver.sln /t:Clean /p:Configuration=%BUILD_CONFIGURATION% /p:Platform=x64 /v:minimal /nologo
+set "MSBUILD_EXTRA_ARGS="
+if not "%MUSA_RUNTIME_LIBRARY_CONFIGURATION%"=="" (
+    set "MSBUILD_EXTRA_ARGS=/p:MUSA_RUNTIME_LIBRARY_CONFIGURATION=%MUSA_RUNTIME_LIBRARY_CONFIGURATION%"
+)
+
+msbuild FclMusaDriver.sln /t:Clean /p:Configuration=%BUILD_CONFIGURATION% /p:Platform=x64 %MSBUILD_EXTRA_ARGS% /v:minimal /nologo
 if errorlevel 1 exit /b 1
 
-msbuild FclMusaDriver.sln /t:Build /p:Configuration=%BUILD_CONFIGURATION% /p:Platform=x64 /m /v:normal /nologo
+msbuild FclMusaDriver.sln /t:Build /p:Configuration=%BUILD_CONFIGURATION% /p:Platform=x64 %MSBUILD_EXTRA_ARGS% /m /v:normal /nologo
 exit /b %ERRORLEVEL%
 

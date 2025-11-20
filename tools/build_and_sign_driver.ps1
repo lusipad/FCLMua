@@ -55,9 +55,27 @@ $distDir = Join-Path $repoRoot "dist\driver\$Platform\$Configuration"
 Ensure-MusaRuntimePublish -RepoRoot $repoRoot
 
 Write-Host "[1/3] Building driver solution ($Configuration|$Platform)..." -ForegroundColor Cyan
-& (Join-Path $scriptDir 'manual_build.cmd') $Configuration
-if ($LASTEXITCODE -ne 0) {
-    throw "manual_build.cmd failed with exit code $LASTEXITCODE. See kernel\FclMusaDriver\build_manual_build.log for details."
+$previousRuntimeOverride = $env:MUSA_RUNTIME_LIBRARY_CONFIGURATION
+$runtimeOverrideApplied = $false
+if ($Configuration -eq 'Debug') {
+    $env:MUSA_RUNTIME_LIBRARY_CONFIGURATION = 'Release'
+    $runtimeOverrideApplied = $true
+}
+
+try {
+    & (Join-Path $scriptDir 'manual_build.cmd') $Configuration
+    if ($LASTEXITCODE -ne 0) {
+        throw "manual_build.cmd failed with exit code $LASTEXITCODE. See kernel\FclMusaDriver\build_manual_build.log for details."
+    }
+}
+finally {
+    if ($runtimeOverrideApplied) {
+        if ([string]::IsNullOrWhiteSpace($previousRuntimeOverride)) {
+            Remove-Item Env:MUSA_RUNTIME_LIBRARY_CONFIGURATION -ErrorAction SilentlyContinue
+        } else {
+            $env:MUSA_RUNTIME_LIBRARY_CONFIGURATION = $previousRuntimeOverride
+        }
+    }
 }
 
 if (-not (Test-Path -Path $driverSys -PathType Leaf)) {

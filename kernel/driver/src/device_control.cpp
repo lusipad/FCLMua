@@ -69,6 +69,11 @@ struct FCL_PERIODIC_COLLISION_STATE {
     FCL_GEOMETRY_SNAPSHOT Object1Snapshot;
     FCL_GEOMETRY_REFERENCE Object2Ref;
     FCL_GEOMETRY_SNAPSHOT Object2Snapshot;
+
+    struct {
+        FCL_CONTACT_INFO Contact;
+        FCL_COLLISION_RESULT Result;
+    } Scratch;
 };
 
 FCL_PERIODIC_COLLISION_STATE g_PeriodicCollisionState = {
@@ -111,6 +116,13 @@ struct PeriodicCollisionStateInitializer {
 };
 
 static PeriodicCollisionStateInitializer g_PeriodicCollisionStateInitializer;
+inline BOOLEAN FclIsDpcNoDebugCrtEnabled() noexcept {
+#ifdef FCL_MUSA_DPC_NO_DEBUG_CRT
+    return TRUE;
+#else
+    return FALSE;
+#endif
+}
 _Function_class_(KDEFERRED_ROUTINE)
 _IRQL_requires_(DISPATCH_LEVEL)
 VOID
@@ -145,27 +157,30 @@ FclPeriodicCollisionDpc(
     const FCL_TRANSFORM transform1 = state->Config.Transform1;
     const FCL_TRANSFORM transform2 = state->Config.Transform2;
 
+    FCL_CONTACT_INFO* scratchContact = &state->Scratch.Contact;
+    FCL_COLLISION_RESULT* scratchResult = &state->Scratch.Result;
+
     for (ULONG i = 0; i < innerIterations; ++i) {
         BOOLEAN isColliding = FALSE;
-        FCL_CONTACT_INFO contact = {};
+        RtlZeroMemory(scratchContact, sizeof(*scratchContact));
+        RtlZeroMemory(scratchResult, sizeof(*scratchResult));
         NTSTATUS status = FclCollisionCoreFromSnapshots(
             &object1,
             &transform1,
             &object2,
             &transform2,
             &isColliding,
-            &contact);
+            scratchContact);
 
-        FCL_COLLISION_RESULT result = {};
-        result.IsColliding = isColliding ? 1 : 0;
+        scratchResult->IsColliding = isColliding ? 1 : 0;
         if (isColliding) {
-            result.Contact = contact;
+            scratchResult->Contact = *scratchContact;
         } else {
-            RtlZeroMemory(&result.Contact, sizeof(result.Contact));
+            RtlZeroMemory(&scratchResult->Contact, sizeof(scratchResult->Contact));
         }
 
         state->LastStatus = status;
-        state->LastResult = result;
+        state->LastResult = *scratchResult;
         InterlockedIncrement64(reinterpret_cast<volatile LONG64*>(&state->Sequence));
     }
 
@@ -214,6 +229,7 @@ NTSTATUS HandleStartPeriodicCollisionDpc(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATI
     g_PeriodicCollisionState.Sequence = 0;
     g_PeriodicCollisionState.LastStatus = STATUS_SUCCESS;
     RtlZeroMemory(&g_PeriodicCollisionState.LastResult, sizeof(g_PeriodicCollisionState.LastResult));
+    RtlZeroMemory(&g_PeriodicCollisionState.Scratch, sizeof(g_PeriodicCollisionState.Scratch));
 
     // 释放旧引用（如果有）
     if (g_PeriodicCollisionState.Object1Ref.HandleValue != 0) {
@@ -224,6 +240,7 @@ NTSTATUS HandleStartPeriodicCollisionDpc(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATI
         FclReleaseGeometryReference(&g_PeriodicCollisionState.Object2Ref);
         RtlZeroMemory(&g_PeriodicCollisionState.Object2Snapshot, sizeof(g_PeriodicCollisionState.Object2Snapshot));
     }
+    RtlZeroMemory(&g_PeriodicCollisionState.Scratch, sizeof(g_PeriodicCollisionState.Scratch));
 
     NTSTATUS status = FclAcquireGeometryReference(
         config->Object1,
@@ -251,6 +268,7 @@ NTSTATUS HandleStartPeriodicCollisionDpc(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATI
 
     // 启动周期性 DPC 计时器
     g_PeriodicCollisionState.DpcActiveCount = 0;
+    FCL_LOG_INFO("Periodic collision start (DPC) no-CRT=%d", FclIsDpcNoDebugCrtEnabled() ? 1 : 0);
 
     const ULONG periodMs = (config->PeriodMicroseconds + 999) / 1000;
     const LONG timerPeriodMs = (periodMs == 0) ? 1 : static_cast<LONG>(periodMs);
@@ -295,6 +313,7 @@ NTSTATUS HandleStopPeriodicCollisionDpc(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATIO
     g_PeriodicCollisionState.Sequence = 0;
     g_PeriodicCollisionState.LastStatus = STATUS_SUCCESS;
     RtlZeroMemory(&g_PeriodicCollisionState.LastResult, sizeof(g_PeriodicCollisionState.LastResult));
+    RtlZeroMemory(&g_PeriodicCollisionState.Scratch, sizeof(g_PeriodicCollisionState.Scratch));
 
     ExReleasePushLockExclusiveAndLeaveCriticalRegion(&g_PeriodicCollisionState.Lock);
 
@@ -305,6 +324,7 @@ NTSTATUS HandleStopPeriodicCollisionDpc(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATIO
         FclReleaseGeometryReference(&object2Ref);
     }
 
+    FCL_LOG_INFO("Periodic collision stop (DPC) no-CRT=%d", FclIsDpcNoDebugCrtEnabled() ? 1 : 0);
     irp->IoStatus.Information = 0;
     return STATUS_SUCCESS;
 }
