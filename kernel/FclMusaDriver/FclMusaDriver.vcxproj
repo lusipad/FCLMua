@@ -1,5 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Project DefaultTargets="Build" ToolsVersion="17.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+<?xml version='1.0' encoding='utf-8'?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build" ToolsVersion="17.0">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
@@ -67,7 +67,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <AdditionalOptions>/bigobj /FS %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /bigobj /FS %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PreprocessorDefinitions>FCL_MUSA_ENABLE_LOGGING=1;FCL_MUSA_ENABLE_DEMO=1;FCL_MUSA_DPC_NO_DEBUG_CRT=1;_CRT_NO_DBG_MEMORY_ALLOC;_HAS_EXCEPTIONS=1;CCD_STATIC_DEFINE;CCD_DISABLE_DEBUG_IO;FCL_STATIC_DEFINE;FCL_ENABLE_STD_LOGGING=0;NDEBUG;_ITERATOR_DEBUG_LEVEL=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -88,7 +88,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <AdditionalOptions>/bigobj /FS %(AdditionalOptions)</AdditionalOptions>
+      <AdditionalOptions>/utf-8 /bigobj /FS %(AdditionalOptions)</AdditionalOptions>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <PreprocessorDefinitions>FCL_MUSA_ENABLE_LOGGING=1;_HAS_EXCEPTIONS=1;CCD_STATIC_DEFINE;CCD_DISABLE_DEBUG_IO;FCL_STATIC_DEFINE;FCL_ENABLE_STD_LOGGING=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
