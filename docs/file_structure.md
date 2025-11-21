@@ -49,7 +49,7 @@ FCL+Musa/
 
 ## kernel/ - 内核驱动
 
-内核驱动的核心代码，分为核心逻辑层 (core) 和驱动适配层 (driver)。
+内核驱动的核心代码，分为核心逻辑层 (core)、自测模块 (selftest) 和驱动适配层 (driver)。
 
 ```
 kernel/
@@ -57,6 +57,7 @@ kernel/
 ├── core/                      # FCL 核心逻辑库
 │   ├── include/               # 核心头文件
 │   └── src/                   # 核心实现代码
+├── selftest/                  # 自测与回归测试模块
 └── driver/                    # 驱动入口与 WDF 适配
     └── src/                   # 驱动层实现
 ```
@@ -73,8 +74,21 @@ kernel/core/src/
 ├── distance/                  # 距离计算 (distance.cpp)
 ├── broadphase/                # 宽相检测 (broadphase.cpp)
 ├── memory/                    # 内存分配器 (pool_allocator.cpp)
-├── upstream/                  # FCL 桥接层 (upstream_bridge.cpp)
-└── testing/                   # 自测模块 (self_test.cpp)
+└── upstream/                  # FCL 桥接层 (upstream_bridge.cpp)
+```
+
+### selftest/ - 自测模块
+
+包含所有内核自检、回归测试和单元测试逻辑，通过 `IOCTL_FCL_SELF_TEST` 触发。
+
+```
+kernel/selftest/
+├── include/                   # 自测头文件 (self_test.h)
+└── src/                       # 自测实现
+    ├── self_test.cpp          # 自测主流程
+    ├── collision_self_test.cpp # 碰撞场景测试
+    ├── eigen_self_test.cpp    # Eigen 数学库测试
+    └── eigen_extended_test.cpp # Eigen 扩展测试
 ```
 
 ### driver/src/ - 驱动封装层

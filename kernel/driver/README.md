@@ -26,7 +26,7 @@
 ## 目录结构
 
 - `src/upstream/geometry_bridge.*`：封装 R0 几何句柄到 upstream FCL `CollisionObject` 的转换逻辑，供 `upstream_bridge.cpp`、宽相管理等模块共用。
-- `src/testing/self_test.cpp`：集中维护 `IOCTL_FCL_SELF_TEST` 所需的各类场景与回归逻辑，其他模块无需直接依赖。
+- `kernel/selftest/src/self_test.cpp`：集中维护 `IOCTL_FCL_SELF_TEST` 所需的各类场景与回归逻辑，其他模块无需直接依赖。
 - 其余子目录（`collision/`、`distance/`、`broadphase/` 等）各自聚焦对应 API，仅通过 `fclmusa/*.h` 引出公共接口。
 
 ## 构建指引

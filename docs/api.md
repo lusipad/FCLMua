@@ -146,12 +146,13 @@
 
 ## 碰撞检测 API
 
-### NTSTATUS FclCollisionDetect(FCL_GEOMETRY_HANDLE object1, const FCL_TRANSFORM* transform1, FCL_GEOMETRY_HANDLE object2, const FCL_TRANSFORM* transform2, FCL_CONTACT_INFO* contact)
+### NTSTATUS FclCollisionDetect(FCL_GEOMETRY_HANDLE object1, const FCL_TRANSFORM* transform1, FCL_GEOMETRY_HANDLE object2, const FCL_TRANSFORM* transform2, BOOLEAN* isColliding, FCL_CONTACT_INFO* contact)
 **功能**: 执行离散碰撞检测，调用 upstream FCL 算法。
 
 **参数**:
 - `object1` / `object2` - 两个几何对象的句柄
 - `transform1` / `transform2` - 对象的变换（旋转+平移）
+- `isColliding` - 输出参数，是否碰撞
 - `contact` - 输出参数，返回碰撞接触信息
 
 **返回值**:
@@ -169,11 +170,12 @@
 
 ---
 
-### NTSTATUS FclCollideObjects(const FCL_COLLISION_OBJECT_DESC* object1, const FCL_COLLISION_OBJECT_DESC* object2, FCL_COLLISION_QUERY_RESULT* result)
+### NTSTATUS FclCollideObjects(const FCL_COLLISION_OBJECT_DESC* object1, const FCL_COLLISION_OBJECT_DESC* object2, const FCL_COLLISION_QUERY_REQUEST* request, FCL_COLLISION_QUERY_RESULT* result)
 **功能**: 高级碰撞检测接口，封装了几何+变换的描述。
 
 **参数**:
 - `object1` / `object2` - 碰撞对象描述（几何句柄+变换）
+- `request` - 查询选项（如最大接触点数）
 - `result` - 输出参数，返回碰撞查询结果（是否碰撞+接触信息）
 
 **返回值**:
@@ -449,11 +451,10 @@ typedef struct _FCL_TRANSFORM {
 ### FCL_CONTACT_INFO
 ```c
 typedef struct _FCL_CONTACT_INFO {
-    BOOLEAN IsColliding;              // 是否发生碰撞
-    ULONG ContactPointCount;          // 接触点数量
-    FCL_VECTOR3 ContactPoints[8];     // 接触点坐标（最多8个）
-    FCL_VECTOR3 ContactNormals[8];    // 接触法向量
-    DOUBLE PenetrationDepths[8];      // 穿透深度
+    FCL_VECTOR3 PointOnObject1;
+    FCL_VECTOR3 PointOnObject2;
+    FCL_VECTOR3 Normal;
+    float PenetrationDepth;
 } FCL_CONTACT_INFO;
 ```
 
@@ -553,12 +554,13 @@ FCL_TRANSFORM transform = {
 };
 
 // 4. 执行碰撞检测
+BOOLEAN isColliding;
 FCL_CONTACT_INFO contact;
-status = FclCollisionDetect(handle1, &transform, handle2, &transform, &contact);
+status = FclCollisionDetect(handle1, &transform, handle2, &transform, &isColliding, &contact);
 
-if (NT_SUCCESS(status) && contact.IsColliding) {
+if (NT_SUCCESS(status) && isColliding) {
     KdPrint(("Collision detected! Penetration depth: %f\n",
-             contact.PenetrationDepths[0]));
+             contact.PenetrationDepth));
 }
 
 // 5. 清理
@@ -666,6 +668,6 @@ FclStopPeriodicCollision();
 - **几何类型**: `kernel/core/include/fclmusa/geometry.h`
 - **碰撞 API**: `kernel/core/include/fclmusa/collision.h`
 - **距离 API**: `kernel/core/include/fclmusa/distance.h`
-- **自测 API**: `kernel/core/include/fclmusa/self_test.h`
+- **自测 API**: `kernel/selftest/include/fclmusa/self_test.h`
 - **架构说明**: `docs/architecture.md`
 - **使用指南**: `docs/usage.md`
