@@ -124,5 +124,5 @@ void DriverUnload(PDRIVER_OBJECT) {
 
 - 深入了解 IOCTL 结构：`docs/api.md`
 - 参考 `docs/testing.md` 拓展自测项
-- 结合 `docs/VM_DEBUG_SETUP.md` 搭建 Hyper-V + WinDbg 远程调试环境
+- 结合 `docs/vm_debug_setup.md` 搭建 Hyper-V + WinDbg 远程调试环境
 

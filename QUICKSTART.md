@@ -188,9 +188,9 @@ tools\manual_build.cmd
 | API 使用 | [API 文档](docs/api.md) |
 | 架构理解 | [架构说明](docs/architecture.md) |
 | 测试验证 | [测试指南](docs/testing.md) |
-| 调试技巧 | [VM 调试设置](docs/VM_DEBUG_SETUP.md) |
+| 调试技巧 | [VM 调试设置](docs/vm_debug_setup.md) |
 | 已知问题 | [已知问题](docs/known_issues.md) |
-| 所有文档 | [文档索引](docs/INDEX.md) |
+| 所有文档 | [文档索引](docs/index.md) |
 
 ## 常见问题
 
@@ -224,7 +224,7 @@ tools\manage_driver.ps1 -Action Start
 
 ## 下一步
 
-- 🔍 深入学习 → [文档索引](docs/INDEX.md)
+- 🔍 深入学习 → [文档索引](docs/index.md)
 - 📖 理解架构 → [架构说明](docs/architecture.md)
 - 🛠️ API 开发 → [API 文档](docs/api.md)
 - 🐛 故障排除 → [已知问题](docs/known_issues.md)

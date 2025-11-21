@@ -13,7 +13,7 @@
 - `FclDistanceCompute`：支持 Sphere-Sphere、Sphere-OBB、OBB-OBB 距离查询，返回最近点及最小距离
 - `FclBroadphaseDetect`：委托 upstream FCL DynamicAABBTree 宽相管理器，根据传入句柄+变换生成潜在碰撞对
 - GJK 窄相：静态集成 libccd (v2.1) 的 GJK/EPA 流程，使用内核内存包装与 NonPagedPool 支持，覆盖 Sphere/OBB/Mesh 等凸体的兜底组合
-- Eigen 适配：`fclmusa/math/eigen_config.h` 自动检测 `<Eigen/Core>` 并禁用对齐/向量化，详见 `docs/EIGEN_ADAPTATION.md`
+- Eigen 适配：`fclmusa/math/eigen_config.h` 自动检测 `<Eigen/Core>` 并禁用对齐/向量化，详见 `docs/eigen_adaptation.md`
 - NonPagedPool RAII 分配器与全局 `new/delete` 覆盖，带池统计
 - Musa.Runtime/STL 自检与 Eigen 自检入口（缺失 Eigen 时自动降级为 `STATUS_NOT_SUPPORTED` 提示）
 

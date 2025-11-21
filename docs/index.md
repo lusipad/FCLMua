@@ -99,7 +99,7 @@
 - 安全和稳定性考量
 - Upstream FCL 集成说明
 
-**相关文档**: [API 文档](api.md), [项目结构](FILE_STRUCTURE.md)
+**相关文档**: [API 文档](api.md), [项目结构](file_structure.md)
 
 ---
 
@@ -143,7 +143,7 @@
 - 自动化脚本使用
 - 清理流程
 
-**相关文档**: [使用指南](usage.md), [VM 调试设置](VM_DEBUG_SETUP.md)
+**相关文档**: [使用指南](usage.md), [VM 调试设置](vm_debug_setup.md)
 
 ---
 
@@ -151,7 +151,7 @@
 
 深入的技术细节和特殊场景配置。
 
-### 🐛 [VM 调试设置](VM_DEBUG_SETUP.md)
+### 🐛 [VM 调试设置](vm_debug_setup.md)
 **阅读时间**: 25分钟 | **类型**: 配置指南
 
 Hyper-V 虚拟机 + WinDbg 远程调试环境配置。
@@ -171,7 +171,7 @@ Hyper-V 虚拟机 + WinDbg 远程调试环境配置。
 
 ---
 
-### 🧮 [Eigen 适配说明](EIGEN_ADAPTATION.md)
+### 🧮 [Eigen 适配说明](eigen_adaptation.md)
 **阅读时间**: 8分钟 | **类型**: 技术文档
 
 Eigen 线性代数库在内核环境的适配细节。
@@ -186,11 +186,11 @@ Eigen 线性代数库在内核环境的适配细节。
 - 浮点支持和精度问题
 - 性能优化建议
 
-**相关文档**: [EIGEN 扩展测试](EIGEN_EXTENDED_TESTS.md), [架构说明](architecture.md)
+**相关文档**: [EIGEN 扩展测试](eigen_extended_tests.md), [架构说明](architecture.md)
 
 ---
 
-### 🧪 [Eigen 扩展测试](EIGEN_EXTENDED_TESTS.md)
+### 🧪 [Eigen 扩展测试](eigen_extended_tests.md)
 **阅读时间**: 10分钟 | **类型**: 技术文档
 
 12 个额外的 Eigen 测试用例说明。
@@ -200,7 +200,7 @@ Eigen 线性代数库在内核环境的适配细节。
 - 几何变换、四元数
 - 使用方法和集成步骤
 
-**相关文档**: [Eigen 适配](EIGEN_ADAPTATION.md)
+**相关文档**: [Eigen 适配](eigen_adaptation.md)
 
 ---
 
@@ -208,7 +208,7 @@ Eigen 线性代数库在内核环境的适配细节。
 
 项目结构、发布信息和已知问题。
 
-### 📁 [项目结构](FILE_STRUCTURE.md)
+### 📁 [项目结构](file_structure.md)
 **阅读时间**: 15分钟 | **类型**: 参考手册
 
 完整的目录层次结构和文件说明（684行详细文档）。
@@ -349,9 +349,9 @@ GUI Demo 和 CLI Demo 的详细使用说明。
 - 🔧 构建驱动 → [使用指南](usage.md)
 - 🚀 部署生产 → [部署说明](deployment.md)
 - 🧪 验证功能 → [测试指南](testing.md)
-- 🐛 远程调试 → [VM 调试设置](VM_DEBUG_SETUP.md)
+- 🐛 远程调试 → [VM 调试设置](vm_debug_setup.md)
 - ⚠️ 解决问题 → [已知问题](known_issues.md)
-- 📁 找文件 → [项目结构](FILE_STRUCTURE.md)
+- 📁 找文件 → [项目结构](file_structure.md)
 
 ---
 
@@ -364,6 +364,6 @@ GUI Demo 和 CLI Demo 的详细使用说明。
 
 ---
 
-**最后更新**: 2025-11-17
-**文档版本**: 1.0
+**最后更新**: 2025-11-22
+**文档版本**: 1.1
 **项目版本**: 0.1.0.1

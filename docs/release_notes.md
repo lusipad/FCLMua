@@ -21,7 +21,7 @@
 ### 已知限制
 
 - 尚未提供 Release 构建/正式签名流程
-- WinDbg/Hyper-V 调试流程需参考 `docs/VM_DEBUG_SETUP.md` 手动配置
+- WinDbg/Hyper-V 调试流程需参考 `docs/vm_debug_setup.md` 手动配置
 - 未针对多核/高并发场景进行长时间压力测试
 
 ### 后续计划

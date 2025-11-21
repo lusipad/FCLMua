@@ -158,8 +158,8 @@ CLI 提供命令：
 - `docs/usage.md`：快速使用指南
 - `docs/deployment.md`：证书、服务安装与卸载说明
 - `docs/testing.md`：自检/压力/对比验证步骤
-- `docs/VM_DEBUG_SETUP.md`：Hyper-V + WinDbg 配置手册
-- `docs/FILE_STRUCTURE.md`：完整目录结构说明
+- `docs/vm_debug_setup.md`：Hyper-V + WinDbg 配置手册
+- `docs/file_structure.md`：完整目录结构说明
 
 ### 构建工具
 - `tools/build_all.ps1`：一键构建驱动、CLI Demo、GUI Demo 并打包
@@ -177,7 +177,7 @@ CLI 提供命令：
 ## Upstream 版本
 
 - `fcl-source/` 内置的 FCL 基于 commit `5f7776e2101b8ec95d5054d732684d00dac45e3d`。
-- `tools/manual_build.cmd`/`build_driver.cmd` 会检查 `fcl-source` HEAD 是否匹配该提交，避免混用其它版本。
+- `tools/manual_build.cmd` 会检查 `fcl-source` HEAD 是否匹配该提交，避免混用其它版本。
 - 若需升级 upstream FCL，请在 `fcl-source/` 同步代码并更新脚本中的 `FCL_EXPECTED_COMMIT`。
 
 
