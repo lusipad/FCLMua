@@ -7,6 +7,7 @@
 #include <fcl/geometry/shape/sphere.h>
 
 #include "fclmusa/geometry/math_utils.h"
+#include "fclmusa/memory/dpc_allocator.h"
 
 namespace fclmusa::upstream {
 
@@ -14,6 +15,7 @@ namespace {
 
 using GeometryPtr = std::shared_ptr<fcl::CollisionGeometryd>;
 using BVHModeld = fcl::BVHModel<fcl::OBBRSS<double>>;
+using fclmusa::memory::FclDpcNonPagedAllocator;
 
 fcl::Matrix3d ToEigenMatrix(const FCL_MATRIX3X3& matrix) noexcept {
     fcl::Matrix3d result;
@@ -40,7 +42,9 @@ NTSTATUS BuildSphereBinding(
     }
 
     try {
-        binding->Geometry = std::make_shared<fcl::Sphered>(static_cast<double>(desc.Radius));
+        binding->Geometry = std::allocate_shared<fcl::Sphered>(
+            FclDpcNonPagedAllocator<fcl::Sphered>{},
+            static_cast<double>(desc.Radius));
     } catch (const std::bad_alloc&) {
         return STATUS_INSUFFICIENT_RESOURCES;
     }
@@ -62,7 +66,8 @@ NTSTATUS BuildObbBinding(
     }
 
     try {
-        binding->Geometry = std::make_shared<fcl::Boxd>(
+        binding->Geometry = std::allocate_shared<fcl::Boxd>(
+            FclDpcNonPagedAllocator<fcl::Boxd>{},
             static_cast<double>(desc.Extents.X * 2.0f),
             static_cast<double>(desc.Extents.Y * 2.0f),
             static_cast<double>(desc.Extents.Z * 2.0f));
@@ -92,7 +97,7 @@ NTSTATUS BuildMeshGeometry(
     const ULONG triangleCount = mesh.IndexCount / 3;
 
     try {
-        auto model = std::make_shared<BVHModeld>();
+        auto model = std::allocate_shared<BVHModeld>(FclDpcNonPagedAllocator<BVHModeld>{});
         std::vector<fcl::Vector3d> vertices(mesh.VertexCount);
         for (ULONG i = 0; i < mesh.VertexCount; ++i) {
             vertices[i] = ToEigenVector(mesh.Vertices[i]);

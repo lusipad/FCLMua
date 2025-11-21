@@ -12,6 +12,7 @@
 #define FCL_MUSA_DOS_DEVICE_NAME        L"\\DosDevices\\FclMusa"
 
 #define FCL_MUSA_POOL_TAG ' LCF'
+#define FCL_MUSA_DPC_POOL_TAG 'cPDF'
 
 typedef struct _FCL_DRIVER_VERSION {
     ULONG Major;
@@ -21,4 +22,3 @@ typedef struct _FCL_DRIVER_VERSION {
 } FCL_DRIVER_VERSION;
 
 EXTERN_C const FCL_DRIVER_VERSION* FclGetDriverVersion();
-

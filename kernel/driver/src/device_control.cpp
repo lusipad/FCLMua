@@ -50,13 +50,28 @@ inline VOID ExReleasePushLockSharedAndLeaveCriticalRegion(PEX_PUSH_LOCK PushLock
 }
 #endif
 
+ULONGLONG QueryTimeMicroseconds() noexcept {
+    LARGE_INTEGER frequency = {};
+    const LARGE_INTEGER counter = KeQueryPerformanceCounter(&frequency);
+    if (frequency.QuadPart == 0) {
+        return 0;
+    }
+    const LONGLONG ticks = counter.QuadPart;
+    const ULONGLONG absoluteTicks = (ticks >= 0)
+        ? static_cast<ULONGLONG>(ticks)
+        : static_cast<ULONGLONG>(-ticks);
+    return (absoluteTicks * 1'000'000ULL) / static_cast<ULONGLONG>(frequency.QuadPart);
+}
+
+constexpr ULONGLONG kPeriodicDpcBudgetUs = 100;
+
 struct FCL_PERIODIC_COLLISION_STATE {
     EX_PUSH_LOCK Lock;
     BOOLEAN Enabled;
     UCHAR Reserved[3];
     FCL_PERIODIC_COLLISION_CONFIG Config;
     ULONG InnerIterations;
-    ULONGLONG Sequence;
+    volatile ULONGLONG Sequence;
     NTSTATUS LastStatus;
     FCL_COLLISION_RESULT LastResult;
 
@@ -74,6 +89,8 @@ struct FCL_PERIODIC_COLLISION_STATE {
         FCL_CONTACT_INFO Contact;
         FCL_COLLISION_RESULT Result;
     } Scratch;
+
+    volatile LONG OverrunWarningIssued;
 };
 
 FCL_PERIODIC_COLLISION_STATE g_PeriodicCollisionState = {
@@ -91,8 +108,41 @@ FCL_PERIODIC_COLLISION_STATE g_PeriodicCollisionState = {
     {},
     {},
     {},
-    {}
+    {},
+    {},
+    0
 };
+
+BOOLEAN
+FclPeriodicCollisionSnapshotResult(
+    _Out_ FCL_COLLISION_RESULT* result,
+    _Out_ NTSTATUS* status,
+    _Out_opt_ ULONGLONG* sequence) noexcept {
+    if (result == nullptr || status == nullptr) {
+        return FALSE;
+    }
+
+    for (int attempt = 0; attempt < 3; ++attempt) {
+        const ULONGLONG first = g_PeriodicCollisionState.Sequence;
+        KeMemoryBarrier();
+
+        const FCL_COLLISION_RESULT localResult = g_PeriodicCollisionState.LastResult;
+        const NTSTATUS localStatus = g_PeriodicCollisionState.LastStatus;
+
+        KeMemoryBarrier();
+        const ULONGLONG second = g_PeriodicCollisionState.Sequence;
+        if (first == second) {
+            *result = localResult;
+            *status = localStatus;
+            if (sequence != nullptr) {
+                *sequence = second;
+            }
+            return TRUE;
+        }
+    }
+
+    return FALSE;
+}
 
 _Function_class_(KDEFERRED_ROUTINE)
 _IRQL_requires_(DISPATCH_LEVEL)
@@ -142,6 +192,8 @@ FclPeriodicCollisionDpc(
         return;
     }
 
+    const ULONGLONG startUs = QueryTimeMicroseconds();
+
     LONG newCount = InterlockedIncrement(&state->DpcActiveCount);
     if (newCount == 1) {
         KeClearEvent(&state->DpcIdleEvent);
@@ -182,6 +234,18 @@ FclPeriodicCollisionDpc(
         state->LastStatus = status;
         state->LastResult = *scratchResult;
         InterlockedIncrement64(reinterpret_cast<volatile LONG64*>(&state->Sequence));
+    }
+
+    const ULONGLONG endUs = QueryTimeMicroseconds();
+    if (startUs != 0 && endUs != 0) {
+        const ULONGLONG elapsed = (endUs >= startUs) ? (endUs - startUs) : 0;
+        if (elapsed > kPeriodicDpcBudgetUs) {
+            if (InterlockedCompareExchange(&state->OverrunWarningIssued, 1, 0) == 0) {
+                FCL_LOG_WARN("Periodic collision DPC exceeded budget: %llu us (limit=%llu us)",
+                             static_cast<unsigned long long>(elapsed),
+                             static_cast<unsigned long long>(kPeriodicDpcBudgetUs));
+            }
+        }
     }
 
     newCount = InterlockedDecrement(&state->DpcActiveCount);
@@ -230,6 +294,7 @@ NTSTATUS HandleStartPeriodicCollisionDpc(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATI
     g_PeriodicCollisionState.LastStatus = STATUS_SUCCESS;
     RtlZeroMemory(&g_PeriodicCollisionState.LastResult, sizeof(g_PeriodicCollisionState.LastResult));
     RtlZeroMemory(&g_PeriodicCollisionState.Scratch, sizeof(g_PeriodicCollisionState.Scratch));
+    g_PeriodicCollisionState.OverrunWarningIssued = 0;
 
     // 释放旧引用（如果有）
     if (g_PeriodicCollisionState.Object1Ref.HandleValue != 0) {
@@ -314,6 +379,7 @@ NTSTATUS HandleStopPeriodicCollisionDpc(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATIO
     g_PeriodicCollisionState.LastStatus = STATUS_SUCCESS;
     RtlZeroMemory(&g_PeriodicCollisionState.LastResult, sizeof(g_PeriodicCollisionState.LastResult));
     RtlZeroMemory(&g_PeriodicCollisionState.Scratch, sizeof(g_PeriodicCollisionState.Scratch));
+    g_PeriodicCollisionState.OverrunWarningIssued = 0;
 
     ExReleasePushLockExclusiveAndLeaveCriticalRegion(&g_PeriodicCollisionState.Lock);
 
@@ -322,6 +388,16 @@ NTSTATUS HandleStopPeriodicCollisionDpc(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATIO
     }
     if (object2Ref.HandleValue != 0) {
         FclReleaseGeometryReference(&object2Ref);
+    }
+
+    FCL_COLLISION_RESULT lastResult = {};
+    NTSTATUS lastStatus = STATUS_UNSUCCESSFUL;
+    ULONGLONG lastSequence = 0;
+    if (FclPeriodicCollisionSnapshotResult(&lastResult, &lastStatus, &lastSequence)) {
+        FCL_LOG_INFO("Periodic collision final snapshot: seq=%llu status=0x%X colliding=%u",
+                     static_cast<unsigned long long>(lastSequence),
+                     lastStatus,
+                     static_cast<unsigned>(lastResult.IsColliding));
     }
 
     FCL_LOG_INFO("Periodic collision stop (DPC) no-CRT=%d", FclIsDpcNoDebugCrtEnabled() ? 1 : 0);
@@ -383,7 +459,7 @@ FclPeriodicCollisionWorkerCallback(PVOID context) noexcept {
         ExEnterCriticalRegionAndAcquirePushLockExclusive(&state->Lock);
         state->LastStatus = status;
         state->LastResult = result;
-        state->Sequence += 1;
+        InterlockedIncrement64(reinterpret_cast<volatile LONG64*>(&state->Sequence));
         ExReleasePushLockExclusiveAndLeaveCriticalRegion(&state->Lock);
     }
 }
