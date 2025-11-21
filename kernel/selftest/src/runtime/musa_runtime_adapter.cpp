@@ -1,4 +1,4 @@
-#include "fclmusa/runtime/musa_runtime_adapter.h"
+﻿#include "fclmusa/runtime/musa_runtime_adapter.h"
 
 #include "fclmusa/logging.h"
 

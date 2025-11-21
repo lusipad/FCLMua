@@ -1,4 +1,4 @@
-#include <ntddk.h>
+﻿#include <ntddk.h>
 #include <locale.h>
 #include <__msvc_xlocinfo_types.hpp>
 #include <xlocinfo>

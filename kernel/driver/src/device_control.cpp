@@ -1,4 +1,4 @@
-#include <ntddk.h>
+﻿#include <ntddk.h>
 #include <ntintsafe.h>
 
 #include "fclmusa/distance.h"

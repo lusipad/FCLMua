@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "fclmusa/geometry/math_utils.h"
 

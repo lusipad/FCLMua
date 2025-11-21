@@ -1,4 +1,4 @@
-#include "fclmusa/math/self_test.h"
+﻿#include "fclmusa/math/self_test.h"
 #include "fclmusa/logging.h"
 #include "fclmusa/math/eigen_config.h"
 
