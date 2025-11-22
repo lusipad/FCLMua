@@ -12,6 +12,7 @@
 Renderer::Renderer()
     : m_width(0)
     , m_height(0)
+    , m_uiWidth(300)
 {
     m_viewMatrix = XMMatrixIdentity();
     m_projMatrix = XMMatrixIdentity();
@@ -46,7 +47,9 @@ bool Renderer::Initialize(HWND hwnd, int width, int height)
 
     // Set viewport
     D3D11_VIEWPORT viewport = {};
-    viewport.Width = static_cast<float>(width);
+    viewport.TopLeftX = static_cast<float>(m_uiWidth);
+    viewport.TopLeftY = 0;
+    viewport.Width = static_cast<float>(width - m_uiWidth);
     viewport.Height = static_cast<float>(height);
     viewport.MinDepth = 0.0f;
     viewport.MaxDepth = 1.0f;
@@ -243,6 +246,32 @@ bool Renderer::CreateShaders()
     if (FAILED(hr))
         return false;
 
+    // Unlit pixel shader for lines
+    const char* psUnlitSource = R"(
+        struct PS_INPUT
+        {
+            float4 Pos : SV_POSITION;
+            float3 Normal : NORMAL;
+            float4 Color : COLOR;
+        };
+
+        float4 main(PS_INPUT input) : SV_TARGET
+        {
+            return input.Color;
+        }
+    )";
+
+    ComPtr<ID3DBlob> psUnlitBlob;
+    hr = D3DCompile(psUnlitSource, strlen(psUnlitSource), nullptr, nullptr, nullptr,
+        "main", "ps_5_0", 0, 0, &psUnlitBlob, &errorBlob);
+    if (FAILED(hr))
+        return false;
+
+    hr = m_device->CreatePixelShader(psUnlitBlob->GetBufferPointer(), psUnlitBlob->GetBufferSize(),
+        nullptr, &m_pixelShaderUnlit);
+    if (FAILED(hr))
+        return false;
+
     // Create constant buffer
     D3D11_BUFFER_DESC cbd = {};
     cbd.ByteWidth = sizeof(ConstantBuffer);
@@ -260,7 +289,7 @@ bool Renderer::CreateRasterizerStates()
     D3D11_RASTERIZER_DESC rsSolid = {};
     rsSolid.FillMode = D3D11_FILL_SOLID;
     rsSolid.CullMode = D3D11_CULL_BACK;
-    rsSolid.FrontCounterClockwise = FALSE;
+    rsSolid.FrontCounterClockwise = TRUE; // Mesh generation uses CCW winding
     rsSolid.DepthClipEnable = TRUE;
 
     HRESULT hr = m_device->CreateRasterizerState(&rsSolid, &m_rasterizerStateSolid);
@@ -286,6 +315,17 @@ bool Renderer::CreatePrimitiveMeshes()
     if (!UploadMesh(m_boxMesh))
         return false;
 
+    // Create dynamic vertex buffer for lines (large enough for grid)
+    D3D11_BUFFER_DESC vbd = {};
+    vbd.ByteWidth = sizeof(Vertex) * 20000; // 20k vertices should be enough
+    vbd.Usage = D3D11_USAGE_DYNAMIC;
+    vbd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    vbd.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    
+    HRESULT hr = m_device->CreateBuffer(&vbd, nullptr, &m_lineVertexBuffer);
+    if (FAILED(hr))
+        return false;
+
     return true;
 }
 
@@ -308,7 +348,9 @@ void Renderer::Resize(int width, int height)
     CreateDepthStencil();
 
     D3D11_VIEWPORT viewport = {};
-    viewport.Width = static_cast<float>(width);
+    viewport.TopLeftX = static_cast<float>(m_uiWidth);
+    viewport.TopLeftY = 0;
+    viewport.Width = static_cast<float>(width - m_uiWidth);
     viewport.Height = static_cast<float>(height);
     viewport.MinDepth = 0.0f;
     viewport.MaxDepth = 1.0f;
@@ -317,8 +359,9 @@ void Renderer::Resize(int width, int height)
 
 void Renderer::BeginFrame()
 {
-    // Clear render target
-    float clearColor[4] = { 0.1f, 0.1f, 0.15f, 1.0f };
+    // Clear render target to Dark Theme Background (RGB 30, 30, 30)
+    // This ensures the UI panel area (which is not covered by the viewport) has the correct background.
+    float clearColor[4] = { 30.0f/255.0f, 30.0f/255.0f, 30.0f/255.0f, 1.0f };
     m_context->ClearRenderTargetView(m_renderTargetView.Get(), clearColor);
     m_context->ClearDepthStencilView(m_depthStencilView.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
 
@@ -392,12 +435,85 @@ void Renderer::DrawBox(const XMFLOAT3& center, const XMFLOAT3& extents, const XM
 
 void Renderer::DrawLine(const XMFLOAT3& start, const XMFLOAT3& end, const XMFLOAT4& color)
 {
-    // TODO: Implement line rendering
+    Vertex v1;
+    v1.Position = start;
+    v1.Normal = XMFLOAT3(0, 1, 0);
+    v1.Color = color;
+
+    Vertex v2;
+    v2.Position = end;
+    v2.Normal = XMFLOAT3(0, 1, 0);
+    v2.Color = color;
+
+    m_lineVertices.push_back(v1);
+    m_lineVertices.push_back(v2);
+}
+
+void Renderer::FlushLines()
+{
+    if (m_lineVertices.empty() || !m_lineVertexBuffer)
+        return;
+
+    // Update vertex buffer
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    if (SUCCEEDED(m_context->Map(m_lineVertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+    {
+        // Check if buffer is large enough. For now assume it is (20k verts)
+        // In production, should handle resize or chunking.
+        size_t bytesToCopy = (std::min)(m_lineVertices.size() * sizeof(Vertex), (size_t)sizeof(Vertex) * 20000);
+        memcpy(mapped.pData, m_lineVertices.data(), bytesToCopy);
+        m_context->Unmap(m_lineVertexBuffer.Get(), 0);
+    }
+
+    // Set constant buffer (World is Identity for lines usually, but we set it anyway)
+    D3D11_MAPPED_SUBRESOURCE mappedCB;
+    m_context->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedCB);
+    ConstantBuffer* cb = static_cast<ConstantBuffer*>(mappedCB.pData);
+    cb->World = XMMatrixIdentity(); // Lines are drawn in world space directly
+    cb->World = XMMatrixTranspose(cb->World);
+    cb->View = XMMatrixTranspose(m_viewMatrix);
+    cb->Projection = XMMatrixTranspose(m_projMatrix);
+    cb->Color = XMFLOAT4(1, 1, 1, 1); // Vertex color used
+    cb->LightDir = XMFLOAT4(0, 1, 0, 0);
+    m_context->Unmap(m_constantBuffer.Get(), 0);
+
+    m_context->VSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
+    m_context->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
+
+    // Use Unlit shader
+    m_context->PSSetShader(m_pixelShaderUnlit.Get(), nullptr, 0);
+
+    // Set vertex buffer
+    UINT stride = sizeof(Vertex);
+    UINT offset = 0;
+    m_context->IASetVertexBuffers(0, 1, m_lineVertexBuffer.GetAddressOf(), &stride, &offset);
+    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+
+    // Draw
+    m_context->Draw(static_cast<UINT>(m_lineVertices.size()), 0);
+
+    // Restore state
+    m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    
+    m_lineVertices.clear();
 }
 
 void Renderer::DrawGrid(float size, int divisions, const XMFLOAT4& color)
 {
-    // TODO: Implement grid rendering
+    float step = size / divisions;
+    float halfSize = size / 2.0f;
+
+    for (int i = 0; i <= divisions; ++i)
+    {
+        float pos = -halfSize + i * step;
+        
+        // Z lines (along X)
+        DrawLine(XMFLOAT3(-halfSize, 0, pos), XMFLOAT3(halfSize, 0, pos), color);
+        
+        // X lines (along Z)
+        DrawLine(XMFLOAT3(pos, 0, -halfSize), XMFLOAT3(pos, 0, halfSize), color);
+    }
 }
 
 Mesh Renderer::CreateSphereMesh(float radius, int segments)
@@ -550,6 +666,15 @@ Mesh Renderer::CreateMeshFromData(const std::vector<XMFLOAT3>& vertices, const s
         mesh.vertices[i2].Normal = n;
     }
 
+    return mesh;
+}
+
+Mesh Renderer::CreateMeshFromData(const std::vector<Vertex>& vertices, const std::vector<uint32_t>& indices)
+{
+    Mesh mesh;
+    mesh.vertices = vertices;
+    mesh.indices = indices;
+    mesh.indexCount = static_cast<UINT>(indices.size());
     return mesh;
 }
 

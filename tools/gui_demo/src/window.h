@@ -2,6 +2,7 @@
 #include <windows.h>
 #include <string>
 #include <functional>
+#include <vector>
 
 class Window
 {
@@ -17,6 +18,7 @@ public:
     int GetHeight() const { return m_height; }
 
     // UI events
+    std::function<void(int, int)> OnResize;
     std::function<void(float)> OnCreateSphere;
     std::function<void(float, float, float)> OnCreateBox;
     std::function<void()> OnDeleteObject;
@@ -59,6 +61,9 @@ public:
 private:
     static LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
     LRESULT HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam);
+    void CreateUIControls();
+    void UpdateLayout();
+    float GetFloatFromEdit(HWND hEdit, float defaultValue);
 
     HINSTANCE m_hInstance;
     HWND m_hwnd;
@@ -74,22 +79,40 @@ private:
     int m_lastMouseX, m_lastMouseY;
     int m_mouseWheel;
 
-    // UI controls
-    HWND m_btnCreateSphere;
-    HWND m_btnCreateBox;
-    HWND m_btnDelete;
-    HWND m_editSphereRadius;
-    HWND m_editBoxX, m_editBoxY, m_editBoxZ;
-    HWND m_labelSphereRadius;
-    HWND m_labelBox;
+    // Theme resources
+    HBRUSH m_hbrBackground;
+    HBRUSH m_hbrPanel;
+    HBRUSH m_hbrEdit;
+    HBRUSH m_hbrButton;
+    HBRUSH m_hbrButtonHover;
+    HBRUSH m_hbrButtonActive;
+    HBRUSH m_hbrAccent;
+    COLORREF m_textColor;
+    COLORREF m_accentColor;
+    HFONT m_hFont;
+    HFONT m_hFontBold;
+    HFONT m_hFontSmall;
 
-    // Scene mode controls
+    // UI controls
+    // Basic Objects
+    HWND m_labelBasicGroup;
+    HWND m_labelSphereRadius;
+    HWND m_editSphereRadius;
+    HWND m_btnCreateSphere;
+    HWND m_btnDelete;
+    HWND m_labelBox;
+    HWND m_editBoxX, m_editBoxY, m_editBoxZ;
+    HWND m_btnCreateBox;
+
+    // Scene Mode
+    HWND m_labelSceneGroup;
     HWND m_labelSceneMode;
     HWND m_btnSceneDefault;
     HWND m_btnSceneSolarSystem;
     HWND m_btnSceneCrossroad;
 
-    // Speed controls
+    // Simulation Speed
+    HWND m_labelSpeedGroup;
     HWND m_labelSpeed;
     HWND m_btnSpeedPause;
     HWND m_btnSpeed05;
@@ -97,21 +120,23 @@ private:
     HWND m_btnSpeed2;
     HWND m_btnSpeed5;
 
-    // Performance mode controls
+    // Performance Mode
+    HWND m_labelPerfGroup;
     HWND m_labelPerformance;
     HWND m_btnPerfHigh;
     HWND m_btnPerfMedium;
     HWND m_btnPerfLow;
 
     // Asteroid controls
-    HWND m_labelAsteroid;
-    HWND m_editAsteroidVX, m_editAsteroidVY, m_editAsteroidVZ, m_editAsteroidRadius;
-    HWND m_btnCreateAsteroid;
+    HWND m_labelAsteroidGroup;
     HWND m_labelAsteroidVelocity;
+    HWND m_editAsteroidVX, m_editAsteroidVY, m_editAsteroidVZ;
     HWND m_labelAsteroidRadius;
+    HWND m_editAsteroidRadius;
+    HWND m_btnCreateAsteroid;
 
-    // Vehicle controls (for crossroad scene)
-    HWND m_labelVehicle;
+    // Vehicle controls
+    HWND m_labelVehicleGroup;
     HWND m_labelVehicleType;
     HWND m_comboVehicleType;
     HWND m_labelVehicleDirection;
@@ -120,21 +145,22 @@ private:
     HWND m_comboVehicleIntention;
     HWND m_labelVehicleSpeed;
     HWND m_editVehicleSpeed;
-    HWND m_btnCreateVehicle;
-    HWND m_btnLoadOBJ;
     HWND m_labelOBJScale;
     HWND m_editOBJScale;
-
-    // Status bar
-    HWND m_statusBar;
+    HWND m_btnCreateVehicle;
+    HWND m_btnLoadOBJ;
 
     // Properties panel
+    HWND m_labelPropsGroup;
     HWND m_labelProperties;
     HWND m_labelObjectName;
-    HWND m_labelPosX, m_labelPosY, m_labelPosZ;
+    HWND m_labelPos;
     HWND m_editPosX, m_editPosY, m_editPosZ;
     HWND m_labelRotY;
     HWND m_editRotY;
+
+    // Status bar
+    HWND m_statusBar;
 
     // Overlay diagnostics (semi-transparent label over 3D view)
     HWND m_overlayLabel;
@@ -142,6 +168,17 @@ private:
     // Enhanced status panel (semi-transparent, detailed info)
     HWND m_statusPanel;
     HWND m_statusPanelBackground;
+    
+    // Scrollable Left Panel
+    HWND m_panelContainer; // The visible clipping area
+    HWND m_panelContent;   // The tall window holding all controls
+    int m_scrollOffset;
+    int m_totalContentHeight;
+    static LRESULT CALLBACK PanelProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-    void CreateUIControls();
+    // Track hovered button for redraw
+    HWND m_hoveredButton;
+
+    // Dividers
+    std::vector<HWND> m_dividers;
 };

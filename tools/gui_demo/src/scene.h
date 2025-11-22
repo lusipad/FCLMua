@@ -61,6 +61,14 @@ enum class VehicleType
     SportsCar   // Sports car
 };
 
+// Contact point for visualization
+struct ContactPoint
+{
+    XMFLOAT3 position;
+    XMFLOAT3 normal;
+    float depth;
+};
+
 // Scene object
 struct SceneObject
 {
@@ -261,4 +269,11 @@ private:
 
     // Collision statistics
     CollisionStats m_collisionStats;
+    
+    // Contact points for visualization
+    std::vector<ContactPoint> m_contacts;
+    
+    // Helper to create detailed vehicle mesh
+
+    void RenderContacts();
 };

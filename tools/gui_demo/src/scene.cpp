@@ -2,6 +2,7 @@
 #include "obj_loader.h"
 #include <algorithm>
 #include <fstream>
+#include <cmath>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -573,11 +574,13 @@ void Scene::Render()
 
     // Render grid
     RenderGrid();
+    m_renderer->FlushLines(); // Draw grid before objects
 
     // Render orbits (for solar system)
     if (m_sceneMode == SceneMode::SolarSystem)
     {
         RenderOrbits();
+        m_renderer->FlushLines(); // Draw orbits before objects
     }
 
     // Render objects
@@ -587,6 +590,36 @@ void Scene::Render()
     if (GetSelectedObject())
     {
         RenderGizmo();
+    }
+    
+    // Render contact points
+    RenderContacts();
+    
+    // Flush any remaining lines (gizmos, etc)
+    m_renderer->FlushLines();
+}
+
+void Scene::RenderContacts()
+{
+    if (m_contacts.empty())
+        return;
+
+    for (const auto& cp : m_contacts)
+    {
+        // Draw a small yellow sphere at contact point
+        // Note: DrawSphere takes position, radius, color
+        m_renderer->DrawSphere(cp.position, 0.15f, XMFLOAT4(1.0f, 1.0f, 0.0f, 1.0f));
+        
+        // Draw normal line (yellow)
+        // We need to implement DrawLine in Renderer, or just use a thin box/cylinder for now if DrawLine is missing
+        // Since Renderer::DrawLine is a TODO, let's use a small box stretched along the normal
+        // For simplicity in this demo, just the sphere is a good start.
+        // If we want the normal, we can try to draw a second smaller sphere along the normal
+        XMFLOAT3 normalTip;
+        normalTip.x = cp.position.x + cp.normal.x * 0.5f;
+        normalTip.y = cp.position.y + cp.normal.y * 0.5f;
+        normalTip.z = cp.position.z + cp.normal.z * 0.5f;
+        m_renderer->DrawSphere(normalTip, 0.05f, XMFLOAT4(1.0f, 0.5f, 0.0f, 1.0f)); // Orange tip
     }
 }
 
@@ -1080,6 +1113,7 @@ void Scene::DetectCollisions()
     {
         obj->isColliding = false;
     }
+    m_contacts.clear();
 
     // Update statistics for this frame
     m_collisionStats.FrameCount++;
@@ -1099,6 +1133,11 @@ void Scene::DetectCollisions()
 
             if (obj1->fclHandle.Value == 0 || obj2->fclHandle.Value == 0)
                 continue;
+
+            // Reset contacts at start of frame (done in DetectCollisions start)
+            // But we are in a loop.
+            // Actually, m_contacts should be cleared at the beginning of DetectCollisions.
+
 
             // In crossroad scene, only check vehicle-vehicle pairs to reduce IO and focus on cars.
             if (crossroadMode)
@@ -1129,6 +1168,31 @@ void Scene::DetectCollisions()
                 // Only check: asteroids (hasVelocity) vs anything
             }
 
+            // Broadphase: AABB Check
+            // Calculate AABBs roughly based on position and scale/radius
+            float r1 = 1.0f;
+            if (obj1->type == GeometryType::Sphere) r1 = obj1->data.sphere.radius;
+            else if (obj1->type == GeometryType::Box) r1 = max(max(obj1->data.box.extents.x, obj1->data.box.extents.y), obj1->data.box.extents.z);
+            else r1 = 3.0f; // Approximate for mesh
+
+            float r2 = 1.0f;
+            if (obj2->type == GeometryType::Sphere) r2 = obj2->data.sphere.radius;
+            else if (obj2->type == GeometryType::Box) r2 = max(max(obj2->data.box.extents.x, obj2->data.box.extents.y), obj2->data.box.extents.z);
+            else r2 = 3.0f;
+
+            // Distance check (Squared to avoid sqrt)
+            float dx = obj1->position.x - obj2->position.x;
+            float dy = obj1->position.y - obj2->position.y;
+            float dz = obj1->position.z - obj2->position.z;
+            float distSq = dx*dx + dy*dy + dz*dz;
+            float radSum = r1 + r2;
+
+            // If distance is greater than sum of radii, they cannot collide
+            if (distSq > radSum * radSum)
+            {
+                continue; // Skip expensive kernel call
+            }
+
             // Create transforms (include scale to match rendering)
             FCL_TRANSFORM transform1 = FclDriver::CreateTransform(obj1->position, obj1->GetRotationMatrix(), obj1->scale);
             FCL_TRANSFORM transform2 = FclDriver::CreateTransform(obj2->position, obj2->GetRotationMatrix(), obj2->scale);
@@ -1149,6 +1213,14 @@ void Scene::DetectCollisions()
                     obj2->isColliding = true;
                     m_collisionStats.LastFrameHits++;
                     m_collisionStats.TotalHits++;
+
+                    // Store contact point
+                    ContactPoint cp;
+                    // Use PointOnObject1 as the contact position for visualization
+                    cp.position = FclDriver::FromFclVector(contactInfo.PointOnObject1);
+                    cp.normal = FclDriver::FromFclVector(contactInfo.Normal);
+                    cp.depth = contactInfo.PenetrationDepth;
+                    m_contacts.push_back(cp);
                 }
             }
         }
@@ -1189,14 +1261,14 @@ void Scene::SetAsteroidVelocity(size_t index, const XMFLOAT3& velocity)
 }
 
 // Helper function to add a box to the mesh
-static void AddBoxToMesh(std::vector<XMFLOAT3>& vertices,
+static void AddBoxToMesh(std::vector<Vertex>& vertices,
                          std::vector<uint32_t>& indices,
                          const XMFLOAT3& center,
-                         const XMFLOAT3& extents)
+                         const XMFLOAT3& extents,
+                         const XMFLOAT4& color)
 {
     const uint32_t baseIdx = static_cast<uint32_t>(vertices.size());
 
-    // 8 vertices of the box
     XMFLOAT3 boxVerts[8] = {
         {center.x - extents.x, center.y - extents.y, center.z - extents.z},
         {center.x + extents.x, center.y - extents.y, center.z - extents.z},
@@ -1208,165 +1280,482 @@ static void AddBoxToMesh(std::vector<XMFLOAT3>& vertices,
         {center.x - extents.x, center.y + extents.y, center.z + extents.z}
     };
 
-    for (int i = 0; i < 8; i++)
-        vertices.push_back(boxVerts[i]);
-
-    // 6 faces (2 triangles each)
-    uint32_t boxIndices[] = {
-        // Bottom
-        baseIdx+0, baseIdx+1, baseIdx+2,  baseIdx+0, baseIdx+2, baseIdx+3,
-        // Top
-        baseIdx+4, baseIdx+6, baseIdx+5,  baseIdx+4, baseIdx+7, baseIdx+6,
-        // Front
-        baseIdx+0, baseIdx+4, baseIdx+5,  baseIdx+0, baseIdx+5, baseIdx+1,
-        // Back
-        baseIdx+2, baseIdx+6, baseIdx+7,  baseIdx+2, baseIdx+7, baseIdx+3,
-        // Left
-        baseIdx+0, baseIdx+3, baseIdx+7,  baseIdx+0, baseIdx+7, baseIdx+4,
-        // Right
-        baseIdx+1, baseIdx+5, baseIdx+6,  baseIdx+1, baseIdx+6, baseIdx+2
+    XMFLOAT3 faceNormals[6] = {
+        {0, -1, 0}, {0, 1, 0}, {0, 0, -1}, {0, 0, 1}, {-1, 0, 0}, {1, 0, 0}
+    };
+    
+    int faceIndices[6][4] = {
+        {0, 1, 2, 3}, {4, 5, 6, 7}, {0, 1, 5, 4}, {2, 3, 7, 6}, {0, 3, 7, 4}, {1, 2, 6, 5}
     };
 
-    indices.insert(indices.end(), boxIndices, boxIndices + 36);
+    for (int f = 0; f < 6; f++)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            Vertex v;
+            v.Position = boxVerts[faceIndices[f][i]];
+            v.Normal = faceNormals[f];
+            v.Color = color;
+            vertices.push_back(v);
+        }
+        uint32_t base = baseIdx + f * 4;
+        indices.push_back(base + 0); indices.push_back(base + 1); indices.push_back(base + 2);
+        indices.push_back(base + 0); indices.push_back(base + 2); indices.push_back(base + 3);
+    }
 }
 
-// Helper function to create vehicle mesh vertices with wheels
+// Helper to add a cylinder (used for wheels, wheel wells)
+static void AddCylinderToMesh(std::vector<Vertex>& vertices,
+                              std::vector<uint32_t>& indices,
+                              const XMFLOAT3& center,
+                              float radius,
+                              float width,
+                              bool isWheel, // if true, rotate to lie on X axis
+                              const XMFLOAT4& color)
+{
+    const int segments = 24;
+    const float halfWidth = width / 2.0f;
+    const uint32_t centerLeftIdx = static_cast<uint32_t>(vertices.size());
+    const uint32_t centerRightIdx = centerLeftIdx + 1;
+    
+    // Center points for caps
+    Vertex cL, cR;
+    cL.Color = color; cR.Color = color;
+    
+    if (isWheel) {
+        cL.Position = {center.x - halfWidth, center.y, center.z}; cL.Normal = {-1, 0, 0};
+        cR.Position = {center.x + halfWidth, center.y, center.z}; cR.Normal = {1, 0, 0};
+    } else {
+        cL.Position = {center.x, center.y, center.z - halfWidth}; cL.Normal = {0, 0, -1};
+        cR.Position = {center.x, center.y, center.z + halfWidth}; cR.Normal = {0, 0, 1};
+    }
+    
+    vertices.push_back(cL);
+    vertices.push_back(cR);
+    
+    const uint32_t ringStartIdx = static_cast<uint32_t>(vertices.size());
+    
+    for (int i = 0; i <= segments; i++) // <= to duplicate last vertex for UV/Normal seam if needed, keeping simple here
+    {
+        float theta = 2.0f * XM_PI * (float)i / (float)segments;
+        float c = cos(theta);
+        float s = sin(theta);
+        
+        XMFLOAT3 p1, p2, n;
+        
+        if (isWheel) {
+            // Circle in YZ plane
+            p1 = {center.x - halfWidth, center.y + radius * c, center.z + radius * s};
+            p2 = {center.x + halfWidth, center.y + radius * c, center.z + radius * s};
+            n = {0, c, s};
+        } else {
+            // Circle in XY plane (not typical for wheels, but generic cylinder)
+            p1 = {center.x + radius * c, center.y + radius * s, center.z - halfWidth};
+            p2 = {center.x + radius * c, center.y + radius * s, center.z + halfWidth};
+            n = {c, s, 0};
+        }
+        
+        Vertex v1; v1.Position = p1; v1.Normal = isWheel ? XMFLOAT3(-1,0,0) : XMFLOAT3(0,0,-1); v1.Color = color;
+        Vertex v2; v2.Position = p1; v2.Normal = n; v2.Color = color; // Rim left
+        Vertex v3; v3.Position = p2; v3.Normal = n; v3.Color = color; // Rim right
+        Vertex v4; v4.Position = p2; v4.Normal = isWheel ? XMFLOAT3(1,0,0) : XMFLOAT3(0,0,1); v4.Color = color;
+        
+        vertices.push_back(v1); vertices.push_back(v2); vertices.push_back(v3); vertices.push_back(v4);
+    }
+    
+    // Indices
+    for (int i = 0; i < segments; i++)
+    {
+        uint32_t b = ringStartIdx + i * 4;
+        
+        // Left Cap (Triangle Fan-ish)
+        indices.push_back(centerLeftIdx);
+        indices.push_back(b + 4); // Next v1
+        indices.push_back(b + 0); // Curr v1
+        
+        // Rim (Quad)
+        indices.push_back(b + 1); // Curr v2
+        indices.push_back(b + 5); // Next v2
+        indices.push_back(b + 2); // Curr v3
+        
+        indices.push_back(b + 5); // Next v2
+        indices.push_back(b + 6); // Next v3
+        indices.push_back(b + 2); // Curr v3
+        
+        // Right Cap
+        indices.push_back(centerRightIdx);
+        indices.push_back(b + 3); // Curr v4
+        indices.push_back(b + 7); // Next v4
+    }
+}
+
+// Helper for a detailed wheel with spokes
+static void AddDetailedWheel(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices,
+                             const XMFLOAT3& center, float radius, float width)
+{
+    // Colors
+    XMFLOAT4 rubberColor(0.2f, 0.2f, 0.2f, 1.0f); 
+    XMFLOAT4 rimColor(0.65f, 0.65f, 0.65f, 1.0f); // Silver
+    XMFLOAT4 spokeColor(0.6f, 0.6f, 0.6f, 1.0f); // Slightly darker silver
+
+    // 1. Tire (Main Cylinder)
+    AddCylinderToMesh(vertices, indices, center, radius, width, true, rubberColor);
+    
+    // 2. Rim (Outer Ring) - Slightly smaller radius, wider to stick out
+    float rimRadius = radius * 0.65f;
+    float rimWidth = width + 0.02f;
+    AddCylinderToMesh(vertices, indices, center, rimRadius, rimWidth, true, rimColor);
+
+    // 3. Hub (Center Cap)
+    float hubRadius = radius * 0.15f;
+    float hubWidth = width + 0.04f;
+    AddCylinderToMesh(vertices, indices, center, hubRadius, hubWidth, true, rimColor);
+
+    // 4. Spokes (Crossed Boxes)
+    float spokeThick = radius * 0.08f;
+    float spokeLen = rimRadius * 1.8f; // Go through center
+    float spokeDepth = 0.03f; // Stick out from rim center
+    
+    // Determine X offset for spokes (put them on the outer face)
+    float faceX = center.x + (center.x > 0 ? width/2 : -width/2) + (center.x > 0 ? 0.01f : -0.01f);
+    
+    // Vertical Spoke
+    AddBoxToMesh(vertices, indices, XMFLOAT3(faceX, center.y, center.z), 
+        XMFLOAT3(spokeDepth, rimRadius, spokeThick), spokeColor);
+        
+    // Horizontal Spoke (actually Z axis in vehicle space)
+    AddBoxToMesh(vertices, indices, XMFLOAT3(faceX, center.y, center.z), 
+        XMFLOAT3(spokeDepth, spokeThick, rimRadius), spokeColor);
+}
+
+// Helper for a detailed wheel with spokes wrapper
+static void AddDetailedWheelWithSpokes(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices,
+                             const XMFLOAT3& center, float radius, float width)
+{
+    AddDetailedWheel(vertices, indices, center, radius, width);
+}
+
+// Helper to add a tapered box (Trapezoid Prism) - Used for cabin
+static void AddTrapezoid(std::vector<Vertex>& vertices, std::vector<uint32_t>& indices,
+                         const XMFLOAT3& center, const XMFLOAT3& bottomSize, 
+                         float topScaleX, float topScaleZ,
+                         const XMFLOAT4& color)
+{
+    float w = bottomSize.x; float h = bottomSize.y; float l = bottomSize.z;
+    float tw = w * topScaleX; float tl = l * topScaleZ;
+    
+    XMFLOAT3 vPos[8] = {
+        {center.x - w, center.y - h, center.z - l}, {center.x + w, center.y - h, center.z - l},
+        {center.x + w, center.y - h, center.z + l}, {center.x - w, center.y - h, center.z + l},
+        {center.x - tw, center.y + h, center.z - tl}, {center.x + tw, center.y + h, center.z - tl},
+        {center.x + tw, center.y + h, center.z + tl}, {center.x - tw, center.y + h, center.z + tl}
+    };
+    
+    // Simple auto-normals for simplicity (not perfect for smoothing but good for low poly)
+    auto AddQuad = [&](int a, int b, int c, int d) {
+        XMFLOAT3 p0 = vPos[a]; XMFLOAT3 p1 = vPos[b]; XMFLOAT3 p2 = vPos[c];
+        XMVECTOR v1 = XMLoadFloat3(&p1) - XMLoadFloat3(&p0);
+        XMVECTOR v2 = XMLoadFloat3(&p2) - XMLoadFloat3(&p0);
+        XMFLOAT3 n; XMStoreFloat3(&n, XMVector3Normalize(XMVector3Cross(v2, v1))); // CCW
+        
+        int idx = (int)vertices.size();
+        Vertex v; v.Normal = n; v.Color = color;
+        v.Position = vPos[a]; vertices.push_back(v);
+        v.Position = vPos[b]; vertices.push_back(v);
+        v.Position = vPos[c]; vertices.push_back(v);
+        v.Position = vPos[d]; vertices.push_back(v);
+        
+        indices.push_back(idx); indices.push_back(idx+1); indices.push_back(idx+2);
+        indices.push_back(idx); indices.push_back(idx+2); indices.push_back(idx+3);
+    };
+
+    AddQuad(3, 2, 1, 0); // Bottom (Upside down?) - Normal points down
+    AddQuad(4, 5, 6, 7); // Top
+    AddQuad(0, 1, 5, 4); // Back
+    AddQuad(1, 2, 6, 5); // Right
+    AddQuad(2, 3, 7, 6); // Front
+    AddQuad(3, 0, 4, 7); // Left
+}
+
 static void CreateVehicleMesh(VehicleType type,
-                             std::vector<XMFLOAT3>& vertices,
-                             std::vector<uint32_t>& indices)
+                             std::vector<Vertex>& vertices,
+                             std::vector<uint32_t>& indices,
+                             const XMFLOAT4& paintColor)
 {
     vertices.clear();
     indices.clear();
 
-    // We'll create detailed box-based vehicles with multiple components including wheels
-    // All measurements are relative to a standard sedan size
+    // Palette
+    XMFLOAT4 undercarriageColor(0.2f, 0.2f, 0.22f, 1.0f); // Dark Grey
+    XMFLOAT4 bumperColor(0.15f, 0.15f, 0.15f, 1.0f); // Black Plastic
+    XMFLOAT4 glassColor(0.2f, 0.5f, 0.8f, 0.9f); // Blue Glass
+    XMFLOAT4 grillColor(0.1f, 0.1f, 0.1f, 1.0f); // Black Grill
+    XMFLOAT4 lightWhite(1.0f, 0.98f, 0.9f, 1.0f); // Headlight
+    XMFLOAT4 lightRed(0.8f, 0.1f, 0.1f, 1.0f); // Taillight
+    XMFLOAT4 plateYellow(1.0f, 0.8f, 0.2f, 1.0f); // License Plate
+    XMFLOAT4 handleColor(0.1f, 0.1f, 0.1f, 1.0f); // Black Handles
+    XMFLOAT4 exhaustColor(0.5f, 0.5f, 0.5f, 1.0f); // Chrome/Steel
 
-    switch (type)
-    {
-    case VehicleType::Sedan:
-    {
-        // Sedan: compact car with main body + cabin + wheels
-        float length = 2.5f, width = 1.2f, height = 0.8f;
-        float cabinHeight = 0.6f, cabinLength = 1.2f;
-        float wheelRadius = 0.25f, wheelWidth = 0.2f;
+    // Base dimensions (Unit scale approx meters)
+    float length = 4.6f; 
+    float width = 1.9f;
+    float chassisHeight = 0.4f; // Height of the dark bottom slab
+    float bodyHeight = 0.55f;   // Height of the painted lower body
+    float cabinHeight = 0.6f;   // Height of the greenhouse
+    float wheelRadius = 0.36f;
+    float wheelWidth = 0.25f;
 
-        // Main body (lower part)
-        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
+    // Style Modifiers
+    float hoodRatio = 0.35f; // % of length that is hood
+    float trunkRatio = 0.20f; // % of length that is trunk
+    float cabinSlope = 0.85f; // 1.0 = boxy, <1.0 = tapered
+    bool hasSeparateBed = false; // For truck
 
-        // Cabin (upper part) - centered and shorter
-        float cabinOffset = (length - cabinLength) / 4.0f;
-        AddBoxToMesh(vertices, indices,
-            XMFLOAT3(cabinOffset, height + cabinHeight/2, 0),
-            XMFLOAT3(cabinLength/2, cabinHeight/2, width/2.5f));
-
-        // 4 Wheels (front-left, front-right, back-left, back-right)
-        float wheelOffsetX = length / 3.0f;
-        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
-        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        break;
+    if (type == VehicleType::SUV) {
+        length = 4.9f; width = 2.1f; 
+        chassisHeight = 0.5f; bodyHeight = 0.65f; cabinHeight = 0.7f;
+        hoodRatio = 0.3f; trunkRatio = 0.05f; // SUV has minimal trunk deck
+        cabinSlope = 0.95f; // Boxy
+        wheelRadius = 0.43f;
+    } else if (type == VehicleType::Truck) {
+        length = 5.5f; width = 2.2f;
+        chassisHeight = 0.6f; bodyHeight = 0.6f; cabinHeight = 0.75f;
+        hoodRatio = 0.3f; trunkRatio = 0.35f; // Long bed
+        hasSeparateBed = true;
+        wheelRadius = 0.46f;
+    } else if (type == VehicleType::SportsCar) {
+        length = 4.5f; width = 2.0f;
+        chassisHeight = 0.3f; bodyHeight = 0.45f; cabinHeight = 0.45f;
+        hoodRatio = 0.42f; trunkRatio = 0.15f;
+        cabinSlope = 0.55f; // Very streamlined
+        wheelRadius = 0.39f;
+    } else if (type == VehicleType::Bus) {
+        length = 9.5f; width = 2.6f;
+        chassisHeight = 0.5f; bodyHeight = 1.0f; cabinHeight = 1.5f;
+        hoodRatio = 0.0f; trunkRatio = 0.0f; // Flat front/back (no distinct hood/trunk)
+        cabinSlope = 1.0f; // Boxy
+        wheelRadius = 0.55f;
     }
 
-    case VehicleType::SUV:
-    {
-        // SUV: larger and taller than sedan + wheels
-        float length = 3.0f, width = 1.5f, height = 1.2f;
-        float cabinHeight = 0.8f, cabinLength = 1.8f;
-        float wheelRadius = 0.3f, wheelWidth = 0.25f;
+    // Scale factor to match scene size
+    float S = 0.6f; 
+    
+    // --- 1. Chassis (Undercarriage) ---
+    // Solid slab at the bottom, raised slightly for ground clearance
+    float groundClearance = wheelRadius * 0.6f;
+    XMFLOAT3 chassisCenter(0, (groundClearance + chassisHeight/2)*S, 0);
+    XMFLOAT3 chassisSize((width/2)*S, (chassisHeight/2)*S, (length/2)*S);
+    AddBoxToMesh(vertices, indices, chassisCenter, chassisSize, undercarriageColor);
 
-        // Main body
-        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
+    // --- 2. Lower Body (The Painted Part) ---
+    float lbY = (groundClearance + chassisHeight + bodyHeight/2) * S;
+    float lbW = (width/2) * S * 1.02f; // Slightly wider than chassis
+    
+    float hoodLen = length * hoodRatio; 
 
-        // Cabin
-        AddBoxToMesh(vertices, indices,
-            XMFLOAT3(0, height + cabinHeight/2, 0),
-            XMFLOAT3(cabinLength/2, cabinHeight/2, width/2.3f));
+    if (type == VehicleType::Bus) {
+        // Bus is one big block
+        AddBoxToMesh(vertices, indices, 
+            XMFLOAT3(0, lbY + (cabinHeight/2)*S, 0), 
+            XMFLOAT3(lbW, ((bodyHeight+cabinHeight)/2)*S, (length/2)*S), 
+            paintColor);
 
-        // 4 Wheels
-        float wheelOffsetX = length / 3.0f;
-        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
-        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        break;
+        // Bus Greenhouse (Windows are part of the main body for simplicity)
+        // Main windshield
+        float busWindshieldH = cabinHeight * S * 0.5f;
+        float busWindshieldW = (width/2) * S * 0.9f;
+        float busWindshieldZ = (length/2) * S + 0.01f*S; // Slightly in front
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, lbY + (bodyHeight/2)*S + busWindshieldH/2, busWindshieldZ),
+                     XMFLOAT3(busWindshieldW, busWindshieldH/2, 0.01f*S), glassColor);
+        // Side windows (simplified as large boxes)
+        float sideWindowL = (length/2 - 0.1f) * S;
+        float sideWindowH = cabinHeight * S * 0.7f;
+        float sideWindowY = lbY + (bodyHeight/2)*S + sideWindowH/2;
+        float sideWindowX = (width/2) * S * 0.9f; // Inside body
+        AddBoxToMesh(vertices, indices, XMFLOAT3(sideWindowX, sideWindowY, 0), 
+                     XMFLOAT3(0.01f*S, sideWindowH/2, sideWindowL), glassColor);
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-sideWindowX, sideWindowY, 0), 
+                     XMFLOAT3(0.01f*S, sideWindowH/2, sideWindowL), glassColor);
+
+    } else {
+        // Three-Box Design
+        float trunkLen = length * trunkRatio;
+        float cabinLen = length - hoodLen - trunkLen;
+        
+        float zHood = (length/2 - hoodLen/2) * S;
+        float zCabin = (length/2 - hoodLen - cabinLen/2) * S;
+        float zTrunk = (-length/2 + trunkLen/2) * S;
+
+        // Hood Segment
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, lbY, zHood), XMFLOAT3(lbW, (bodyHeight/2)*S, (hoodLen/2)*S), paintColor);
+        
+        // Main Cabin Base
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, lbY, zCabin), XMFLOAT3(lbW, (bodyHeight/2)*S, (cabinLen/2)*S), paintColor);
+        
+        // Trunk/Bed Segment
+        if (hasSeparateBed && type == VehicleType::Truck) {
+             // Bed Floor
+             AddBoxToMesh(vertices, indices, XMFLOAT3(0, lbY - (bodyHeight*0.2f)*S, zTrunk), 
+                XMFLOAT3(lbW, (bodyHeight*0.3f)*S, (trunkLen/2)*S), paintColor);
+             // Bed Sides (Left/Right)
+             float wallThick = 0.1f * S;
+             AddBoxToMesh(vertices, indices, XMFLOAT3(-lbW + wallThick, lbY + (0.15f*S), zTrunk), 
+                XMFLOAT3(wallThick, (bodyHeight/2)*S, (trunkLen/2)*S), paintColor);
+             AddBoxToMesh(vertices, indices, XMFLOAT3(lbW - wallThick, lbY + (0.15f*S), zTrunk), 
+                XMFLOAT3(wallThick, (bodyHeight/2)*S, (trunkLen/2)*S), paintColor);
+             // Tailgate
+             AddBoxToMesh(vertices, indices, XMFLOAT3(0, lbY + (0.15f*S), zTrunk - (trunkLen/2)*S + wallThick), 
+                XMFLOAT3(lbW, (bodyHeight/2)*S, wallThick), paintColor);
+        } else {
+            AddBoxToMesh(vertices, indices, XMFLOAT3(0, lbY, zTrunk), XMFLOAT3(lbW, (bodyHeight/2)*S, (trunkLen/2)*S), paintColor);
+        }
+
+        // --- 3. Greenhouse (Upper Body) ---
+        float ghY = lbY + (bodyHeight/2 + cabinHeight/2) * S;
+        float ghBaseW = lbW * 0.9f;
+        float ghBaseL = (cabinLen/2) * S;
+        
+        // Pillars/Roof (Trapezoid)
+        AddTrapezoid(vertices, indices, 
+            XMFLOAT3(0, ghY, zCabin), 
+            XMFLOAT3(ghBaseW, (cabinHeight/2)*S, ghBaseL), 
+            0.85f, cabinSlope, paintColor);
+
+        // Glass (Inset Trapezoid)
+        AddTrapezoid(vertices, indices, 
+            XMFLOAT3(0, ghY, zCabin), 
+            XMFLOAT3(ghBaseW * 0.98f, (cabinHeight/2)*S * 0.96f, ghBaseL * 0.98f), 
+            0.85f, cabinSlope, glassColor);
+            
+        // Roof Rails (SUV)
+        if (type == VehicleType::SUV) {
+            float railX = ghBaseW * 0.7f;
+            float railY = ghY + (cabinHeight/2)*S + 0.05f*S;
+            AddBoxToMesh(vertices, indices, XMFLOAT3(railX, railY, zCabin), 
+                XMFLOAT3(0.05f*S, 0.04f*S, ghBaseL*0.8f), bumperColor);
+            AddBoxToMesh(vertices, indices, XMFLOAT3(-railX, railY, zCabin), 
+                XMFLOAT3(0.05f*S, 0.04f*S, ghBaseL*0.8f), bumperColor);
+        }
+        
+        // Spoiler (SportsCar)
+        if (type == VehicleType::SportsCar) {
+            float spoilZ = (-length/2 + trunkLen*0.2f) * S;
+            float spoilY = lbY + (bodyHeight/2)*S + 0.15f*S;
+            // Wing
+            AddBoxToMesh(vertices, indices, XMFLOAT3(0, spoilY, spoilZ), 
+                XMFLOAT3(lbW, 0.02f*S, 0.2f*S), paintColor);
+            // Struts
+            AddBoxToMesh(vertices, indices, XMFLOAT3(lbW*0.6f, spoilY-0.1f*S, spoilZ), 
+                XMFLOAT3(0.05f*S, 0.1f*S, 0.05f*S), paintColor);
+            AddBoxToMesh(vertices, indices, XMFLOAT3(-lbW*0.6f, spoilY-0.1f*S, spoilZ), 
+                XMFLOAT3(0.05f*S, 0.1f*S, 0.05f*S), paintColor);
+        }
     }
 
-    case VehicleType::Truck:
-    {
-        // Truck: long cargo area + small cabin + wheels
-        float length = 4.0f, width = 1.6f, height = 1.0f;
-        float cabinHeight = 1.0f, cabinLength = 1.0f;
-        float wheelRadius = 0.35f, wheelWidth = 0.3f;
+    // --- 4. Wheels & Wells ---
+    float wheelZFront = (length/2 - length*0.18f) * S;
+    float wheelZRear = (-length/2 + length*0.18f) * S;
+    float wY = wheelRadius * S;
+    float wX = (width/2) * S; 
 
-        // Cargo area (back)
-        float cargoCenter = -(length/2 - (length - cabinLength)/2);
-        AddBoxToMesh(vertices, indices,
-            XMFLOAT3(cargoCenter, height/2, 0),
-            XMFLOAT3((length - cabinLength)/2, height/2, width/2));
+    auto AddWheelSet = [&](float z) {
+        // Wheel Well (Black interior)
+        XMFLOAT3 wellPosL(-wX, wY, z);
+        XMFLOAT3 wellPosR(wX, wY, z);
+        // A slightly larger cylinder for the well
+        AddCylinderToMesh(vertices, indices, wellPosL, wheelRadius*S*1.15f, wheelWidth*S*1.5f, true, XMFLOAT4(0.1f,0.1f,0.1f,1.0f));
+        AddCylinderToMesh(vertices, indices, wellPosR, wheelRadius*S*1.15f, wheelWidth*S*1.5f, true, XMFLOAT4(0.1f,0.1f,0.1f,1.0f));
+        
+        // Wheel (Detailed)
+        float wheelOut = 0.06f * S;
+        AddDetailedWheelWithSpokes(vertices, indices, XMFLOAT3(-(wX+wheelOut), wY, z), wheelRadius*S, wheelWidth*S);
+        AddDetailedWheelWithSpokes(vertices, indices, XMFLOAT3((wX+wheelOut), wY, z), wheelRadius*S, wheelWidth*S);
+        
+        // Fender Flares
+        if (type != VehicleType::Bus) {
+            float flareH = 0.08f * S;
+            float flareW = 0.12f * S;
+            float flareL = wheelRadius * S * 2.2f;
+            float flareY = wY + wheelRadius*S*0.8f;
+            
+            AddBoxToMesh(vertices, indices, XMFLOAT3(-(wX+wheelWidth*S), flareY, z), 
+                XMFLOAT3(flareW, flareH, flareL/2), paintColor);
+            AddBoxToMesh(vertices, indices, XMFLOAT3((wX+wheelWidth*S), flareY, z), 
+                XMFLOAT3(flareW, flareH, flareL/2), paintColor);
+        }
+    };
 
-        // Cabin (front)
-        float cabinCenter = length/2 - cabinLength/2;
-        AddBoxToMesh(vertices, indices,
-            XMFLOAT3(cabinCenter, cabinHeight/2, 0),
-            XMFLOAT3(cabinLength/2, cabinHeight/2, width/2.5f));
+    AddWheelSet(wheelZFront);
+    AddWheelSet(wheelZRear);
 
-        // 4 Wheels
-        float wheelOffsetX = length / 3.5f;
-        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
-        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        break;
+    // --- 5. Details ---
+    
+    // Grill (Front)
+    float frontZ = (length/2) * S;
+    float grillY = lbY;
+    if (type != VehicleType::Bus) {
+        AddBoxToMesh(vertices, indices, XMFLOAT3(0, grillY, frontZ + 0.02f*S), 
+            XMFLOAT3(lbW*0.7f, (bodyHeight/3)*S, 0.05f*S), grillColor);
     }
+    
+    // Headlights
+    float lightY = grillY + (bodyHeight/4)*S;
+    float lightX = lbW * 0.7f;
+    AddBoxToMesh(vertices, indices, XMFLOAT3(lightX, lightY, frontZ + 0.01f*S), 
+        XMFLOAT3(0.15f*S, 0.08f*S, 0.06f*S), lightWhite);
+    AddBoxToMesh(vertices, indices, XMFLOAT3(-lightX, lightY, frontZ + 0.01f*S), 
+        XMFLOAT3(0.15f*S, 0.08f*S, 0.06f*S), lightWhite);
 
-    case VehicleType::Bus:
-    {
-        // Bus: very long and tall + wheels
-        float length = 5.0f, width = 1.8f, height = 2.0f;
-        float wheelRadius = 0.35f, wheelWidth = 0.3f;
+    // Taillights
+    float backZ = (-length/2) * S;
+    AddBoxToMesh(vertices, indices, XMFLOAT3(lightX, lightY, backZ - 0.01f*S), 
+        XMFLOAT3(0.15f*S, 0.08f*S, 0.06f*S), lightRed);
+    AddBoxToMesh(vertices, indices, XMFLOAT3(-lightX, lightY, backZ - 0.01f*S), 
+        XMFLOAT3(0.15f*S, 0.08f*S, 0.06f*S), lightRed);
+    
+    // Bumpers
+    float bumperY = chassisCenter.y;
+    AddBoxToMesh(vertices, indices, XMFLOAT3(0, bumperY, frontZ + 0.08f*S), 
+        XMFLOAT3(lbW, 0.12f*S, 0.1f*S), bumperColor);
+    AddBoxToMesh(vertices, indices, XMFLOAT3(0, bumperY, backZ - 0.08f*S), 
+        XMFLOAT3(lbW, 0.12f*S, 0.1f*S), bumperColor);
 
-        // Main body
-        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
-
-        // 6 Wheels (3 per side for longer vehicle)
-        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
-        AddBoxToMesh(vertices, indices, XMFLOAT3(length/3, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(length/3, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(0, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(0, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(-length/3, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(-length/3, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        break;
+    // License Plates
+    float plateY = bumperY;
+    // Front
+    AddBoxToMesh(vertices, indices, XMFLOAT3(0, plateY, frontZ + 0.19f*S), 
+        XMFLOAT3(0.25f*S, 0.08f*S, 0.01f*S), plateYellow);
+    // Rear
+    AddBoxToMesh(vertices, indices, XMFLOAT3(0, plateY, backZ - 0.19f*S), 
+        XMFLOAT3(0.25f*S, 0.08f*S, 0.01f*S), plateYellow);
+        
+    // Exhaust Pipes (Rear, Bottom)
+    if (type != VehicleType::Bus) {
+        float exX = lbW * 0.6f;
+        float exY = bumperY - 0.1f*S;
+        float exZ = backZ - 0.05f*S;
+        AddCylinderToMesh(vertices, indices, XMFLOAT3(exX, exY, exZ), 0.04f*S, 0.2f*S, false, exhaustColor);
+        AddCylinderToMesh(vertices, indices, XMFLOAT3(-exX, exY, exZ), 0.04f*S, 0.2f*S, false, exhaustColor);
     }
-
-    case VehicleType::SportsCar:
-    {
-        // Sports car: low and sleek + wheels
-        float length = 2.8f, width = 1.4f, height = 0.6f;
-        float cabinHeight = 0.4f, cabinLength = 1.0f;
-        float wheelRadius = 0.22f, wheelWidth = 0.18f;
-
-        // Main body (very low)
-        AddBoxToMesh(vertices, indices, XMFLOAT3(0, height/2, 0), XMFLOAT3(length/2, height/2, width/2));
-
-        // Cabin (sleek and aerodynamic)
-        AddBoxToMesh(vertices, indices,
-            XMFLOAT3(0, height + cabinHeight/2, 0),
-            XMFLOAT3(cabinLength/2, cabinHeight/2, width/3.0f));
-
-        // 4 Wheels (smaller for sports car)
-        float wheelOffsetX = length / 3.0f;
-        float wheelOffsetZ = width / 2.0f + wheelWidth / 2.0f;
-        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        AddBoxToMesh(vertices, indices, XMFLOAT3(-wheelOffsetX, wheelRadius, -wheelOffsetZ), XMFLOAT3(wheelWidth/2, wheelRadius, wheelRadius));
-        break;
+    
+    // Door Handles
+    if (type != VehicleType::Bus) {
+        float handleZ = 0.0f; // Center
+        float handleY = lbY + (bodyHeight/2)*S - 0.05f*S;
+        float handleX = lbW + 0.02f*S;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(handleX, handleY, handleZ), 
+            XMFLOAT3(0.02f*S, 0.03f*S, 0.08f*S), handleColor);
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-handleX, handleY, handleZ), 
+            XMFLOAT3(0.02f*S, 0.03f*S, 0.08f*S), handleColor);
     }
+    
+    // Side Mirrors
+    if (type != VehicleType::Bus) {
+        float mirrorZ = (length/2 - hoodLen - 0.2f) * S;
+        float mirrorY = lbY + (bodyHeight/2)*S;
+        float mirrorX = lbW + 0.1f*S;
+        AddBoxToMesh(vertices, indices, XMFLOAT3(mirrorX, mirrorY, mirrorZ), XMFLOAT3(0.1f*S, 0.08f*S, 0.05f*S), paintColor);
+        AddBoxToMesh(vertices, indices, XMFLOAT3(-mirrorX, mirrorY, mirrorZ), XMFLOAT3(0.1f*S, 0.08f*S, 0.05f*S), paintColor);
     }
 }
 
@@ -1375,9 +1764,22 @@ void Scene::AddVehicle(const std::string& name, VehicleType type,
                        float speed)
 {
     // Create vehicle mesh
-    std::vector<XMFLOAT3> vertices;
+    // Create vehicle mesh
+    std::vector<Vertex> vertices;
     std::vector<uint32_t> indices;
-    CreateVehicleMesh(type, vertices, indices);
+    
+    // Pick a random color for the vehicle body
+    XMFLOAT4 bodyColor;
+    switch (type) {
+        case VehicleType::Sedan: bodyColor = XMFLOAT4(0.8f, 0.2f, 0.2f, 1.0f); break; // Red
+        case VehicleType::SUV: bodyColor = XMFLOAT4(0.2f, 0.8f, 0.2f, 1.0f); break; // Green
+        case VehicleType::Truck: bodyColor = XMFLOAT4(0.2f, 0.4f, 0.8f, 1.0f); break; // Blue
+        case VehicleType::Bus: bodyColor = XMFLOAT4(0.9f, 0.6f, 0.1f, 1.0f); break; // Orange
+        case VehicleType::SportsCar: bodyColor = XMFLOAT4(0.9f, 0.9f, 0.1f, 1.0f); break; // Yellow
+        default: bodyColor = XMFLOAT4(0.5f, 0.5f, 0.5f, 1.0f); break;
+    }
+    
+    CreateVehicleMesh(type, vertices, indices, bodyColor);
 
     // Determine starting position based on direction
     XMFLOAT3 startPos;
@@ -1436,19 +1838,19 @@ void Scene::AddVehicle(const std::string& name, VehicleType type,
     switch (type)
     {
     case VehicleType::Sedan:
-        obj->color = XMFLOAT4(0.8f, 0.2f, 0.2f, 1.0f);  // Red
+        obj->color = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);  // White (use vertex colors)
         break;
     case VehicleType::SUV:
-        obj->color = XMFLOAT4(0.2f, 0.4f, 0.8f, 1.0f);  // Blue
+        obj->color = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);  // White
         break;
     case VehicleType::Truck:
-        obj->color = XMFLOAT4(0.6f, 0.6f, 0.2f, 1.0f);  // Yellow
+        obj->color = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);  // White
         break;
     case VehicleType::Bus:
-        obj->color = XMFLOAT4(0.9f, 0.5f, 0.1f, 1.0f);  // Orange
+        obj->color = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);  // White
         break;
     case VehicleType::SportsCar:
-        obj->color = XMFLOAT4(0.1f, 0.8f, 0.3f, 1.0f);  // Green
+        obj->color = XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);  // White
         break;
     }
 
@@ -1462,7 +1864,14 @@ void Scene::AddVehicle(const std::string& name, VehicleType type,
         // Create FCL collision geometry using full mesh
         if (m_driver && m_driver->IsConnected())
         {
-            obj->fclHandle = m_driver->CreateMesh(vertices, indices);
+            // Extract positions for FCL driver (which expects XMFLOAT3)
+            std::vector<XMFLOAT3> positions;
+            positions.reserve(vertices.size());
+            for (const auto& v : vertices)
+            {
+                positions.push_back(v.Position);
+            }
+            obj->fclHandle = m_driver->CreateMesh(positions, indices);
         }
     }
 

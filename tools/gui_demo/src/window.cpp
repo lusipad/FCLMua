@@ -1,5 +1,50 @@
 #include "window.h"
 #include <windowsx.h>
+#include <uxtheme.h>
+#include <vsstyle.h>
+#include <vssym32.h>
+#include <vector>
+#include <string>
+#include <sstream>
+
+#pragma comment(lib, "uxtheme.lib")
+
+// Control IDs
+#define ID_EDIT_SPHERE_RADIUS 1001
+#define ID_EDIT_BOX_X 1002
+#define ID_EDIT_BOX_Y 1003
+#define ID_EDIT_BOX_Z 1004
+#define ID_EDIT_ASTEROID_VX 1005
+#define ID_EDIT_ASTEROID_VY 1006
+#define ID_EDIT_ASTEROID_VZ 1007
+#define ID_EDIT_ASTEROID_RADIUS 1008
+#define ID_COMBO_VEHICLE_TYPE 1009
+#define ID_COMBO_VEHICLE_DIR 1010
+#define ID_COMBO_VEHICLE_INTENT 1011
+#define ID_EDIT_VEHICLE_SPEED 1012
+#define ID_EDIT_OBJ_SCALE 1013
+
+#define ID_BTN_CREATE_SPHERE 2001
+#define ID_BTN_CREATE_BOX 2002
+#define ID_BTN_DELETE 2003
+
+#define ID_BTN_SCENE_DEFAULT 3001
+#define ID_BTN_SCENE_SOLAR 3002
+#define ID_BTN_SCENE_CROSSROAD 3003
+
+#define ID_BTN_SPEED_PAUSE 4001
+#define ID_BTN_SPEED_05 4002
+#define ID_BTN_SPEED_1 4003
+#define ID_BTN_SPEED_2 4004
+#define ID_BTN_SPEED_5 4005
+
+#define ID_BTN_PERF_HIGH 5001
+#define ID_BTN_PERF_MEDIUM 5002
+#define ID_BTN_PERF_LOW 5003
+
+#define ID_BTN_CREATE_ASTEROID 6001
+#define ID_BTN_CREATE_VEHICLE 7001
+#define ID_BTN_LOAD_OBJ 7002
 
 Window::Window(HINSTANCE hInstance, const std::wstring& title, int width, int height)
     : m_hInstance(hInstance)
@@ -7,701 +52,462 @@ Window::Window(HINSTANCE hInstance, const std::wstring& title, int width, int he
     , m_title(title)
     , m_width(width)
     , m_height(height)
-    , m_mouseX(0)
-    , m_mouseY(0)
-    , m_mouseDX(0)
-    , m_mouseDY(0)
-    , m_lastMouseX(0)
-    , m_lastMouseY(0)
-    , m_mouseWheel(0)
-    , m_btnCreateSphere(nullptr)
-    , m_btnCreateBox(nullptr)
-    , m_btnDelete(nullptr)
-    , m_editSphereRadius(nullptr)
-    , m_editBoxX(nullptr)
-    , m_editBoxY(nullptr)
-    , m_editBoxZ(nullptr)
-    , m_labelSphereRadius(nullptr)
-    , m_labelBox(nullptr)
-    , m_labelSceneMode(nullptr)
-    , m_btnSceneDefault(nullptr)
-    , m_btnSceneSolarSystem(nullptr)
-    , m_labelSpeed(nullptr)
-    , m_btnSpeedPause(nullptr)
-    , m_btnSpeed05(nullptr)
-    , m_btnSpeed1(nullptr)
-    , m_btnSpeed2(nullptr)
-    , m_btnSpeed5(nullptr)
-    , m_labelPerformance(nullptr)
-    , m_btnPerfHigh(nullptr)
-    , m_btnPerfMedium(nullptr)
-    , m_btnPerfLow(nullptr)
-    , m_labelAsteroid(nullptr)
-    , m_editAsteroidVX(nullptr)
-    , m_editAsteroidVY(nullptr)
-    , m_editAsteroidVZ(nullptr)
-    , m_editAsteroidRadius(nullptr)
-    , m_btnCreateAsteroid(nullptr)
-    , m_labelAsteroidVelocity(nullptr)
-    , m_labelAsteroidRadius(nullptr)
-    , m_statusBar(nullptr)
-    , m_labelProperties(nullptr)
-    , m_labelObjectName(nullptr)
-    , m_labelPosX(nullptr), m_labelPosY(nullptr), m_labelPosZ(nullptr)
-    , m_editPosX(nullptr), m_editPosY(nullptr), m_editPosZ(nullptr)
-    , m_labelRotY(nullptr)
-    , m_editRotY(nullptr)
-    , m_overlayLabel(nullptr)
-    , m_statusPanel(nullptr)
-    , m_statusPanelBackground(nullptr)
+    , m_mouseX(0), m_mouseY(0), m_mouseDX(0), m_mouseDY(0)
+    , m_lastMouseX(0), m_lastMouseY(0), m_mouseWheel(0)
+    , m_hoveredButton(nullptr)
 {
     ZeroMemory(m_keys, sizeof(m_keys));
     ZeroMemory(m_mouseButtons, sizeof(m_mouseButtons));
+
+    // Initialize theme resources
+    m_hbrBackground = CreateSolidBrush(RGB(30, 30, 30));
+    m_hbrPanel = CreateSolidBrush(RGB(45, 45, 48));
+    m_hbrEdit = CreateSolidBrush(RGB(60, 60, 60));
+    m_hbrButton = CreateSolidBrush(RGB(60, 60, 60));
+    m_hbrButtonHover = CreateSolidBrush(RGB(80, 80, 80));
+    m_hbrButtonActive = CreateSolidBrush(RGB(100, 100, 100));
+    m_hbrAccent = CreateSolidBrush(RGB(0, 120, 215));
+    
+    m_textColor = RGB(220, 220, 220);
+    m_accentColor = RGB(0, 120, 215);
+
+    // Create fonts
+    m_hFont = CreateFontW(18, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+        
+    m_hFontBold = CreateFontW(18, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
+
+    m_hFontSmall = CreateFontW(14, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE, L"Segoe UI");
 }
 
 Window::~Window()
 {
-    if (m_hwnd)
-    {
-        DestroyWindow(m_hwnd);
-    }
+    DeleteObject(m_hbrBackground);
+    DeleteObject(m_hbrPanel);
+    DeleteObject(m_hbrEdit);
+    DeleteObject(m_hbrButton);
+    DeleteObject(m_hbrButtonHover);
+    DeleteObject(m_hbrButtonActive);
+    DeleteObject(m_hbrAccent);
+    DeleteObject(m_hFont);
+    DeleteObject(m_hFontBold);
+    DeleteObject(m_hFontSmall);
+
+    if (m_hwnd) DestroyWindow(m_hwnd);
 }
 
 bool Window::Initialize()
 {
-    // Register window class
     WNDCLASSEXW wc = {};
     wc.cbSize = sizeof(WNDCLASSEXW);
     wc.style = CS_HREDRAW | CS_VREDRAW;
     wc.lpfnWndProc = WindowProc;
     wc.hInstance = m_hInstance;
     wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.hbrBackground = m_hbrBackground;
     wc.lpszClassName = L"FclDemoWindowClass";
 
-    ATOM result = RegisterClassExW(&wc);
-    if (!result)
+    if (!RegisterClassExW(&wc))
     {
-        DWORD error = GetLastError();
-        // CLASS_ALREADY_EXISTS (1410) is OK - window class was already registered
-        if (error != ERROR_CLASS_ALREADY_EXISTS)
-        {
-            wchar_t errorMsg[256];
-            swprintf_s(errorMsg, L"Failed to register window class. Error code: 0x%08X", error);
-            MessageBoxW(nullptr, errorMsg, L"Window Error", MB_OK | MB_ICONERROR);
-            return false;
-        }
+        if (GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return false;
     }
 
-    // Calculate window size
+    // Register Scrollable Panel Class
+    WNDCLASSEXW wcPanel = {};
+    wcPanel.cbSize = sizeof(WNDCLASSEXW);
+    wcPanel.style = CS_HREDRAW | CS_VREDRAW;
+    wcPanel.lpfnWndProc = PanelProc; // Use the new static proc
+    wcPanel.hInstance = m_hInstance;
+    wcPanel.hCursor = LoadCursor(nullptr, IDC_ARROW);
+    wcPanel.hbrBackground = m_hbrBackground; // Match theme
+    wcPanel.lpszClassName = L"FclDemoPanelClass";
+
+    if (!RegisterClassExW(&wcPanel))
+    {
+        if (GetLastError() != ERROR_CLASS_ALREADY_EXISTS) return false;
+    }
+
     RECT rc = { 0, 0, m_width, m_height };
     AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
-    // Create window
-    m_hwnd = CreateWindowExW(
-        0,
-        L"FclDemoWindowClass",
-        m_title.c_str(),
+    m_hwnd = CreateWindowExW(0, L"FclDemoWindowClass", m_title.c_str(),
         WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
-        CW_USEDEFAULT, CW_USEDEFAULT,
-        rc.right - rc.left, rc.bottom - rc.top,
-        nullptr,
-        nullptr,
-        m_hInstance,
-        this
-    );
+        CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
+        nullptr, nullptr, m_hInstance, this);
 
-    if (!m_hwnd)
-    {
-        DWORD error = GetLastError();
-        wchar_t errorMsg[256];
-        swprintf_s(errorMsg, L"Failed to create window. Error code: 0x%08X", error);
-        MessageBoxW(nullptr, errorMsg, L"Window Error", MB_OK | MB_ICONERROR);
-        return false;
-    }
+    if (!m_hwnd) return false;
 
-    // Create UI controls
     CreateUIControls();
+    UpdateLayout();
 
     return true;
 }
 
 void Window::CreateUIControls()
 {
-    const int panelX = 10;
-    const int panelWidth = 220;
-    int y = 10;
-    const int spacing = 28;
+    // 1. Create the Panel Container (Clips children, handles scrollbar events)
+    // Remove WS_CLIPCHILDREN to fix static text rendering issues during scroll
+    m_panelContainer = CreateWindowW(L"FclDemoPanelClass", L"", WS_CHILD | WS_VISIBLE | WS_VSCROLL,
+        0, 0, 300, 600, m_hwnd, nullptr, m_hInstance, this);
+
+    // 2. Create the Panel Content (Holds the actual controls, moves up/down)
+    m_panelContent = CreateWindowW(L"FclDemoPanelClass", L"", WS_CHILD | WS_VISIBLE,
+        0, 0, 280, 2000, m_panelContainer, nullptr, m_hInstance, this);
+
+    m_scrollOffset = 0;
+    m_totalContentHeight = 0;
+
+    // Helper lambda to create controls
+    auto CreateLabel = [&](const wchar_t* text, HWND* outHwnd, bool bold = false) {
+        *outHwnd = CreateWindowW(L"STATIC", text, WS_CHILD | WS_VISIBLE | SS_LEFT,
+            0, 0, 0, 0, m_panelContent, nullptr, m_hInstance, nullptr);
+        SendMessage(*outHwnd, WM_SETFONT, (WPARAM)(bold ? m_hFontBold : m_hFont), TRUE);
+    };
+
+    auto CreateEdit = [&](const wchar_t* text, int id, HWND* outHwnd, bool readOnly = false) {
+        DWORD style = WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_CENTER;
+        if (readOnly) style |= ES_READONLY;
+        *outHwnd = CreateWindowW(L"EDIT", text, style,
+            0, 0, 0, 0, m_panelContent, (HMENU)id, m_hInstance, nullptr);
+        SendMessage(*outHwnd, WM_SETFONT, (WPARAM)m_hFont, TRUE);
+    };
+
+    auto CreateButton = [&](const wchar_t* text, int id, HWND* outHwnd) {
+        *outHwnd = CreateWindowW(L"BUTTON", text, WS_CHILD | WS_VISIBLE | BS_OWNERDRAW,
+            0, 0, 0, 0, m_panelContent, (HMENU)id, m_hInstance, nullptr);
+        SendMessage(*outHwnd, WM_SETFONT, (WPARAM)m_hFont, TRUE);
+    };
+
+    auto CreateCombo = [&](int id, HWND* outHwnd, const std::vector<std::wstring>& items) {
+        *outHwnd = CreateWindowW(L"COMBOBOX", L"", 
+            WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+            0, 0, 0, 0, m_panelContent, (HMENU)id, m_hInstance, nullptr);
+        SendMessage(*outHwnd, WM_SETFONT, (WPARAM)m_hFont, TRUE);
+        for (const auto& item : items)
+            SendMessageW(*outHwnd, CB_ADDSTRING, 0, (LPARAM)item.c_str());
+        SendMessageW(*outHwnd, CB_SETCURSEL, 0, 0);
+    };
+
+    auto CreateDivider = [&]() {
+        HWND hDiv = CreateWindowW(L"STATIC", L"", WS_CHILD | WS_VISIBLE,
+            0, 0, 0, 0, m_panelContent, nullptr, m_hInstance, nullptr);
+        m_dividers.push_back(hDiv);
+    };
+
+    // --- Basic Objects ---
+    CreateLabel(L"BASIC OBJECTS", &m_labelBasicGroup, true);
+    CreateDivider();
+    CreateLabel(L"Sphere Radius:", &m_labelSphereRadius);
+    CreateEdit(L"1.0", ID_EDIT_SPHERE_RADIUS, &m_editSphereRadius);
+    CreateButton(L"Create Sphere", ID_BTN_CREATE_SPHERE, &m_btnCreateSphere);
+    CreateButton(L"Delete Selected", ID_BTN_DELETE, &m_btnDelete);
+    
+    CreateLabel(L"Box Size (X,Y,Z):", &m_labelBox);
+    CreateEdit(L"1.0", ID_EDIT_BOX_X, &m_editBoxX);
+    CreateEdit(L"1.0", ID_EDIT_BOX_Y, &m_editBoxY);
+    CreateEdit(L"1.0", ID_EDIT_BOX_Z, &m_editBoxZ);
+    CreateButton(L"Create Box", ID_BTN_CREATE_BOX, &m_btnCreateBox);
+
+    // --- Scene Mode ---
+    CreateLabel(L"SCENE MODE", &m_labelSceneGroup, true);
+    CreateDivider();
+    CreateLabel(L"Select Scene:", &m_labelSceneMode);
+    CreateButton(L"Default", ID_BTN_SCENE_DEFAULT, &m_btnSceneDefault);
+    CreateButton(L"Solar System", ID_BTN_SCENE_SOLAR, &m_btnSceneSolarSystem);
+    CreateButton(L"Crossroad", ID_BTN_SCENE_CROSSROAD, &m_btnSceneCrossroad);
+
+    // --- Simulation Speed ---
+    CreateLabel(L"SIMULATION SPEED", &m_labelSpeedGroup, true);
+    CreateDivider();
+    CreateLabel(L"Time Scale:", &m_labelSpeed);
+    CreateButton(L"||", ID_BTN_SPEED_PAUSE, &m_btnSpeedPause);
+    CreateButton(L"0.5x", ID_BTN_SPEED_05, &m_btnSpeed05);
+    CreateButton(L"1x", ID_BTN_SPEED_1, &m_btnSpeed1);
+    CreateButton(L"2x", ID_BTN_SPEED_2, &m_btnSpeed2);
+    CreateButton(L"5x", ID_BTN_SPEED_5, &m_btnSpeed5);
+
+    // --- Performance Mode ---
+    CreateLabel(L"PERFORMANCE", &m_labelPerfGroup, true);
+    CreateDivider();
+    CreateLabel(L"Collision Detection:", &m_labelPerformance);
+    CreateButton(L"High", ID_BTN_PERF_HIGH, &m_btnPerfHigh);
+    CreateButton(L"Medium", ID_BTN_PERF_MEDIUM, &m_btnPerfMedium);
+    CreateButton(L"Low", ID_BTN_PERF_LOW, &m_btnPerfLow);
+
+    // --- Asteroid Controls ---
+    CreateLabel(L"ASTEROID (Solar)", &m_labelAsteroidGroup, true);
+    CreateDivider();
+    CreateLabel(L"Velocity (X,Y,Z):", &m_labelAsteroidVelocity);
+    CreateEdit(L"5.0", ID_EDIT_ASTEROID_VX, &m_editAsteroidVX);
+    CreateEdit(L"0.0", ID_EDIT_ASTEROID_VY, &m_editAsteroidVY);
+    CreateEdit(L"0.0", ID_EDIT_ASTEROID_VZ, &m_editAsteroidVZ);
+    CreateLabel(L"Radius:", &m_labelAsteroidRadius);
+    CreateEdit(L"0.3", ID_EDIT_ASTEROID_RADIUS, &m_editAsteroidRadius);
+    CreateButton(L"Create Asteroid", ID_BTN_CREATE_ASTEROID, &m_btnCreateAsteroid);
+
+    // --- Vehicle Controls ---
+    CreateLabel(L"VEHICLE (Crossroad)", &m_labelVehicleGroup, true);
+    CreateDivider();
+    CreateLabel(L"Type:", &m_labelVehicleType);
+    CreateCombo(ID_COMBO_VEHICLE_TYPE, &m_comboVehicleType, {L"Sedan", L"SUV", L"Truck", L"Bus", L"SportsCar"});
+    
+    CreateLabel(L"From:", &m_labelVehicleDirection);
+    CreateCombo(ID_COMBO_VEHICLE_DIR, &m_comboVehicleDirection, {L"North", L"South", L"East", L"West"});
+    
+    CreateLabel(L"Action:", &m_labelVehicleIntention);
+    CreateCombo(ID_COMBO_VEHICLE_INTENT, &m_comboVehicleIntention, {L"Straight", L"Turn Left", L"Turn Right"});
+    
+    CreateLabel(L"Speed:", &m_labelVehicleSpeed);
+    CreateEdit(L"3.0", ID_EDIT_VEHICLE_SPEED, &m_editVehicleSpeed);
+    
+    CreateLabel(L"Scale:", &m_labelOBJScale);
+    CreateEdit(L"1.0", ID_EDIT_OBJ_SCALE, &m_editOBJScale);
+    
+    CreateButton(L"Add Vehicle", ID_BTN_CREATE_VEHICLE, &m_btnCreateVehicle);
+    CreateButton(L"Load OBJ...", ID_BTN_LOAD_OBJ, &m_btnLoadOBJ);
+
+    // --- Properties ---
+    CreateLabel(L"PROPERTIES", &m_labelPropsGroup, true);
+    CreateDivider();
+    CreateLabel(L"Selected:", &m_labelProperties);
+    CreateLabel(L"None", &m_labelObjectName);
+    CreateLabel(L"Position (X,Y,Z):", &m_labelPos);
+    CreateEdit(L"0.00", 0, &m_editPosX, true);
+    CreateEdit(L"0.00", 0, &m_editPosY, true);
+    CreateEdit(L"0.00", 0, &m_editPosZ, true);
+    CreateLabel(L"Rotation Y (deg):", &m_labelRotY);
+    CreateEdit(L"0.0", 0, &m_editRotY, true);
+
+    // --- Status Bar ---
+    m_statusBar = CreateWindowExW(0, L"STATIC", L"Ready", WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE,
+        0, 0, 0, 0, m_hwnd, nullptr, m_hInstance, nullptr);
+    SendMessage(m_statusBar, WM_SETFONT, (WPARAM)m_hFontSmall, TRUE);
+
+    // --- Overlays ---
+    m_overlayLabel = CreateWindowExW(WS_EX_TRANSPARENT, L"STATIC", L"", WS_CHILD | WS_VISIBLE,
+        0, 0, 0, 0, m_hwnd, nullptr, m_hInstance, nullptr);
+    SendMessage(m_overlayLabel, WM_SETFONT, (WPARAM)m_hFont, TRUE);
+
+    m_statusPanelBackground = CreateWindowExW(WS_EX_TRANSPARENT, L"STATIC", L"", WS_CHILD | WS_VISIBLE,
+        0, 0, 0, 0, m_hwnd, nullptr, m_hInstance, nullptr);
+        
+    m_statusPanel = CreateWindowExW(WS_EX_TRANSPARENT, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_LEFT,
+        0, 0, 0, 0, m_hwnd, nullptr, m_hInstance, nullptr);
+        
+    HFONT hConsolas = CreateFontW(15, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_MODERN, L"Consolas");
+    SendMessage(m_statusPanel, WM_SETFONT, (WPARAM)hConsolas, TRUE);
+}
+
+void Window::UpdateLayout()
+{
+    // 1. Position the Panel Container (Fixed Left Side)
+    const int panelWidth = 300;
+    const int statusBarHeight = 25;
+    int containerHeight = m_height - statusBarHeight;
+    if (containerHeight < 0) containerHeight = 0;
+    
+    SetWindowPos(m_panelContainer, nullptr, 0, 0, panelWidth, containerHeight, SWP_NOZORDER);
+
+    // 2. Layout Controls inside Panel Content
+    // Layout constants
+    const int padding = 10;
+    const int controlHeight = 28;
     const int labelHeight = 20;
-    const int buttonHeight = 28;
-    const int editHeight = 24;
-    const int editWidth = 60;
-    const int groupSpacing = 12;
-    const int groupTitleHeight = 28;  // Space for group box title
-    const int groupPadding = 10;      // Padding inside group box
-
-    // Create font for all controls
-    HFONT hFont = CreateFontW(
-        16, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_DONTCARE,
-        L"Segoe UI");
-
-    // ===== BASIC OBJECTS GROUP =====
-    HWND groupBasic = CreateWindowW(
-        L"BUTTON", L"Basic Objects",
-        WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        panelX, y, panelWidth, 155,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(groupBasic, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    int groupY = y + groupTitleHeight;
-
-    // Sphere section
-    m_labelSphereRadius = CreateWindowW(
-        L"STATIC", L"Sphere Radius:",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 90, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelSphereRadius, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += spacing;
-
-    m_editSphereRadius = CreateWindowW(
-        L"EDIT", L"1.0",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        panelX + 10, groupY, 50, editHeight,
-        m_hwnd, (HMENU)1001, m_hInstance, nullptr);
-    SendMessage(m_editSphereRadius, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnCreateSphere = CreateWindowW(
-        L"BUTTON", L"Create",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 70, groupY, 60, buttonHeight,
-        m_hwnd, (HMENU)2001, m_hInstance, nullptr);
-    SendMessage(m_btnCreateSphere, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnDelete = CreateWindowW(
-        L"BUTTON", L"Delete",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 140, groupY, 70, buttonHeight,
-        m_hwnd, (HMENU)2003, m_hInstance, nullptr);
-    SendMessage(m_btnDelete, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += spacing + 5;
-
-    // Box section
-    m_labelBox = CreateWindowW(
-        L"STATIC", L"Box Size (X,Y,Z):",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 120, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelBox, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += spacing;
-
-    const int smallEditWidth = 45;
-    m_editBoxX = CreateWindowW(
-        L"EDIT", L"1.0",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        panelX + 10, groupY, smallEditWidth, editHeight,
-        m_hwnd, (HMENU)1002, m_hInstance, nullptr);
-    SendMessage(m_editBoxX, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_editBoxY = CreateWindowW(
-        L"EDIT", L"1.0",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        panelX + 10 + smallEditWidth + 3, groupY, smallEditWidth, editHeight,
-        m_hwnd, (HMENU)1003, m_hInstance, nullptr);
-    SendMessage(m_editBoxY, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_editBoxZ = CreateWindowW(
-        L"EDIT", L"1.0",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        panelX + 10 + (smallEditWidth + 3) * 2, groupY, smallEditWidth, editHeight,
-        m_hwnd, (HMENU)1004, m_hInstance, nullptr);
-    SendMessage(m_editBoxZ, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnCreateBox = CreateWindowW(
-        L"BUTTON", L"Create",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 155, groupY - 1, 55, buttonHeight,
-        m_hwnd, (HMENU)2002, m_hInstance, nullptr);
-    SendMessage(m_btnCreateBox, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    y = groupY + buttonHeight + groupSpacing + groupPadding;
-
-    // ===== SCENE MODE GROUP =====
-    HWND groupScene = CreateWindowW(
-        L"BUTTON", L"Scene Mode",
-        WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        panelX, y, panelWidth, 110,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(groupScene, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    groupY = y + groupTitleHeight;
-
-    m_labelSceneMode = CreateWindowW(
-        L"STATIC", L"Select scene:",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 100, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelSceneMode, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += spacing;
-
-    m_btnSceneDefault = CreateWindowW(
-        L"BUTTON", L"Default",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 10, groupY, 63, buttonHeight,
-        m_hwnd, (HMENU)3001, m_hInstance, nullptr);
-    SendMessage(m_btnSceneDefault, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnSceneSolarSystem = CreateWindowW(
-        L"BUTTON", L"Solar",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 78, groupY, 63, buttonHeight,
-        m_hwnd, (HMENU)3002, m_hInstance, nullptr);
-    SendMessage(m_btnSceneSolarSystem, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnSceneCrossroad = CreateWindowW(
-        L"BUTTON", L"Crossroad",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 146, groupY, 64, buttonHeight,
-        m_hwnd, (HMENU)3003, m_hInstance, nullptr);
-    SendMessage(m_btnSceneCrossroad, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    y = groupY + buttonHeight + groupSpacing + groupPadding;
-
-    // ===== SIMULATION SPEED GROUP =====
-    HWND groupSpeed = CreateWindowW(
-        L"BUTTON", L"Simulation Speed",
-        WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        panelX, y, panelWidth, 95,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(groupSpeed, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    groupY = y + groupTitleHeight;
-
-    m_labelSpeed = CreateWindowW(
-        L"STATIC", L"Control:",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 60, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelSpeed, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += spacing;
-
-    const int speedBtnWidth = 38;
-    m_btnSpeedPause = CreateWindowW(
-        L"BUTTON", L"||",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 10, groupY, speedBtnWidth, buttonHeight,
-        m_hwnd, (HMENU)4001, m_hInstance, nullptr);
-    SendMessage(m_btnSpeedPause, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnSpeed05 = CreateWindowW(
-        L"BUTTON", L".5x",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 10 + speedBtnWidth + 2, groupY, speedBtnWidth, buttonHeight,
-        m_hwnd, (HMENU)4002, m_hInstance, nullptr);
-    SendMessage(m_btnSpeed05, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnSpeed1 = CreateWindowW(
-        L"BUTTON", L"1x",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 10 + (speedBtnWidth + 2) * 2, groupY, speedBtnWidth, buttonHeight,
-        m_hwnd, (HMENU)4003, m_hInstance, nullptr);
-    SendMessage(m_btnSpeed1, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnSpeed2 = CreateWindowW(
-        L"BUTTON", L"2x",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 10 + (speedBtnWidth + 2) * 3, groupY, speedBtnWidth, buttonHeight,
-        m_hwnd, (HMENU)4004, m_hInstance, nullptr);
-    SendMessage(m_btnSpeed2, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnSpeed5 = CreateWindowW(
-        L"BUTTON", L"5x",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 10 + (speedBtnWidth + 2) * 4, groupY, speedBtnWidth, buttonHeight,
-        m_hwnd, (HMENU)4005, m_hInstance, nullptr);
-    SendMessage(m_btnSpeed5, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    y = groupY + buttonHeight + groupSpacing + groupPadding;
-
-    // ===== PERFORMANCE MODE GROUP =====
-    HWND groupPerformance = CreateWindowW(
-        L"BUTTON", L"Performance Mode",
-        WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        panelX, y, panelWidth, 95,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(groupPerformance, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    groupY = y + groupTitleHeight;
-
-    m_labelPerformance = CreateWindowW(
-        L"STATIC", L"Collision Det:",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 90, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelPerformance, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += spacing;
-
-    const int perfBtnWidth = 55;
-    m_btnPerfHigh = CreateWindowW(
-        L"BUTTON", L"High",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 10, groupY, perfBtnWidth, buttonHeight,
-        m_hwnd, (HMENU)5001, m_hInstance, nullptr);
-    SendMessage(m_btnPerfHigh, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnPerfMedium = CreateWindowW(
-        L"BUTTON", L"Medium",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 10 + perfBtnWidth + 2, groupY, perfBtnWidth, buttonHeight,
-        m_hwnd, (HMENU)5002, m_hInstance, nullptr);
-    SendMessage(m_btnPerfMedium, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnPerfLow = CreateWindowW(
-        L"BUTTON", L"Low (VM)",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 10 + (perfBtnWidth + 2) * 2, groupY, perfBtnWidth, buttonHeight,
-        m_hwnd, (HMENU)5003, m_hInstance, nullptr);
-    SendMessage(m_btnPerfLow, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    y = groupY + buttonHeight + groupSpacing + groupPadding;
-
-    // ===== ASTEROID GROUP (Solar System Scene) =====
-    HWND groupAsteroid = CreateWindowW(
-        L"BUTTON", L"Asteroid (Solar Scene)",
-        WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        panelX, y, panelWidth, 150,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(groupAsteroid, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    groupY = y + groupTitleHeight;
-
-    m_labelAsteroid = CreateWindowW(
-        L"STATIC", L"Velocity (X,Y,Z):",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 120, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelAsteroid, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += spacing;
-
-    const int vEditWidth = 45;
-    m_editAsteroidVX = CreateWindowW(
-        L"EDIT", L"5.0",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        panelX + 10, groupY, vEditWidth, editHeight,
-        m_hwnd, (HMENU)1005, m_hInstance, nullptr);
-    SendMessage(m_editAsteroidVX, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_editAsteroidVY = CreateWindowW(
-        L"EDIT", L"0.0",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        panelX + 10 + vEditWidth + 3, groupY, vEditWidth, editHeight,
-        m_hwnd, (HMENU)1006, m_hInstance, nullptr);
-    SendMessage(m_editAsteroidVY, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_editAsteroidVZ = CreateWindowW(
-        L"EDIT", L"0.0",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        panelX + 10 + (vEditWidth + 3) * 2, groupY, vEditWidth, editHeight,
-        m_hwnd, (HMENU)1007, m_hInstance, nullptr);
-    SendMessage(m_editAsteroidVZ, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += editHeight + 8;
-
-    m_labelAsteroidRadius = CreateWindowW(
-        L"STATIC", L"Radius:",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 60, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelAsteroidRadius, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_editAsteroidRadius = CreateWindowW(
-        L"EDIT", L"0.3",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        panelX + 75, groupY, 50, editHeight,
-        m_hwnd, (HMENU)1008, m_hInstance, nullptr);
-    SendMessage(m_editAsteroidRadius, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += editHeight + 8;
-
-    m_btnCreateAsteroid = CreateWindowW(
-        L"BUTTON", L"Create Asteroid",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 10, groupY, 200, buttonHeight,
-        m_hwnd, (HMENU)6001, m_hInstance, nullptr);
-    SendMessage(m_btnCreateAsteroid, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_labelAsteroidVelocity = m_labelAsteroid;  // Reuse for compatibility
-    y = groupY + buttonHeight + groupSpacing + groupPadding;
-
-    // ===== VEHICLE GROUP (Crossroad Scene) =====
-    HWND groupVehicle = CreateWindowW(
-        L"BUTTON", L"Vehicle (Crossroad Scene)",
-        WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        panelX, y, panelWidth, 210,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(groupVehicle, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    groupY = y + groupTitleHeight;
-
-    m_labelVehicle = CreateWindowW(
-        L"STATIC", L"Type:",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 50, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelVehicle, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_comboVehicleType = CreateWindowW(
-        L"COMBOBOX", L"",
-        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
-        panelX + 65, groupY - 2, 145, 120,
-        m_hwnd, (HMENU)1009, m_hInstance, nullptr);
-    SendMessageW(m_comboVehicleType, CB_ADDSTRING, 0, (LPARAM)L"Sedan");
-    SendMessageW(m_comboVehicleType, CB_ADDSTRING, 0, (LPARAM)L"SUV");
-    SendMessageW(m_comboVehicleType, CB_ADDSTRING, 0, (LPARAM)L"Truck");
-    SendMessageW(m_comboVehicleType, CB_ADDSTRING, 0, (LPARAM)L"Bus");
-    SendMessageW(m_comboVehicleType, CB_ADDSTRING, 0, (LPARAM)L"SportsCar");
-    SendMessageW(m_comboVehicleType, CB_SETCURSEL, 0, 0);
-    SendMessage(m_comboVehicleType, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += spacing;
-
-    m_labelVehicleType = m_labelVehicle;  // Reuse for compatibility
-
-    m_labelVehicleDirection = CreateWindowW(
-        L"STATIC", L"From:",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 50, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelVehicleDirection, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_comboVehicleDirection = CreateWindowW(
-        L"COMBOBOX", L"",
-        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
-        panelX + 65, groupY - 2, 145, 100,
-        m_hwnd, (HMENU)1010, m_hInstance, nullptr);
-    SendMessageW(m_comboVehicleDirection, CB_ADDSTRING, 0, (LPARAM)L"North");
-    SendMessageW(m_comboVehicleDirection, CB_ADDSTRING, 0, (LPARAM)L"South");
-    SendMessageW(m_comboVehicleDirection, CB_ADDSTRING, 0, (LPARAM)L"East");
-    SendMessageW(m_comboVehicleDirection, CB_ADDSTRING, 0, (LPARAM)L"West");
-    SendMessageW(m_comboVehicleDirection, CB_SETCURSEL, 0, 0);
-    SendMessage(m_comboVehicleDirection, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += spacing;
-
-    m_labelVehicleIntention = CreateWindowW(
-        L"STATIC", L"Action:",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 50, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelVehicleIntention, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_comboVehicleIntention = CreateWindowW(
-        L"COMBOBOX", L"",
-        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
-        panelX + 65, groupY - 2, 145, 90,
-        m_hwnd, (HMENU)1011, m_hInstance, nullptr);
-    SendMessageW(m_comboVehicleIntention, CB_ADDSTRING, 0, (LPARAM)L"Straight");
-    SendMessageW(m_comboVehicleIntention, CB_ADDSTRING, 0, (LPARAM)L"Turn Left");
-    SendMessageW(m_comboVehicleIntention, CB_ADDSTRING, 0, (LPARAM)L"Turn Right");
-    SendMessageW(m_comboVehicleIntention, CB_SETCURSEL, 0, 0);
-    SendMessage(m_comboVehicleIntention, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += spacing;
-
-    m_labelVehicleSpeed = CreateWindowW(
-        L"STATIC", L"Speed:",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 50, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelVehicleSpeed, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_editVehicleSpeed = CreateWindowW(
-        L"EDIT", L"3.0",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        panelX + 65, groupY, 60, editHeight,
-        m_hwnd, (HMENU)1012, m_hInstance, nullptr);
-    SendMessage(m_editVehicleSpeed, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_labelOBJScale = CreateWindowW(
-        L"STATIC", L"Scale:",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 135, groupY, 40, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelOBJScale, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_editOBJScale = CreateWindowW(
-        L"EDIT", L"1.0",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL,
-        panelX + 175, groupY, 35, editHeight,
-        m_hwnd, (HMENU)1013, m_hInstance, nullptr);
-    SendMessage(m_editOBJScale, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += editHeight + 8;
-
-    m_btnCreateVehicle = CreateWindowW(
-        L"BUTTON", L"Add Vehicle",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 10, groupY, 95, buttonHeight,
-        m_hwnd, (HMENU)7001, m_hInstance, nullptr);
-    SendMessage(m_btnCreateVehicle, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_btnLoadOBJ = CreateWindowW(
-        L"BUTTON", L"Load OBJ...",
-        WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        panelX + 110, groupY, 100, buttonHeight,
-        m_hwnd, (HMENU)7002, m_hInstance, nullptr);
-    SendMessage(m_btnLoadOBJ, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    y = groupY + buttonHeight + groupSpacing + groupPadding;
-
-    // ===== PROPERTIES GROUP =====
-    HWND groupProps = CreateWindowW(
-        L"BUTTON", L"Object Properties",
-        WS_CHILD | WS_VISIBLE | BS_GROUPBOX,
-        panelX, y, panelWidth, 150,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(groupProps, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    groupY = y + groupTitleHeight;
-
-    m_labelProperties = CreateWindowW(
-        L"STATIC", L"Selected:",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 60, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelProperties, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_labelObjectName = CreateWindowW(
-        L"STATIC", L"None",
-        WS_CHILD | WS_VISIBLE | SS_ENDELLIPSIS,
-        panelX + 75, groupY, 135, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_labelObjectName, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += spacing;
-
-    HWND labelPos = CreateWindowW(
-        L"STATIC", L"Position (X,Y,Z):",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 120, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(labelPos, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += labelHeight + 5;
-
-    const int propEditWidth = 52;
-    m_editPosX = CreateWindowW(
-        L"EDIT", L"0.00",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_READONLY | ES_CENTER,
-        panelX + 10, groupY, propEditWidth, editHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_editPosX, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_editPosY = CreateWindowW(
-        L"EDIT", L"0.00",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_READONLY | ES_CENTER,
-        panelX + 10 + propEditWidth + 3, groupY, propEditWidth, editHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_editPosY, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_editPosZ = CreateWindowW(
-        L"EDIT", L"0.00",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_READONLY | ES_CENTER,
-        panelX + 10 + (propEditWidth + 3) * 2, groupY, propEditWidth, editHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_editPosZ, WM_SETFONT, (WPARAM)hFont, TRUE);
-    groupY += editHeight + 10;
-
-    HWND labelRot = CreateWindowW(
-        L"STATIC", L"Rotation Y (deg):",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 10, groupY, 100, labelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(labelRot, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    m_editRotY = CreateWindowW(
-        L"EDIT", L"0.00",
-        WS_CHILD | WS_VISIBLE | WS_BORDER | ES_READONLY | ES_CENTER,
-        panelX + 115, groupY, 65, editHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_editRotY, WM_SETFONT, (WPARAM)hFont, TRUE);
-    m_labelRotY = labelRot;  // Store for compatibility
-
-    y = groupY + editHeight + groupSpacing;
-
-    // Overlay diagnostics label over 3D view
-    m_overlayLabel = CreateWindowExW(
-        WS_EX_TRANSPARENT,
-        L"STATIC",
-        L"",
-        WS_CHILD | WS_VISIBLE,
-        panelX + 230, // slightly to the right of panel
-        10,
-        380,
-        60,
-        m_hwnd,
-        nullptr,
-        m_hInstance,
-        nullptr);
-
-    SendMessage(m_labelProperties, WM_SETFONT, (WPARAM)hFont, TRUE);
-    SendMessage(m_labelObjectName, WM_SETFONT, (WPARAM)hFont, TRUE);
-    SendMessage(m_editPosX, WM_SETFONT, (WPARAM)hFont, TRUE);
-    SendMessage(m_editPosY, WM_SETFONT, (WPARAM)hFont, TRUE);
-    SendMessage(m_editPosZ, WM_SETFONT, (WPARAM)hFont, TRUE);
-    SendMessage(m_editRotY, WM_SETFONT, (WPARAM)hFont, TRUE);
-    SendMessage(m_overlayLabel, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    // ===== ENHANCED STATUS PANEL (Semi-transparent, top-right) =====
-    // Create background for status panel (semi-transparent)
-    const int statusPanelX = m_width - 310;
-    const int statusPanelY = 10;
-    const int statusPanelWidth = 295;
-    const int statusPanelHeight = 140;
-
-    // Create static control with layered window style for transparency effect
-    m_statusPanelBackground = CreateWindowExW(
-        WS_EX_TRANSPARENT,
-        L"STATIC",
-        L"",
-        WS_CHILD | WS_VISIBLE,
-        statusPanelX, statusPanelY, statusPanelWidth, statusPanelHeight,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-
-    // Create actual status panel text on top
-    m_statusPanel = CreateWindowExW(
-        WS_EX_TRANSPARENT,
-        L"STATIC",
-        L"System Status\n"
-        L"━━━━━━━━━━━━━━━━━━\n"
-        L"FPS: --\n"
-        L"Frame Time: -- ms\n"
-        L"Objects: 0\n"
-        L"Scene: Default\n"
-        L"Selected: None",
-        WS_CHILD | WS_VISIBLE | SS_LEFT,
-        statusPanelX + 10, statusPanelY + 8,
-        statusPanelWidth - 20, statusPanelHeight - 16,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-
-    // Use a monospace font for better alignment
-    HFONT hStatusFont = CreateFontW(
-        15, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
-        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-        CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_MODERN,
-        L"Consolas");
-    SendMessage(m_statusPanel, WM_SETFONT, (WPARAM)hStatusFont, TRUE);
-
-    // Set text color to white for better visibility on semi-transparent background
-    SetBkMode(GetDC(m_statusPanel), TRANSPARENT);
-
-    // Create status bar at bottom of window
-    m_statusBar = CreateWindowExW(
-        0,
-        L"STATIC",
-        L"Ready | Right-click: Rotate | Middle-click: Pan | Scroll: Zoom | Left-click: Drag object",
-        WS_CHILD | WS_VISIBLE | SS_LEFT | SS_CENTERIMAGE,
-        0, m_height - 25, m_width, 25,
-        m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_statusBar, WM_SETFONT, (WPARAM)hFont, TRUE);
-
-    // Add colored background for status bar
-    HBRUSH statusBrush = CreateSolidBrush(RGB(240, 240, 240));
-    SetClassLongPtr(m_statusBar, GCLP_HBRBACKGROUND, (LONG_PTR)statusBrush);
+    const int spacing = 12;
+    const int groupSpacing = 20;
+    const int dividerHeight = 1;
+    
+    int y = padding;
+    int x = padding;
+    int w = panelWidth - 2 * padding; // Width inside the content panel (minus scrollbar usually? No, Container has scrollbar)
+    // If scrollbar is visible, client area of container is smaller. 
+    // But we hardcode content width for now. 
+    // Actually, let's get client rect of container to be precise.
+    RECT rcContainer;
+    GetClientRect(m_panelContainer, &rcContainer);
+    if (rcContainer.right > 0) w = rcContainer.right - 2 * padding;
+
+    size_t divIndex = 0;
+
+    auto Place = [&](HWND hwnd, int height, int width = -1, int xOffset = 0) {
+        int actualWidth = (width == -1) ? w : width;
+        SetWindowPos(hwnd, nullptr, x + xOffset, y, actualWidth, height, SWP_NOZORDER);
+        y += height + spacing;
+    };
+    
+    auto PlaceDivider = [&]() {
+        if (divIndex < m_dividers.size()) {
+             SetWindowPos(m_dividers[divIndex], nullptr, x, y, w, dividerHeight, SWP_NOZORDER);
+             divIndex++;
+             y += dividerHeight + spacing;
+        }
+    };
+
+    auto PlaceInline = [&](HWND hwnd, int height, int width, int xPos, bool newLine) {
+        SetWindowPos(hwnd, nullptr, x + xPos, y, width, height, SWP_NOZORDER);
+        if (newLine) y += height + spacing;
+    };
+
+    // --- Basic Objects ---
+    Place(m_labelBasicGroup, labelHeight);
+    PlaceDivider();
+    
+    // Sphere row
+    PlaceInline(m_labelSphereRadius, controlHeight, 100, 0, false);
+    PlaceInline(m_editSphereRadius, controlHeight, 60, 105, false);
+    PlaceInline(m_btnCreateSphere, controlHeight, 85, 175, true);
+    
+    // Box row
+    Place(m_labelBox, labelHeight);
+    int boxEditW = (w - 2 * spacing) / 3;
+    PlaceInline(m_editBoxX, controlHeight, boxEditW, 0, false);
+    PlaceInline(m_editBoxY, controlHeight, boxEditW, boxEditW + spacing, false);
+    PlaceInline(m_editBoxZ, controlHeight, boxEditW, (boxEditW + spacing) * 2, true);
+    Place(m_btnCreateBox, controlHeight);
+    
+    Place(m_btnDelete, controlHeight);
+    y += groupSpacing;
+
+    // --- Scene Mode ---
+    Place(m_labelSceneGroup, labelHeight);
+    PlaceDivider();
+    Place(m_labelSceneMode, labelHeight);
+    int btnW = (w - 2 * spacing) / 3;
+    PlaceInline(m_btnSceneDefault, controlHeight, btnW, 0, false);
+    PlaceInline(m_btnSceneSolarSystem, controlHeight, btnW, btnW + spacing, false);
+    PlaceInline(m_btnSceneCrossroad, controlHeight, btnW, (btnW + spacing) * 2, true);
+    y += groupSpacing;
+
+    // --- Speed ---
+    Place(m_labelSpeedGroup, labelHeight);
+    PlaceDivider();
+    Place(m_labelSpeed, labelHeight);
+    int speedBtnW = (w - 4 * 2) / 5;
+    PlaceInline(m_btnSpeedPause, controlHeight, speedBtnW, 0, false);
+    PlaceInline(m_btnSpeed05, controlHeight, speedBtnW, speedBtnW + 2, false);
+    PlaceInline(m_btnSpeed1, controlHeight, speedBtnW, (speedBtnW + 2) * 2, false);
+    PlaceInline(m_btnSpeed2, controlHeight, speedBtnW, (speedBtnW + 2) * 3, false);
+    PlaceInline(m_btnSpeed5, controlHeight, speedBtnW, (speedBtnW + 2) * 4, true);
+    y += groupSpacing;
+
+    // --- Performance ---
+    Place(m_labelPerfGroup, labelHeight);
+    PlaceDivider();
+    Place(m_labelPerformance, labelHeight);
+    PlaceInline(m_btnPerfHigh, controlHeight, btnW, 0, false);
+    PlaceInline(m_btnPerfMedium, controlHeight, btnW, btnW + spacing, false);
+    PlaceInline(m_btnPerfLow, controlHeight, btnW, (btnW + spacing) * 2, true);
+    y += groupSpacing;
+
+    // --- Asteroid ---
+    Place(m_labelAsteroidGroup, labelHeight);
+    PlaceDivider();
+    Place(m_labelAsteroidVelocity, labelHeight);
+    PlaceInline(m_editAsteroidVX, controlHeight, boxEditW, 0, false);
+    PlaceInline(m_editAsteroidVY, controlHeight, boxEditW, boxEditW + spacing, false);
+    PlaceInline(m_editAsteroidVZ, controlHeight, boxEditW, (boxEditW + spacing) * 2, true);
+    
+    PlaceInline(m_labelAsteroidRadius, controlHeight, 60, 0, false);
+    PlaceInline(m_editAsteroidRadius, controlHeight, 60, 65, false);
+    PlaceInline(m_btnCreateAsteroid, controlHeight, 125, 135, true);
+    y += groupSpacing;
+
+    // --- Vehicle ---
+    Place(m_labelVehicleGroup, labelHeight);
+    PlaceDivider();
+    
+    // Use a larger height for ComboBoxes so the dropdown list is visible
+    const int comboHeight = 300; 
+
+    // Vehicle Type
+    PlaceInline(m_labelVehicleType, controlHeight, 50, 0, false);
+    SetWindowPos(m_comboVehicleType, nullptr, x + 55, y, w - 55, comboHeight, SWP_NOZORDER);
+    y += controlHeight + spacing;
+    
+    // Vehicle Direction
+    PlaceInline(m_labelVehicleDirection, controlHeight, 50, 0, false);
+    SetWindowPos(m_comboVehicleDirection, nullptr, x + 55, y, w - 55, comboHeight, SWP_NOZORDER);
+    y += controlHeight + spacing;
+    
+    // Vehicle Intention
+    PlaceInline(m_labelVehicleIntention, controlHeight, 50, 0, false);
+    SetWindowPos(m_comboVehicleIntention, nullptr, x + 55, y, w - 55, comboHeight, SWP_NOZORDER);
+    y += controlHeight + spacing;
+    
+    PlaceInline(m_labelVehicleSpeed, controlHeight, 50, 0, false);
+    PlaceInline(m_editVehicleSpeed, controlHeight, 60, 55, false);
+    PlaceInline(m_labelOBJScale, controlHeight, 40, 125, false);
+    PlaceInline(m_editOBJScale, controlHeight, 50, 170, true);
+    
+    PlaceInline(m_btnCreateVehicle, controlHeight, 120, 0, false);
+    PlaceInline(m_btnLoadOBJ, controlHeight, 120, 130, true);
+    y += groupSpacing;
+
+    // --- Properties ---
+    Place(m_labelPropsGroup, labelHeight);
+    PlaceDivider();
+    PlaceInline(m_labelProperties, labelHeight, 70, 0, false);
+    PlaceInline(m_labelObjectName, labelHeight, w - 75, 75, true);
+    
+    Place(m_labelPos, labelHeight);
+    PlaceInline(m_editPosX, controlHeight, boxEditW, 0, false);
+    PlaceInline(m_editPosY, controlHeight, boxEditW, boxEditW + spacing, false);
+    PlaceInline(m_editPosZ, controlHeight, boxEditW, (boxEditW + spacing) * 2, true);
+    
+    PlaceInline(m_labelRotY, controlHeight, 110, 0, false);
+    PlaceInline(m_editRotY, controlHeight, w - 115, 115, true);
+
+    // Update Total Height
+    m_totalContentHeight = y + padding;
+
+    // 3. Configure Scrollbar
+    SCROLLINFO si = {};
+    si.cbSize = sizeof(SCROLLINFO);
+    si.fMask = SIF_ALL;
+    si.nMin = 0;
+    si.nMax = m_totalContentHeight;
+    si.nPage = containerHeight;
+    si.nPos = m_scrollOffset;
+    SetScrollInfo(m_panelContainer, SB_VERT, &si, TRUE);
+
+    // 4. Position Panel Content
+    // Ensure offset is valid
+    if (m_scrollOffset > m_totalContentHeight - containerHeight) m_scrollOffset = m_totalContentHeight - containerHeight;
+    if (m_scrollOffset < 0) m_scrollOffset = 0;
+    
+    SetWindowPos(m_panelContent, nullptr, 0, -m_scrollOffset, panelWidth, m_totalContentHeight, SWP_NOZORDER);
+
+    // --- Status Bar ---
+    SetWindowPos(m_statusBar, nullptr, 0, m_height - 25, m_width, 25, SWP_NOZORDER);
+
+    // --- Overlays ---
+    // Status panel (top right) - Position relative to the 3D viewport
+    const int uiPanelWidth = panelWidth;
+    // ... rest of overlay logic
+    const int statusW = 300;
+    const int statusH = 140;
+    
+    // Ensure we don't overlap with the UI panel if the window is small
+    int statusX = m_width - statusW - 10;
+    if (statusX < uiPanelWidth + 10) statusX = uiPanelWidth + 10;
+    
+    SetWindowPos(m_statusPanelBackground, nullptr, statusX, 10, statusW, statusH, SWP_NOZORDER);
+    SetWindowPos(m_statusPanel, nullptr, statusX + 10, 20, statusW - 20, statusH - 20, SWP_NOZORDER);
+
+    // Overlay label (center top of 3D view)
+    // Center point of 3D view is uiPanelWidth + (m_width - uiPanelWidth) / 2
+    int overlayW = 400;
+    int overlayX = uiPanelWidth + (m_width - uiPanelWidth - overlayW) / 2;
+    if (overlayX < uiPanelWidth + 10) overlayX = uiPanelWidth + 10;
+    
+    SetWindowPos(m_overlayLabel, nullptr, overlayX, 10, overlayW, 60, SWP_NOZORDER);
 }
 
 void Window::Show(int nCmdShow)
@@ -713,24 +519,16 @@ void Window::Show(int nCmdShow)
 LRESULT CALLBACK Window::WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     Window* window = nullptr;
-
-    if (uMsg == WM_NCCREATE)
-    {
+    if (uMsg == WM_NCCREATE) {
         CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
         window = reinterpret_cast<Window*>(pCreate->lpCreateParams);
         SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
-        window->m_hwnd = hwnd;  // Set hwnd early
-    }
-    else
-    {
+        window->m_hwnd = hwnd;
+    } else {
         window = reinterpret_cast<Window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
     }
 
-    if (window)
-    {
-        return window->HandleMessage(uMsg, wParam, lParam);
-    }
-
+    if (window) return window->HandleMessage(uMsg, wParam, lParam);
     return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
@@ -738,146 +536,214 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     switch (uMsg)
     {
+    case WM_SIZE:
+        m_width = LOWORD(lParam);
+        m_height = HIWORD(lParam);
+        UpdateLayout();
+        if (OnResize) OnResize(m_width, m_height);
+        return 0;
+
+    case WM_GETMINMAXINFO:
+    {
+        MINMAXINFO* pMinMaxInfo = (MINMAXINFO*)lParam;
+        pMinMaxInfo->ptMinTrackSize.x = 1024;
+        pMinMaxInfo->ptMinTrackSize.y = 768;
+        return 0;
+    }
+
+    case WM_CTLCOLORSTATIC:
+    {
+        HDC hdc = (HDC)wParam;
+        HWND hwndCtl = (HWND)lParam;
+        SetTextColor(hdc, m_textColor);
+        
+        // Special transparent overlays
+        if (hwndCtl == m_statusPanelBackground || hwndCtl == m_statusPanel || hwndCtl == m_overlayLabel) {
+            SetBkMode(hdc, TRANSPARENT);
+            return (LRESULT)GetStockObject(NULL_BRUSH); 
+        }
+
+        // Dividers
+        for (HWND hDiv : m_dividers) {
+            if (hwndCtl == hDiv) {
+                SetBkMode(hdc, OPAQUE);
+                SetBkColor(hdc, RGB(65, 65, 65));
+                return (LRESULT)m_hbrButton;
+            }
+        }
+        
+        // Status Bar
+        if (hwndCtl == m_statusBar) {
+            SetBkMode(hdc, OPAQUE);
+            SetBkColor(hdc, RGB(0, 122, 204)); // Blue status bar
+            return (LRESULT)m_hbrAccent;
+        }
+        
+        // Default Labels on Panel (Force Opaque to prevent scrolling glitches)
+        SetBkMode(hdc, OPAQUE);
+        SetBkColor(hdc, RGB(30, 30, 30)); // Match panel background
+        return (LRESULT)m_hbrBackground;
+    }
+
+    case WM_CTLCOLOREDIT:
+    {
+        HDC hdc = (HDC)wParam;
+        SetBkMode(hdc, OPAQUE);
+        SetTextColor(hdc, m_textColor);
+        SetBkColor(hdc, RGB(60, 60, 60));
+        return (LRESULT)m_hbrEdit;
+    }
+    
+    case WM_CTLCOLORLISTBOX:
+    {
+        HDC hdc = (HDC)wParam;
+        SetTextColor(hdc, m_textColor);
+        SetBkColor(hdc, RGB(60, 60, 60));
+        return (LRESULT)m_hbrEdit;
+    }
+
+    case WM_DRAWITEM:
+    {
+        LPDRAWITEMSTRUCT lpDrawItem = (LPDRAWITEMSTRUCT)lParam;
+        if (lpDrawItem->CtlType == ODT_BUTTON)
+        {
+            HDC hdc = lpDrawItem->hDC;
+            RECT rc = lpDrawItem->rcItem;
+            bool selected = lpDrawItem->itemState & ODS_SELECTED;
+            bool hovered = (lpDrawItem->hwndItem == m_hoveredButton);
+
+            // Select brush
+            HBRUSH hbr = m_hbrButton;
+            if (selected) hbr = m_hbrButtonActive;
+            else if (hovered) hbr = m_hbrButtonHover;
+            
+            // Special case for primary action buttons
+            int id = lpDrawItem->CtlID;
+            if (id == ID_BTN_CREATE_SPHERE || id == ID_BTN_CREATE_BOX || 
+                id == ID_BTN_CREATE_ASTEROID || id == ID_BTN_CREATE_VEHICLE)
+            {
+                if (!selected && !hovered) hbr = m_hbrAccent;
+            }
+
+            FillRect(hdc, &rc, hbr);
+
+            // Draw text
+            wchar_t text[256];
+            GetWindowTextW(lpDrawItem->hwndItem, text, 256);
+            SetBkMode(hdc, TRANSPARENT);
+            SetTextColor(hdc, m_textColor);
+            SelectObject(hdc, m_hFont);
+            DrawTextW(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+            
+            return TRUE;
+        }
+        break;
+    }
+
+    case WM_MOUSEMOVE:
+    {
+        // Handle button hover effects
+        POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+        HWND hWndPoint = ChildWindowFromPoint(m_hwnd, pt);
+        
+        if (hWndPoint != m_hoveredButton)
+        {
+            if (m_hoveredButton) InvalidateRect(m_hoveredButton, nullptr, TRUE);
+            m_hoveredButton = hWndPoint;
+            if (m_hoveredButton) InvalidateRect(m_hoveredButton, nullptr, TRUE);
+            
+            // Track mouse leave
+            TRACKMOUSEEVENT tme;
+            tme.cbSize = sizeof(TRACKMOUSEEVENT);
+            tme.dwFlags = TME_LEAVE;
+            tme.hwndTrack = m_hwnd;
+            TrackMouseEvent(&tme);
+        }
+        
+        // Pass to camera control
+        m_mouseX = pt.x;
+        m_mouseY = pt.y;
+        m_mouseDX += m_mouseX - m_lastMouseX;
+        m_mouseDY += m_mouseY - m_lastMouseY;
+        m_lastMouseX = m_mouseX;
+        m_lastMouseY = m_mouseY;
+        return 0;
+    }
+    
+    case WM_MOUSELEAVE:
+        if (m_hoveredButton)
+        {
+            InvalidateRect(m_hoveredButton, nullptr, TRUE);
+            m_hoveredButton = nullptr;
+        }
+        return 0;
+
     case WM_COMMAND:
     {
         int wmId = LOWORD(wParam);
         switch (wmId)
         {
-        case 2001: // Create Sphere button
-        {
-            wchar_t buffer[32];
-            GetWindowTextW(m_editSphereRadius, buffer, 32);
-            float radius = static_cast<float>(_wtof(buffer));
-            if (radius <= 0.0f) radius = 1.0f;
-            if (OnCreateSphere)
-                OnCreateSphere(radius);
+        case ID_BTN_CREATE_SPHERE:
+            if (OnCreateSphere) OnCreateSphere(GetFloatFromEdit(m_editSphereRadius, 1.0f));
             break;
-        }
-        case 2002: // Create Box button
-        {
-            wchar_t bufferX[32], bufferY[32], bufferZ[32];
-            GetWindowTextW(m_editBoxX, bufferX, 32);
-            GetWindowTextW(m_editBoxY, bufferY, 32);
-            GetWindowTextW(m_editBoxZ, bufferZ, 32);
-            float x = static_cast<float>(_wtof(bufferX));
-            float y = static_cast<float>(_wtof(bufferY));
-            float z = static_cast<float>(_wtof(bufferZ));
-            if (x <= 0.0f) x = 1.0f;
-            if (y <= 0.0f) y = 1.0f;
-            if (z <= 0.0f) z = 1.0f;
-            if (OnCreateBox)
-                OnCreateBox(x, y, z);
+        case ID_BTN_CREATE_BOX:
+            if (OnCreateBox) OnCreateBox(
+                GetFloatFromEdit(m_editBoxX, 1.0f),
+                GetFloatFromEdit(m_editBoxY, 1.0f),
+                GetFloatFromEdit(m_editBoxZ, 1.0f));
             break;
-        }
-        case 2003: // Delete button
-        {
-            if (OnDeleteObject)
-                OnDeleteObject();
+        case ID_BTN_DELETE:
+            if (OnDeleteObject) OnDeleteObject();
             break;
-        }
-        case 3001: // Scene mode: Default
-        {
-            if (OnSceneModeChanged)
-                OnSceneModeChanged(0);
+        case ID_BTN_SCENE_DEFAULT:
+            if (OnSceneModeChanged) OnSceneModeChanged(0);
             break;
-        }
-        case 3002: // Scene mode: Solar System
-        {
-            if (OnSceneModeChanged)
-                OnSceneModeChanged(1);
+        case ID_BTN_SCENE_SOLAR:
+            if (OnSceneModeChanged) OnSceneModeChanged(1);
             break;
-        }
-        case 3003: // Scene mode: Crossroad
-        {
-            if (OnSceneModeChanged)
-                OnSceneModeChanged(2);
+        case ID_BTN_SCENE_CROSSROAD:
+            if (OnSceneModeChanged) OnSceneModeChanged(2);
             break;
-        }
-        case 4001: // Speed: Pause
-        {
-            if (OnSimulationSpeedChanged)
-                OnSimulationSpeedChanged(0.0f);
+        case ID_BTN_SPEED_PAUSE:
+            if (OnSimulationSpeedChanged) OnSimulationSpeedChanged(0.0f);
             break;
-        }
-        case 4002: // Speed: 0.5x
-        {
-            if (OnSimulationSpeedChanged)
-                OnSimulationSpeedChanged(0.5f);
+        case ID_BTN_SPEED_05:
+            if (OnSimulationSpeedChanged) OnSimulationSpeedChanged(0.5f);
             break;
-        }
-        case 4003: // Speed: 1x
-        {
-            if (OnSimulationSpeedChanged)
-                OnSimulationSpeedChanged(1.0f);
+        case ID_BTN_SPEED_1:
+            if (OnSimulationSpeedChanged) OnSimulationSpeedChanged(1.0f);
             break;
-        }
-        case 4004: // Speed: 2x
-        {
-            if (OnSimulationSpeedChanged)
-                OnSimulationSpeedChanged(2.0f);
+        case ID_BTN_SPEED_2:
+            if (OnSimulationSpeedChanged) OnSimulationSpeedChanged(2.0f);
             break;
-        }
-        case 4005: // Speed: 5x
-        {
-            if (OnSimulationSpeedChanged)
-                OnSimulationSpeedChanged(5.0f);
+        case ID_BTN_SPEED_5:
+            if (OnSimulationSpeedChanged) OnSimulationSpeedChanged(5.0f);
             break;
-        }
-        case 5001: // Performance: High
-        {
-            if (OnPerformanceModeChanged)
-                OnPerformanceModeChanged(0);  // 0 = High
+        case ID_BTN_PERF_HIGH:
+            if (OnPerformanceModeChanged) OnPerformanceModeChanged(0);
             break;
-        }
-        case 5002: // Performance: Medium
-        {
-            if (OnPerformanceModeChanged)
-                OnPerformanceModeChanged(1);  // 1 = Medium
+        case ID_BTN_PERF_MEDIUM:
+            if (OnPerformanceModeChanged) OnPerformanceModeChanged(1);
             break;
-        }
-        case 5003: // Performance: Low
-        {
-            if (OnPerformanceModeChanged)
-                OnPerformanceModeChanged(2);  // 2 = Low
+        case ID_BTN_PERF_LOW:
+            if (OnPerformanceModeChanged) OnPerformanceModeChanged(2);
             break;
-        }
-        case 6001: // Create Asteroid button
-        {
-            wchar_t bufferVX[32], bufferVY[32], bufferVZ[32], bufferRadius[32];
-            GetWindowTextW(m_editAsteroidVX, bufferVX, 32);
-            GetWindowTextW(m_editAsteroidVY, bufferVY, 32);
-            GetWindowTextW(m_editAsteroidVZ, bufferVZ, 32);
-            GetWindowTextW(m_editAsteroidRadius, bufferRadius, 32);
-            float vx = static_cast<float>(_wtof(bufferVX));
-            float vy = static_cast<float>(_wtof(bufferVY));
-            float vz = static_cast<float>(_wtof(bufferVZ));
-            float radius = static_cast<float>(_wtof(bufferRadius));
-            if (radius <= 0.0f) radius = 0.3f;
-            if (OnCreateAsteroid)
-                OnCreateAsteroid(vx, vy, vz, radius);
+        case ID_BTN_CREATE_ASTEROID:
+            if (OnCreateAsteroid) OnCreateAsteroid(
+                GetFloatFromEdit(m_editAsteroidVX, 5.0f),
+                GetFloatFromEdit(m_editAsteroidVY, 0.0f),
+                GetFloatFromEdit(m_editAsteroidVZ, 0.0f),
+                GetFloatFromEdit(m_editAsteroidRadius, 0.3f));
             break;
-        }
-        case 7001: // Create Vehicle button
-        {
-            // Get vehicle type
-            int vehicleType = static_cast<int>(SendMessageW(m_comboVehicleType, CB_GETCURSEL, 0, 0));
-            // Get direction
-            int direction = static_cast<int>(SendMessageW(m_comboVehicleDirection, CB_GETCURSEL, 0, 0));
-            // Get movement intention
-            int intention = static_cast<int>(SendMessageW(m_comboVehicleIntention, CB_GETCURSEL, 0, 0));
-            // Get speed
-            wchar_t bufferSpeed[32];
-            GetWindowTextW(m_editVehicleSpeed, bufferSpeed, 32);
-            float speed = static_cast<float>(_wtof(bufferSpeed));
-            if (speed <= 0.0f) speed = 3.0f;
-
-            if (OnCreateVehicle)
-                OnCreateVehicle(vehicleType, direction, intention, speed);
+        case ID_BTN_CREATE_VEHICLE:
+            if (OnCreateVehicle) OnCreateVehicle(
+                (int)SendMessageW(m_comboVehicleType, CB_GETCURSEL, 0, 0),
+                (int)SendMessageW(m_comboVehicleDirection, CB_GETCURSEL, 0, 0),
+                (int)SendMessageW(m_comboVehicleIntention, CB_GETCURSEL, 0, 0),
+                GetFloatFromEdit(m_editVehicleSpeed, 3.0f));
             break;
-        }
-        case 7002: // Load OBJ Model button
+        case ID_BTN_LOAD_OBJ:
         {
-            // Open file dialog
             wchar_t filename[MAX_PATH] = L"";
             OPENFILENAMEW ofn = {};
             ofn.lStructSize = sizeof(ofn);
@@ -890,27 +756,16 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 
             if (GetOpenFileNameW(&ofn))
             {
-                // Get direction, intention, and speed from current UI state
-                int direction = static_cast<int>(SendMessageW(m_comboVehicleDirection, CB_GETCURSEL, 0, 0));
-                int intention = static_cast<int>(SendMessageW(m_comboVehicleIntention, CB_GETCURSEL, 0, 0));
-
-                wchar_t bufferSpeed[32];
-                GetWindowTextW(m_editVehicleSpeed, bufferSpeed, 32);
-                float speed = static_cast<float>(_wtof(bufferSpeed));
-                if (speed <= 0.0f) speed = 3.0f;
-
-                wchar_t bufferScale[32];
-                GetWindowTextW(m_editOBJScale, bufferScale, 32);
-                float scale = static_cast<float>(_wtof(bufferScale));
-                if (scale <= 0.0f) scale = 1.0f;
-
-                // Convert wchar_t* to std::string
                 int size_needed = WideCharToMultiByte(CP_UTF8, 0, filename, -1, NULL, 0, NULL, NULL);
                 std::string objPath(size_needed - 1, 0);
                 WideCharToMultiByte(CP_UTF8, 0, filename, -1, &objPath[0], size_needed, NULL, NULL);
 
-                if (OnLoadVehicleFromOBJ)
-                    OnLoadVehicleFromOBJ(objPath, direction, intention, speed, scale);
+                if (OnLoadVehicleFromOBJ) OnLoadVehicleFromOBJ(
+                    objPath,
+                    (int)SendMessageW(m_comboVehicleDirection, CB_GETCURSEL, 0, 0),
+                    (int)SendMessageW(m_comboVehicleIntention, CB_GETCURSEL, 0, 0),
+                    GetFloatFromEdit(m_editVehicleSpeed, 3.0f),
+                    GetFloatFromEdit(m_editOBJScale, 1.0f));
             }
             break;
         }
@@ -918,83 +773,13 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         return 0;
     }
 
-    case WM_GETMINMAXINFO:
-    {
-        // Set minimum window size to prevent UI from becoming unusable
-        MINMAXINFO* pMinMaxInfo = (MINMAXINFO*)lParam;
-        // Keep a reasonably wide viewport for 3D view and ensure
-        // left-side control panel has enough vertical space so that
-        // controls do not visually overlap when the user resizes.
-        pMinMaxInfo->ptMinTrackSize.x = 1200;  // Minimum width
-        pMinMaxInfo->ptMinTrackSize.y = 820;   // Minimum height
-        return 0;
-    }
-
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        return 0;
-
-    case WM_SIZE:
-        m_width = LOWORD(lParam);
-        m_height = HIWORD(lParam);
-
-        // Resize status bar to fit window width
-        if (m_statusBar)
-        {
-            SetWindowPos(m_statusBar, nullptr, 0, m_height - 25, m_width, 25, SWP_NOZORDER);
-        }
-
-        // Reposition status panel to stay in top-right corner
-        if (m_statusPanel && m_statusPanelBackground)
-        {
-            const int statusPanelWidth = 295;
-            const int statusPanelHeight = 140;
-            const int statusPanelX = m_width - statusPanelWidth - 10;
-            const int statusPanelY = 10;
-
-            // Move background
-            SetWindowPos(m_statusPanelBackground, nullptr,
-                         statusPanelX, statusPanelY,
-                         statusPanelWidth, statusPanelHeight,
-                         SWP_NOZORDER);
-
-            // Move text panel
-            SetWindowPos(m_statusPanel, nullptr,
-                         statusPanelX + 10, statusPanelY + 8,
-                         statusPanelWidth - 20, statusPanelHeight - 16,
-                         SWP_NOZORDER);
-        }
-
-        // Reposition overlay label (collision stats) to stay next to left panel
-        if (m_overlayLabel)
-        {
-            const int overlayX = 240;  // Just to the right of left panel
-            const int overlayY = 10;
-            const int overlayWidth = 380;
-            const int overlayHeight = 60;
-
-            SetWindowPos(m_overlayLabel, nullptr,
-                         overlayX, overlayY,
-                         overlayWidth, overlayHeight,
-                         SWP_NOZORDER);
-        }
-
-        return 0;
-
     case WM_KEYDOWN:
-        // Handle F1 key for help
-        if (wParam == VK_F1)
-        {
-            ShowHelpDialog();
-            return 0;
-        }
-        if (wParam < 256)
-            m_keys[wParam] = true;
+        if (wParam == VK_F1) { ShowHelpDialog(); return 0; }
+        if (wParam < 256) m_keys[wParam] = true;
         return 0;
 
     case WM_KEYUP:
-        if (wParam < 256)
-            m_keys[wParam] = false;
+        if (wParam < 256) m_keys[wParam] = false;
         return 0;
 
     case WM_LBUTTONDOWN:
@@ -1027,62 +812,29 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         ReleaseCapture();
         return 0;
 
-    case WM_MOUSEMOVE:
-    {
-        int newMouseX = GET_X_LPARAM(lParam);
-        int newMouseY = GET_Y_LPARAM(lParam);
-
-        // Accumulate delta for smooth tracking
-        m_mouseDX += newMouseX - m_lastMouseX;
-        m_mouseDY += newMouseY - m_lastMouseY;
-
-        m_mouseX = newMouseX;
-        m_mouseY = newMouseY;
-        m_lastMouseX = newMouseX;
-        m_lastMouseY = newMouseY;
-        return 0;
-    }
-
     case WM_MOUSEWHEEL:
-        // Accumulate wheel delta for smooth scrolling
         m_mouseWheel += GET_WHEEL_DELTA_WPARAM(wParam);
         return 0;
 
-    case WM_CTLCOLORSTATIC:
-    {
-        HDC hdcStatic = (HDC)wParam;
-        HWND hwndStatic = (HWND)lParam;
-
-        // Semi-transparent background for status panel
-        if (hwndStatic == m_statusPanelBackground)
-        {
-            static HBRUSH hbrBkgnd = CreateSolidBrush(RGB(30, 30, 40));
-            SetBkMode(hdcStatic, TRANSPARENT);
-            return (LRESULT)hbrBkgnd;
-        }
-
-        // Status panel text - white text on dark semi-transparent background
-        if (hwndStatic == m_statusPanel)
-        {
-            SetTextColor(hdcStatic, RGB(220, 220, 220));
-            SetBkColor(hdcStatic, RGB(30, 30, 40));
-            static HBRUSH hbrText = CreateSolidBrush(RGB(30, 30, 40));
-            return (LRESULT)hbrText;
-        }
-
-        break;
-    }
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        return 0;
     }
 
     return DefWindowProc(m_hwnd, uMsg, wParam, lParam);
 }
 
+float Window::GetFloatFromEdit(HWND hEdit, float defaultValue)
+{
+    wchar_t buffer[32];
+    GetWindowTextW(hEdit, buffer, 32);
+    float val = static_cast<float>(_wtof(buffer));
+    return (val == 0.0f && buffer[0] != '0') ? defaultValue : val;
+}
+
 void Window::SetStatusText(const std::wstring& text)
 {
-    if (m_statusBar)
-    {
-        SetWindowTextW(m_statusBar, text.c_str());
-    }
+    if (m_statusBar) SetWindowTextW(m_statusBar, text.c_str());
 }
 
 void Window::ShowHelpDialog()
@@ -1121,14 +873,12 @@ void Window::ShowHelpDialog()
 }
 
 void Window::UpdatePropertiesPanel(size_t selectedIndex, const std::string& objectName,
-                              float posX, float posY, float posZ,
-                              float rotY)
+                                  float posX, float posY, float posZ, float rotY)
 {
     if (!m_labelObjectName) return;
 
     if (selectedIndex == static_cast<size_t>(-1))
     {
-        // No object selected
         SetWindowTextW(m_labelObjectName, L"None");
         SetWindowTextW(m_editPosX, L"-");
         SetWindowTextW(m_editPosY, L"-");
@@ -1137,40 +887,28 @@ void Window::UpdatePropertiesPanel(size_t selectedIndex, const std::string& obje
     }
     else
     {
-        // Object selected - show properties
         wchar_t buffer[256];
-
-        // Object name
         int size_needed = MultiByteToWideChar(CP_UTF8, 0, objectName.c_str(), -1, NULL, 0);
         std::wstring wObjectName(size_needed - 1, 0);
         MultiByteToWideChar(CP_UTF8, 0, objectName.c_str(), -1, &wObjectName[0], size_needed);
         SetWindowTextW(m_labelObjectName, wObjectName.c_str());
 
-        // Position
-        swprintf_s(buffer, L"%.2f", posX);
-        SetWindowTextW(m_editPosX, buffer);
-        swprintf_s(buffer, L"%.2f", posY);
-        SetWindowTextW(m_editPosY, buffer);
-        swprintf_s(buffer, L"%.2f", posZ);
-        SetWindowTextW(m_editPosZ, buffer);
-
-        // Rotation (convert radians to degrees)
+        swprintf_s(buffer, L"%.2f", posX); SetWindowTextW(m_editPosX, buffer);
+        swprintf_s(buffer, L"%.2f", posY); SetWindowTextW(m_editPosY, buffer);
+        swprintf_s(buffer, L"%.2f", posZ); SetWindowTextW(m_editPosZ, buffer);
+        
         float rotDegrees = rotY * 180.0f / 3.14159265f;
-        swprintf_s(buffer, L"%.1f", rotDegrees);
-        SetWindowTextW(m_editRotY, buffer);
+        swprintf_s(buffer, L"%.1f", rotDegrees); SetWindowTextW(m_editRotY, buffer);
     }
 }
 
 void Window::SetOverlayText(const std::wstring& text)
 {
-    if (m_overlayLabel && m_hwnd)
-    {
-        SetWindowTextW(m_overlayLabel, text.c_str());
-    }
+    if (m_overlayLabel) SetWindowTextW(m_overlayLabel, text.c_str());
 }
 
 void Window::UpdateStatusPanel(float fps, float frameTime, size_t objectCount,
-                               const std::wstring& sceneMode, const std::wstring& selectedObject)
+                              const std::wstring& sceneMode, const std::wstring& selectedObject)
 {
     if (!m_statusPanel) return;
 
@@ -1183,11 +921,103 @@ void Window::UpdateStatusPanel(float fps, float frameTime, size_t objectCount,
         L"Objects: %zu\n"
         L"Scene: %s\n"
         L"Selected: %s",
-        fps,
-        frameTime,
-        objectCount,
-        sceneMode.c_str(),
-        selectedObject.c_str());
+        fps, frameTime, objectCount, sceneMode.c_str(), selectedObject.c_str());
 
     SetWindowTextW(m_statusPanel, statusText);
+}
+
+LRESULT CALLBACK Window::PanelProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
+    Window* window = reinterpret_cast<Window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
+
+    if (uMsg == WM_NCCREATE) {
+        CREATESTRUCT* pCreate = reinterpret_cast<CREATESTRUCT*>(lParam);
+        window = reinterpret_cast<Window*>(pCreate->lpCreateParams);
+        SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(window));
+    }
+
+    if (!window) return DefWindowProc(hwnd, uMsg, wParam, lParam);
+
+    // Forward specific messages to the main window
+    if (uMsg == WM_COMMAND || uMsg == WM_CTLCOLORSTATIC || uMsg == WM_CTLCOLOREDIT || 
+        uMsg == WM_CTLCOLORLISTBOX || uMsg == WM_DRAWITEM || uMsg == WM_NOTIFY)
+    {
+        return SendMessage(window->m_hwnd, uMsg, wParam, lParam);
+    }
+
+    // Scroll Logic (Only for Panel Container)
+    if (hwnd == window->m_panelContainer)
+    {
+        if (uMsg == WM_VSCROLL)
+        {
+            SCROLLINFO si = {};
+            si.cbSize = sizeof(SCROLLINFO);
+            si.fMask = SIF_ALL;
+            GetScrollInfo(hwnd, SB_VERT, &si);
+
+            int newPos = si.nPos;
+            switch (LOWORD(wParam))
+            {
+            case SB_TOP: newPos = si.nMin; break;
+            case SB_BOTTOM: newPos = si.nMax; break;
+            case SB_LINEUP: newPos -= 20; break;
+            case SB_LINEDOWN: newPos += 20; break;
+            case SB_PAGEUP: newPos -= si.nPage; break;
+            case SB_PAGEDOWN: newPos += si.nPage; break;
+            case SB_THUMBTRACK: newPos = si.nTrackPos; break;
+            }
+
+            // Adjust limits
+            int maxPos = si.nMax - (int)si.nPage + 1;
+            if (maxPos < 0) maxPos = 0;
+            
+            if (newPos < 0) newPos = 0;
+            if (newPos > maxPos) newPos = maxPos;
+            
+                            if (newPos != si.nPos)
+                            {
+                                window->m_scrollOffset = newPos;
+                                si.fMask = SIF_POS;
+                                si.nPos = newPos;
+                                SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
+                                
+                                                    // Move content window and force redraw
+                                
+                                                    SetWindowPos(window->m_panelContent, nullptr, 0, -newPos, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+                                
+                                                    InvalidateRect(window->m_panelContent, nullptr, TRUE);
+                                
+                                                    UpdateWindow(window->m_panelContent);
+                                
+                                                }            return 0;
+        }
+        else if (uMsg == WM_MOUSEWHEEL)
+        {
+            // Forward mouse wheel to VSCROLL
+            int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
+            int lines = 3; 
+            WPARAM scrollCode = (zDelta > 0) ? SB_LINEUP : SB_LINEDOWN;
+            for(int i=0; i<lines; ++i)
+                SendMessage(hwnd, WM_VSCROLL, scrollCode, 0);
+            return 0;
+        }
+    }
+    
+    // Forward mouse wheel from Content to Container
+    if (hwnd == window->m_panelContent && uMsg == WM_MOUSEWHEEL)
+    {
+        return SendMessage(window->m_panelContainer, uMsg, wParam, lParam);
+    }
+
+    // Paint background
+    if (uMsg == WM_ERASEBKGND)
+    {
+        HDC hdc = (HDC)wParam;
+        RECT rc;
+        GetClientRect(hwnd, &rc);
+        FillRect(hdc, &rc, window->m_hbrBackground); 
+        return 1;
+    }
+
+    return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
