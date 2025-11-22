@@ -162,19 +162,27 @@ private:
     // Status bar
     HWND m_statusBar;
 
-    // Overlay diagnostics (semi-transparent label over 3D view)
-    HWND m_overlayLabel;
-
-    // Enhanced status panel (semi-transparent, detailed info)
-    HWND m_statusPanel;
-    HWND m_statusPanelBackground;
-    
-    // Scrollable Left Panel
+        // Overlay diagnostics (semi-transparent label over 3D view)
+        HWND m_overlayLabel;
+        
+        // Enhanced status panel (moved to left panel)
+        HWND m_statusPanel;
+        
+        // Scrollable Left Panel
     HWND m_panelContainer; // The visible clipping area
     HWND m_panelContent;   // The tall window holding all controls
     int m_scrollOffset;
     int m_totalContentHeight;
     static LRESULT CALLBACK PanelProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+    // Custom Scrollbar State
+    bool m_isDraggingScroll;
+    int m_dragStartY;
+    int m_initialScrollY;
+    RECT m_rcScrollThumb;
+    HBRUSH m_hbrScrollTrack; // Dark track
+    HBRUSH m_hbrScrollThumb; // Normal thumb
+    HBRUSH m_hbrScrollThumbHover; // Active thumb
 
     // Track hovered button for redraw
     HWND m_hoveredButton;

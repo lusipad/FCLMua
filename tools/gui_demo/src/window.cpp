@@ -136,7 +136,7 @@ bool Window::Initialize()
     AdjustWindowRect(&rc, WS_OVERLAPPEDWINDOW, FALSE);
 
     m_hwnd = CreateWindowExW(0, L"FclDemoWindowClass", m_title.c_str(),
-        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+        WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, // Restore CLIPCHILDREN to protect UI from DX overwrite
         CW_USEDEFAULT, CW_USEDEFAULT, rc.right - rc.left, rc.bottom - rc.top,
         nullptr, nullptr, m_hInstance, this);
 
@@ -151,12 +151,12 @@ bool Window::Initialize()
 void Window::CreateUIControls()
 {
     // 1. Create the Panel Container (Clips children, handles scrollbar events)
-    // Remove WS_CLIPCHILDREN to fix static text rendering issues during scroll
-    m_panelContainer = CreateWindowW(L"FclDemoPanelClass", L"", WS_CHILD | WS_VISIBLE | WS_VSCROLL,
+    // Restore WS_CLIPCHILDREN now that text rendering is fixed (OPAQUE)
+    m_panelContainer = CreateWindowW(L"FclDemoPanelClass", L"", WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN | WS_VSCROLL,
         0, 0, 300, 600, m_hwnd, nullptr, m_hInstance, this);
 
     // 2. Create the Panel Content (Holds the actual controls, moves up/down)
-    m_panelContent = CreateWindowW(L"FclDemoPanelClass", L"", WS_CHILD | WS_VISIBLE,
+    m_panelContent = CreateWindowW(L"FclDemoPanelClass", L"", WS_CHILD | WS_VISIBLE | WS_CLIPCHILDREN,
         0, 0, 280, 2000, m_panelContainer, nullptr, m_hInstance, this);
 
     m_scrollOffset = 0;
@@ -170,7 +170,8 @@ void Window::CreateUIControls()
     };
 
     auto CreateEdit = [&](const wchar_t* text, int id, HWND* outHwnd, bool readOnly = false) {
-        DWORD style = WS_CHILD | WS_VISIBLE | WS_BORDER | ES_AUTOHSCROLL | ES_CENTER;
+        // Remove WS_BORDER for flat style
+        DWORD style = WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL | ES_CENTER; 
         if (readOnly) style |= ES_READONLY;
         *outHwnd = CreateWindowW(L"EDIT", text, style,
             0, 0, 0, 0, m_panelContent, (HMENU)id, m_hInstance, nullptr);
@@ -184,8 +185,9 @@ void Window::CreateUIControls()
     };
 
     auto CreateCombo = [&](int id, HWND* outHwnd, const std::vector<std::wstring>& items) {
+        // Add OwnerDraw styles for dark theme customization
         *outHwnd = CreateWindowW(L"COMBOBOX", L"", 
-            WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL,
+            WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | WS_VSCROLL | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS,
             0, 0, 0, 0, m_panelContent, (HMENU)id, m_hInstance, nullptr);
         SendMessage(*outHwnd, WM_SETFONT, (WPARAM)m_hFont, TRUE);
         for (const auto& item : items)
@@ -288,21 +290,20 @@ void Window::CreateUIControls()
         0, 0, 0, 0, m_hwnd, nullptr, m_hInstance, nullptr);
     SendMessage(m_statusBar, WM_SETFONT, (WPARAM)m_hFontSmall, TRUE);
 
-    // --- Overlays ---
-    m_overlayLabel = CreateWindowExW(WS_EX_TRANSPARENT, L"STATIC", L"", WS_CHILD | WS_VISIBLE,
-        0, 0, 0, 0, m_hwnd, nullptr, m_hInstance, nullptr);
-    SendMessage(m_overlayLabel, WM_SETFONT, (WPARAM)m_hFont, TRUE);
-
-    m_statusPanelBackground = CreateWindowExW(WS_EX_TRANSPARENT, L"STATIC", L"", WS_CHILD | WS_VISIBLE,
-        0, 0, 0, 0, m_hwnd, nullptr, m_hInstance, nullptr);
+    // --- Info Panels (Moved to Left Panel to fix flickering) ---
+    // System Status
+    m_statusPanel = CreateWindowW(L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_LEFT,
+        0, 0, 0, 0, m_panelContent, nullptr, m_hInstance, nullptr);
         
-    m_statusPanel = CreateWindowExW(WS_EX_TRANSPARENT, L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_LEFT,
-        0, 0, 0, 0, m_hwnd, nullptr, m_hInstance, nullptr);
-        
-    HFONT hConsolas = CreateFontW(15, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE,
+    HFONT hConsolas = CreateFontW(13, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
         DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
         CLEARTYPE_QUALITY, DEFAULT_PITCH | FF_MODERN, L"Consolas");
     SendMessage(m_statusPanel, WM_SETFONT, (WPARAM)hConsolas, TRUE);
+
+    // Collision Stats
+    m_overlayLabel = CreateWindowW(L"STATIC", L"", WS_CHILD | WS_VISIBLE | SS_LEFT,
+        0, 0, 0, 0, m_panelContent, nullptr, m_hInstance, nullptr);
+    SendMessage(m_overlayLabel, WM_SETFONT, (WPARAM)hConsolas, TRUE);
 }
 
 void Window::UpdateLayout()
@@ -351,8 +352,12 @@ void Window::UpdateLayout()
     };
 
     auto PlaceInline = [&](HWND hwnd, int height, int width, int xPos, bool newLine) {
-        SetWindowPos(hwnd, nullptr, x + xPos, y, width, height, SWP_NOZORDER);
-        if (newLine) y += height + spacing;
+        // Center vertically in the standard row height
+        int rowH = controlHeight;
+        int yOffset = (rowH - height) / 2;
+        
+        SetWindowPos(hwnd, nullptr, x + xPos, y + yOffset, width, height, SWP_NOZORDER);
+        if (newLine) y += rowH + spacing;
     };
 
     // --- Basic Objects ---
@@ -361,15 +366,15 @@ void Window::UpdateLayout()
     
     // Sphere row
     PlaceInline(m_labelSphereRadius, controlHeight, 100, 0, false);
-    PlaceInline(m_editSphereRadius, controlHeight, 60, 105, false);
+    PlaceInline(m_editSphereRadius, 22, 60, 105, false);
     PlaceInline(m_btnCreateSphere, controlHeight, 85, 175, true);
     
     // Box row
     Place(m_labelBox, labelHeight);
     int boxEditW = (w - 2 * spacing) / 3;
-    PlaceInline(m_editBoxX, controlHeight, boxEditW, 0, false);
-    PlaceInline(m_editBoxY, controlHeight, boxEditW, boxEditW + spacing, false);
-    PlaceInline(m_editBoxZ, controlHeight, boxEditW, (boxEditW + spacing) * 2, true);
+    PlaceInline(m_editBoxX, 22, boxEditW, 0, false);
+    PlaceInline(m_editBoxY, 22, boxEditW, boxEditW + spacing, false);
+    PlaceInline(m_editBoxZ, 22, boxEditW, (boxEditW + spacing) * 2, true);
     Place(m_btnCreateBox, controlHeight);
     
     Place(m_btnDelete, controlHeight);
@@ -410,12 +415,12 @@ void Window::UpdateLayout()
     Place(m_labelAsteroidGroup, labelHeight);
     PlaceDivider();
     Place(m_labelAsteroidVelocity, labelHeight);
-    PlaceInline(m_editAsteroidVX, controlHeight, boxEditW, 0, false);
-    PlaceInline(m_editAsteroidVY, controlHeight, boxEditW, boxEditW + spacing, false);
-    PlaceInline(m_editAsteroidVZ, controlHeight, boxEditW, (boxEditW + spacing) * 2, true);
+    PlaceInline(m_editAsteroidVX, 22, boxEditW, 0, false);
+    PlaceInline(m_editAsteroidVY, 22, boxEditW, boxEditW + spacing, false);
+    PlaceInline(m_editAsteroidVZ, 22, boxEditW, (boxEditW + spacing) * 2, true);
     
     PlaceInline(m_labelAsteroidRadius, controlHeight, 60, 0, false);
-    PlaceInline(m_editAsteroidRadius, controlHeight, 60, 65, false);
+    PlaceInline(m_editAsteroidRadius, 22, 60, 65, false);
     PlaceInline(m_btnCreateAsteroid, controlHeight, 125, 135, true);
     y += groupSpacing;
 
@@ -442,9 +447,9 @@ void Window::UpdateLayout()
     y += controlHeight + spacing;
     
     PlaceInline(m_labelVehicleSpeed, controlHeight, 50, 0, false);
-    PlaceInline(m_editVehicleSpeed, controlHeight, 60, 55, false);
+    PlaceInline(m_editVehicleSpeed, 22, 60, 55, false);
     PlaceInline(m_labelOBJScale, controlHeight, 40, 125, false);
-    PlaceInline(m_editOBJScale, controlHeight, 50, 170, true);
+    PlaceInline(m_editOBJScale, 22, 50, 170, true);
     
     PlaceInline(m_btnCreateVehicle, controlHeight, 120, 0, false);
     PlaceInline(m_btnLoadOBJ, controlHeight, 120, 130, true);
@@ -457,12 +462,19 @@ void Window::UpdateLayout()
     PlaceInline(m_labelObjectName, labelHeight, w - 75, 75, true);
     
     Place(m_labelPos, labelHeight);
-    PlaceInline(m_editPosX, controlHeight, boxEditW, 0, false);
-    PlaceInline(m_editPosY, controlHeight, boxEditW, boxEditW + spacing, false);
-    PlaceInline(m_editPosZ, controlHeight, boxEditW, (boxEditW + spacing) * 2, true);
+    PlaceInline(m_editPosX, 22, boxEditW, 0, false);
+    PlaceInline(m_editPosY, 22, boxEditW, boxEditW + spacing, false);
+    PlaceInline(m_editPosZ, 22, boxEditW, (boxEditW + spacing) * 2, true);
     
     PlaceInline(m_labelRotY, controlHeight, 110, 0, false);
-    PlaceInline(m_editRotY, controlHeight, w - 115, 115, true);
+    PlaceInline(m_editRotY, 22, w - 115, 115, true);
+    
+    y += groupSpacing;
+
+    // --- System Info (Moved to Panel) ---
+    Place(m_statusPanel, 120); // Height for status text
+    y += spacing;
+    Place(m_overlayLabel, 60); // Height for collision stats
 
     // Update Total Height
     m_totalContentHeight = y + padding;
@@ -486,28 +498,6 @@ void Window::UpdateLayout()
 
     // --- Status Bar ---
     SetWindowPos(m_statusBar, nullptr, 0, m_height - 25, m_width, 25, SWP_NOZORDER);
-
-    // --- Overlays ---
-    // Status panel (top right) - Position relative to the 3D viewport
-    const int uiPanelWidth = panelWidth;
-    // ... rest of overlay logic
-    const int statusW = 300;
-    const int statusH = 140;
-    
-    // Ensure we don't overlap with the UI panel if the window is small
-    int statusX = m_width - statusW - 10;
-    if (statusX < uiPanelWidth + 10) statusX = uiPanelWidth + 10;
-    
-    SetWindowPos(m_statusPanelBackground, nullptr, statusX, 10, statusW, statusH, SWP_NOZORDER);
-    SetWindowPos(m_statusPanel, nullptr, statusX + 10, 20, statusW - 20, statusH - 20, SWP_NOZORDER);
-
-    // Overlay label (center top of 3D view)
-    // Center point of 3D view is uiPanelWidth + (m_width - uiPanelWidth) / 2
-    int overlayW = 400;
-    int overlayX = uiPanelWidth + (m_width - uiPanelWidth - overlayW) / 2;
-    if (overlayX < uiPanelWidth + 10) overlayX = uiPanelWidth + 10;
-    
-    SetWindowPos(m_overlayLabel, nullptr, overlayX, 10, overlayW, 60, SWP_NOZORDER);
 }
 
 void Window::Show(int nCmdShow)
@@ -557,10 +547,11 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
         HWND hwndCtl = (HWND)lParam;
         SetTextColor(hdc, m_textColor);
         
-        // Special transparent overlays
-        if (hwndCtl == m_statusPanelBackground || hwndCtl == m_statusPanel || hwndCtl == m_overlayLabel) {
-            SetBkMode(hdc, TRANSPARENT);
-            return (LRESULT)GetStockObject(NULL_BRUSH); 
+        // Status Bar (Special Color)
+        if (hwndCtl == m_statusBar) {
+            SetBkMode(hdc, OPAQUE);
+            SetBkColor(hdc, RGB(0, 122, 204)); // Blue status bar
+            return (LRESULT)m_hbrAccent;
         }
 
         // Dividers
@@ -570,13 +561,6 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
                 SetBkColor(hdc, RGB(65, 65, 65));
                 return (LRESULT)m_hbrButton;
             }
-        }
-        
-        // Status Bar
-        if (hwndCtl == m_statusBar) {
-            SetBkMode(hdc, OPAQUE);
-            SetBkColor(hdc, RGB(0, 122, 204)); // Blue status bar
-            return (LRESULT)m_hbrAccent;
         }
         
         // Default Labels on Panel (Force Opaque to prevent scrolling glitches)
@@ -605,10 +589,11 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
     case WM_DRAWITEM:
     {
         LPDRAWITEMSTRUCT lpDrawItem = (LPDRAWITEMSTRUCT)lParam;
+        HDC hdc = lpDrawItem->hDC;
+        RECT rc = lpDrawItem->rcItem;
+
         if (lpDrawItem->CtlType == ODT_BUTTON)
         {
-            HDC hdc = lpDrawItem->hDC;
-            RECT rc = lpDrawItem->rcItem;
             bool selected = lpDrawItem->itemState & ODS_SELECTED;
             bool hovered = (lpDrawItem->hwndItem == m_hoveredButton);
 
@@ -625,7 +610,13 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
                 if (!selected && !hovered) hbr = m_hbrAccent;
             }
 
-            FillRect(hdc, &rc, hbr);
+            // 1. Clear background (fix white corners)
+            FillRect(hdc, &rc, m_hbrPanel);
+
+            // 2. Draw Rounded Rect (Borderless)
+            SelectObject(hdc, GetStockObject(NULL_PEN));
+            SelectObject(hdc, hbr);
+            RoundRect(hdc, rc.left, rc.top, rc.right, rc.bottom, 6, 6);
 
             // Draw text
             wchar_t text[256];
@@ -633,8 +624,50 @@ LRESULT Window::HandleMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
             SetBkMode(hdc, TRANSPARENT);
             SetTextColor(hdc, m_textColor);
             SelectObject(hdc, m_hFont);
-            DrawTextW(hdc, text, -1, &rc, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
             
+            // Measure text for precise centering
+            RECT rcTextCalc = rc;
+            DrawTextW(hdc, text, -1, &rcTextCalc, DT_CENTER | DT_CALCRECT | DT_SINGLELINE);
+            
+            int textH = rcTextCalc.bottom - rcTextCalc.top;
+            int btnH = rc.bottom - rc.top;
+            int y = rc.top + (btnH - textH) / 2;
+            
+            RECT rcText = rc;
+            rcText.top = y;
+            rcText.bottom = y + textH;
+            
+            DrawTextW(hdc, text, -1, &rcText, DT_CENTER | DT_SINGLELINE | DT_TOP);
+            
+            return TRUE;
+        }
+        else if (lpDrawItem->CtlType == ODT_COMBOBOX)
+        {
+            // Background
+            bool selected = lpDrawItem->itemState & ODS_SELECTED;
+            
+            if (selected) {
+                FillRect(hdc, &rc, m_hbrAccent); // Blue highlight
+                SetTextColor(hdc, RGB(255, 255, 255));
+            } else {
+                // Use edit brush (dark grey) for background
+                FillRect(hdc, &rc, m_hbrEdit); 
+                SetTextColor(hdc, m_textColor);
+            }
+
+            // Text
+            if (lpDrawItem->itemID != -1) {
+                wchar_t text[256];
+                // Get text from combo
+                SendMessageW(lpDrawItem->hwndItem, CB_GETLBTEXT, lpDrawItem->itemID, (LPARAM)text);
+                
+                SetBkMode(hdc, TRANSPARENT);
+                SelectObject(hdc, m_hFont);
+                
+                RECT rcText = rc;
+                rcText.left += 5; // Padding
+                DrawTextW(hdc, text, -1, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+            }
             return TRUE;
         }
         break;
@@ -904,28 +937,39 @@ void Window::UpdatePropertiesPanel(size_t selectedIndex, const std::string& obje
 
 void Window::SetOverlayText(const std::wstring& text)
 {
-    if (m_overlayLabel) SetWindowTextW(m_overlayLabel, text.c_str());
+    if (!m_overlayLabel) return;
+    
+    int len = GetWindowTextLengthW(m_overlayLabel);
+    std::vector<wchar_t> buf(len + 1);
+    GetWindowTextW(m_overlayLabel, &buf[0], len + 1);
+    if (text != &buf[0]) {
+        SetWindowTextW(m_overlayLabel, text.c_str());
+    }
 }
 
-void Window::UpdateStatusPanel(float fps, float frameTime, size_t objectCount,
-                              const std::wstring& sceneMode, const std::wstring& selectedObject)
-{
-    if (!m_statusPanel) return;
-
-    wchar_t statusText[512];
-    swprintf_s(statusText,
-        L"System Status\n"
-        L"━━━━━━━━━━━━━━━━━━\n"
-        L"FPS: %.1f\n"
-        L"Frame Time: %.2f ms\n"
-        L"Objects: %zu\n"
-        L"Scene: %s\n"
-        L"Selected: %s",
-        fps, frameTime, objectCount, sceneMode.c_str(), selectedObject.c_str());
-
-    SetWindowTextW(m_statusPanel, statusText);
+void Window::UpdateStatusPanel(float fps, float frameTime, size_t objectCount,                           
+                              const std::wstring& sceneMode, const std::wstring& selectedObject)         
+{                                                                                                        
+    if (!m_statusPanel) return;                                                                          
+                                                                                                         
+    wchar_t statusText[512];                                                                             
+    swprintf_s(statusText,                                                                               
+        L"System Status\n"                                                                               
+        L"------------------\n"                                                                                
+        L"FPS: %.1f\n"                                                                                   
+        L"Frame Time: %.2f ms\n"                                                                         
+        L"Objects: %zu\n"                                                                                
+        L"Scene: %s\n"                                                                                   
+        L"Selected: %s",                                                                                 
+        fps, frameTime, objectCount, sceneMode.c_str(), selectedObject.c_str());                         
+                                                                                                         
+    int len = GetWindowTextLengthW(m_statusPanel);
+    std::vector<wchar_t> buf(len + 1);
+    GetWindowTextW(m_statusPanel, &buf[0], len + 1);
+    if (std::wstring(statusText) != &buf[0]) {
+        SetWindowTextW(m_statusPanel, statusText);
+    }
 }
-
 LRESULT CALLBACK Window::PanelProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
     Window* window = reinterpret_cast<Window*>(GetWindowLongPtr(hwnd, GWLP_USERDATA));
@@ -948,57 +992,140 @@ LRESULT CALLBACK Window::PanelProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
     // Scroll Logic (Only for Panel Container)
     if (hwnd == window->m_panelContainer)
     {
-        if (uMsg == WM_VSCROLL)
+        // 1. Handle Paint (Custom Scrollbar + Background)
+        if (uMsg == WM_PAINT)
         {
-            SCROLLINFO si = {};
-            si.cbSize = sizeof(SCROLLINFO);
-            si.fMask = SIF_ALL;
-            GetScrollInfo(hwnd, SB_VERT, &si);
-
-            int newPos = si.nPos;
-            switch (LOWORD(wParam))
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hwnd, &ps);
+            
+            RECT rc;
+            GetClientRect(hwnd, &rc);
+            
+            // Draw Background
+            FillRect(hdc, &rc, window->m_hbrBackground);
+            
+            // Draw Scrollbar if needed
+            if (window->m_totalContentHeight > rc.bottom)
             {
-            case SB_TOP: newPos = si.nMin; break;
-            case SB_BOTTOM: newPos = si.nMax; break;
-            case SB_LINEUP: newPos -= 20; break;
-            case SB_LINEDOWN: newPos += 20; break;
-            case SB_PAGEUP: newPos -= si.nPage; break;
-            case SB_PAGEDOWN: newPos += si.nPage; break;
-            case SB_THUMBTRACK: newPos = si.nTrackPos; break;
+                int trackW = 12;
+                RECT rcTrack = { rc.right - trackW, 0, rc.right, rc.bottom };
+                
+                // Draw Track
+                static HBRUSH hbrTrack = CreateSolidBrush(RGB(45, 45, 48));
+                FillRect(hdc, &rcTrack, hbrTrack);
+                
+                // Calculate Thumb Geometry
+                int viewH = rc.bottom;
+                int contentH = window->m_totalContentHeight;
+                // Minimum thumb height 30px
+                int thumbH = max(30, (int)((float)viewH / contentH * viewH));
+                
+                int scrollableH = contentH - viewH;
+                int trackScrollableH = viewH - thumbH;
+                
+                // Current thumb Y
+                int thumbY = 0;
+                if (scrollableH > 0)
+                    thumbY = (int)((float)window->m_scrollOffset / scrollableH * trackScrollableH);
+                
+                RECT rcThumb = { rc.right - trackW + 3, thumbY, rc.right - 3, thumbY + thumbH };
+                window->m_rcScrollThumb = rcThumb; // Save for hit test
+                
+                // Draw Thumb (Rounded)
+                HBRUSH hbrThumb = window->m_isDraggingScroll ? window->m_hbrButtonActive : window->m_hbrButton;
+                SelectObject(hdc, GetStockObject(NULL_PEN));
+                SelectObject(hdc, hbrThumb);
+                RoundRect(hdc, rcThumb.left, rcThumb.top, rcThumb.right, rcThumb.bottom, 4, 4);
             }
-
-            // Adjust limits
-            int maxPos = si.nMax - (int)si.nPage + 1;
-            if (maxPos < 0) maxPos = 0;
+            else
+            {
+                // No scrollbar needed
+                window->m_rcScrollThumb = { 0,0,0,0 };
+            }
             
-            if (newPos < 0) newPos = 0;
-            if (newPos > maxPos) newPos = maxPos;
-            
-                            if (newPos != si.nPos)
-                            {
-                                window->m_scrollOffset = newPos;
-                                si.fMask = SIF_POS;
-                                si.nPos = newPos;
-                                SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
-                                
-                                                    // Move content window and force redraw
-                                
-                                                    SetWindowPos(window->m_panelContent, nullptr, 0, -newPos, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
-                                
-                                                    InvalidateRect(window->m_panelContent, nullptr, TRUE);
-                                
-                                                    UpdateWindow(window->m_panelContent);
-                                
-                                                }            return 0;
+            EndPaint(hwnd, &ps);
+            return 0;
         }
-        else if (uMsg == WM_MOUSEWHEEL)
+        
+        // 2. Handle EraseBkgnd (Prevent flickering, handled in Paint)
+        if (uMsg == WM_ERASEBKGND) return 1;
+
+        // 3. Mouse Interaction
+        if (uMsg == WM_LBUTTONDOWN)
         {
-            // Forward mouse wheel to VSCROLL
+            POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            if (PtInRect(&window->m_rcScrollThumb, pt)) {
+                window->m_isDraggingScroll = true;
+                window->m_dragStartY = pt.y;
+                window->m_initialScrollY = window->m_scrollOffset; // Store scroll offset at drag start
+                // We store the thumb Y relative to mouse, but simpler to just track delta
+                // Actually simpler: store the *pixel* offset of mouse on screen vs drag start
+                SetCapture(hwnd);
+                return 0;
+            }
+        }
+        
+        if (uMsg == WM_MOUSEMOVE && window->m_isDraggingScroll)
+        {
+            POINT pt = { GET_X_LPARAM(lParam), GET_Y_LPARAM(lParam) };
+            int deltaY = pt.y - window->m_dragStartY;
+            
+            RECT rc; GetClientRect(hwnd, &rc);
+            int viewH = rc.bottom;
+            int contentH = window->m_totalContentHeight;
+            int thumbH = max(30, (int)((float)viewH / contentH * viewH));
+            int trackScrollableH = viewH - thumbH;
+            int scrollableH = contentH - viewH;
+            
+            if (trackScrollableH > 0) {
+                // Map pixel delta to scroll delta
+                float scale = (float)scrollableH / trackScrollableH;
+                int scrollDelta = (int)(deltaY * scale);
+                
+                int newScroll = window->m_initialScrollY + scrollDelta;
+                if (newScroll < 0) newScroll = 0;
+                if (newScroll > scrollableH) newScroll = scrollableH;
+                
+                if (window->m_scrollOffset != newScroll) {
+                    window->m_scrollOffset = newScroll;
+                    SetWindowPos(window->m_panelContent, nullptr, 0, -newScroll, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+                    InvalidateRect(hwnd, nullptr, FALSE); // Redraw scrollbar
+                    InvalidateRect(window->m_panelContent, nullptr, TRUE); // Redraw content
+                    UpdateWindow(window->m_panelContent);
+                }
+            }
+            return 0;
+        }
+        
+        if (uMsg == WM_LBUTTONUP && window->m_isDraggingScroll)
+        {
+            window->m_isDraggingScroll = false;
+            ReleaseCapture();
+            InvalidateRect(hwnd, nullptr, FALSE);
+            return 0;
+        }
+
+        // 4. Mouse Wheel (Manual Scroll)
+        if (uMsg == WM_MOUSEWHEEL)
+        {
             int zDelta = GET_WHEEL_DELTA_WPARAM(wParam);
-            int lines = 3; 
-            WPARAM scrollCode = (zDelta > 0) ? SB_LINEUP : SB_LINEDOWN;
-            for(int i=0; i<lines; ++i)
-                SendMessage(hwnd, WM_VSCROLL, scrollCode, 0);
+            int scrollAmount = -zDelta; // Negative delta = scroll down (pos increase)
+            
+            RECT rc; GetClientRect(hwnd, &rc);
+            int maxScroll = window->m_totalContentHeight - rc.bottom;
+            if (maxScroll < 0) maxScroll = 0;
+            
+            int newScroll = window->m_scrollOffset + scrollAmount;
+            if (newScroll < 0) newScroll = 0;
+            if (newScroll > maxScroll) newScroll = maxScroll;
+            
+            if (window->m_scrollOffset != newScroll) {
+                window->m_scrollOffset = newScroll;
+                SetWindowPos(window->m_panelContent, nullptr, 0, -newScroll, 0, 0, SWP_NOSIZE | SWP_NOZORDER);
+                InvalidateRect(hwnd, nullptr, FALSE);
+                InvalidateRect(window->m_panelContent, nullptr, TRUE);
+                UpdateWindow(window->m_panelContent);
+            }
             return 0;
         }
     }
@@ -1009,8 +1136,8 @@ LRESULT CALLBACK Window::PanelProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM l
         return SendMessage(window->m_panelContainer, uMsg, wParam, lParam);
     }
 
-    // Paint background
-    if (uMsg == WM_ERASEBKGND)
+    // Paint background for Content Panel (if it needs painting, usually covered by controls or same bg)
+    if (uMsg == WM_ERASEBKGND && hwnd == window->m_panelContent)
     {
         HDC hdc = (HDC)wParam;
         RECT rc;

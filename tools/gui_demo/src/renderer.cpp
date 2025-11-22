@@ -42,6 +42,9 @@ bool Renderer::Initialize(HWND hwnd, int width, int height)
     if (!CreateRasterizerStates())
         return false;
 
+    if (!CreateBlendStates())
+        return false;
+
     if (!CreatePrimitiveMeshes())
         return false;
 
@@ -61,7 +64,7 @@ bool Renderer::Initialize(HWND hwnd, int width, int height)
 bool Renderer::CreateDeviceAndSwapChain(HWND hwnd)
 {
     DXGI_SWAP_CHAIN_DESC scd = {};
-    scd.BufferCount = 2;
+    scd.BufferCount = 1; // Standard for MSAA
     scd.BufferDesc.Width = m_width;
     scd.BufferDesc.Height = m_height;
     scd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -69,10 +72,13 @@ bool Renderer::CreateDeviceAndSwapChain(HWND hwnd)
     scd.BufferDesc.RefreshRate.Denominator = 1;
     scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     scd.OutputWindow = hwnd;
+    
+    // Disable MSAA to ensure compatibility (fixed "not displaying" issue)
     scd.SampleDesc.Count = 1;
-    scd.SampleDesc.Quality = 0;
+    scd.SampleDesc.Quality = 0; 
+    
     scd.Windowed = TRUE;
-    scd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
+    scd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD; // Use legacy DISCARD for max compatibility
 
     D3D_FEATURE_LEVEL featureLevel;
     UINT createDeviceFlags = 0;
@@ -151,6 +157,7 @@ bool Renderer::CreateShaders()
             matrix Projection;
             float4 Color;
             float4 LightDir;
+            float4 CameraPos;
         };
 
         struct VS_INPUT
@@ -165,13 +172,15 @@ bool Renderer::CreateShaders()
             float4 Pos : SV_POSITION;
             float3 Normal : NORMAL;
             float4 Color : COLOR;
+            float3 WorldPos : TEXCOORD0;
         };
 
         PS_INPUT main(VS_INPUT input)
         {
             PS_INPUT output;
-            output.Pos = mul(float4(input.Pos, 1.0), World);
-            output.Pos = mul(output.Pos, View);
+            float4 worldPos = mul(float4(input.Pos, 1.0), World);
+            output.WorldPos = worldPos.xyz;
+            output.Pos = mul(worldPos, View);
             output.Pos = mul(output.Pos, Projection);
             output.Normal = mul(input.Normal, (float3x3)World);
             output.Color = Color * input.Color;
@@ -179,7 +188,7 @@ bool Renderer::CreateShaders()
         }
     )";
 
-    // Simple pixel shader with lighting
+    // Simple pixel shader with lighting (Pseudo-PBR)
     const char* psSource = R"(
         cbuffer ConstantBuffer : register(b0)
         {
@@ -188,6 +197,7 @@ bool Renderer::CreateShaders()
             matrix Projection;
             float4 Color;
             float4 LightDir;
+            float4 CameraPos;
         };
 
         struct PS_INPUT
@@ -195,16 +205,58 @@ bool Renderer::CreateShaders()
             float4 Pos : SV_POSITION;
             float3 Normal : NORMAL;
             float4 Color : COLOR;
+            float3 WorldPos : TEXCOORD0;
         };
 
         float4 main(PS_INPUT input) : SV_TARGET
         {
-            float3 normal = normalize(input.Normal);
-            float3 lightDir = normalize(LightDir.xyz);
-            float diffuse = max(dot(normal, lightDir), 0.0);
-            float ambient = 0.3;
-            float lighting = ambient + diffuse * 0.7;
-            return float4(input.Color.rgb * lighting, input.Color.a);
+            float3 N = normalize(input.Normal);
+            float3 L = normalize(LightDir.xyz);
+            float3 V = normalize(CameraPos.xyz - input.WorldPos);
+            float3 H = normalize(L + V);
+
+            float NdotL = max(dot(N, L), 0.0);
+            float NdotV = max(dot(N, V), 0.001);
+
+            // 1. Diffuse & Ambient
+            // Very low ambient for high contrast/deep shadows
+            float3 ambient = float3(0.05, 0.05, 0.06); 
+            float3 diffuse = input.Color.rgb * (ambient + NdotL * 0.95);
+
+            // 2. Material Heuristics
+            float brightness = dot(input.Color.rgb, float3(0.3, 0.59, 0.11));
+            bool isMatte = (brightness < 0.25);
+            
+            // Sharper highlights for metal
+            float specPower = isMatte ? 32.0 : 256.0; 
+            float specIntensity = isMatte ? 0.2 : 1.2;
+            float reflectIntensity = isMatte ? 0.02 : 0.3;
+
+            // 3. Specular (Blinn-Phong)
+            float spec = pow(max(dot(N, H), 0.0), specPower) * specIntensity;
+            float3 specularColor = float3(1.0, 1.0, 1.0) * spec;
+
+            // 4. Environment Reflection (Fake Skybox)
+            float3 R = reflect(-V, N);
+            // Darker skybox to reduce haze
+            float3 skyColor = float3(0.05, 0.2, 0.5);
+            float3 horizonColor = float3(0.4, 0.4, 0.45);
+            float3 groundColor = float3(0.02, 0.02, 0.02);
+            
+            float3 envColor;
+            if (R.y > 0.0) envColor = lerp(horizonColor, skyColor, pow(R.y, 0.8));
+            else           envColor = lerp(horizonColor, groundColor, pow(-R.y, 0.8));
+
+            // 5. Fresnel
+            float fresnel = pow(1.0 - NdotV, 5.0); // Sharper fresnel
+            float finalReflect = reflectIntensity + fresnel * 0.5;
+            if (isMatte) finalReflect *= 0.1;
+
+            // Combine
+            float3 finalRGB = diffuse + specularColor + envColor * finalReflect;
+
+            // 6. Direct Output (No ToneMapping/Gamma) for Richer Colors
+            return float4(finalRGB, input.Color.a);
         }
     )";
 
@@ -288,8 +340,8 @@ bool Renderer::CreateRasterizerStates()
     // Solid rasterizer state
     D3D11_RASTERIZER_DESC rsSolid = {};
     rsSolid.FillMode = D3D11_FILL_SOLID;
-    rsSolid.CullMode = D3D11_CULL_BACK;
-    rsSolid.FrontCounterClockwise = TRUE; // Mesh generation uses CCW winding
+    rsSolid.CullMode = D3D11_CULL_NONE; // Disable culling to fix transparency issues on some faces
+    rsSolid.FrontCounterClockwise = TRUE; 
     rsSolid.DepthClipEnable = TRUE;
 
     HRESULT hr = m_device->CreateRasterizerState(&rsSolid, &m_rasterizerStateSolid);
@@ -303,6 +355,28 @@ bool Renderer::CreateRasterizerStates()
 
     hr = m_device->CreateRasterizerState(&rsWireframe, &m_rasterizerStateWireframe);
     return SUCCEEDED(hr);
+}
+
+bool Renderer::CreateBlendStates()
+{
+    D3D11_BLEND_DESC blendDesc = {};
+    blendDesc.RenderTarget[0].BlendEnable = TRUE;
+    blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+    blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+    blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ZERO;
+    blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+    HRESULT hr = m_device->CreateBlendState(&blendDesc, &m_blendStateAlpha);
+    return SUCCEEDED(hr);
+}
+
+void Renderer::SetAlphaBlending(bool enable)
+{
+    float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    m_context->OMSetBlendState(enable ? m_blendStateAlpha.Get() : nullptr, blendFactor, 0xffffffff);
 }
 
 bool Renderer::CreatePrimitiveMeshes()
@@ -381,10 +455,11 @@ void Renderer::EndFrame()
     m_swapChain->Present(1, 0);
 }
 
-void Renderer::SetViewProjection(const XMMATRIX& view, const XMMATRIX& proj)
+void Renderer::SetViewProjection(const XMMATRIX& view, const XMMATRIX& proj, const XMFLOAT3& cameraPos)
 {
     m_viewMatrix = view;
     m_projMatrix = proj;
+    m_cameraPos = cameraPos;
 }
 
 void Renderer::DrawMesh(const Mesh& mesh, const XMMATRIX& world, const XMFLOAT4& color)
@@ -401,6 +476,7 @@ void Renderer::DrawMesh(const Mesh& mesh, const XMMATRIX& world, const XMFLOAT4&
     cb->Projection = XMMatrixTranspose(m_projMatrix);
     cb->Color = color;
     cb->LightDir = XMFLOAT4(0.577f, 0.577f, 0.577f, 0.0f); // Normalized (1,1,1)
+    cb->CameraPos = XMFLOAT4(m_cameraPos.x, m_cameraPos.y, m_cameraPos.z, 1.0f);
     m_context->Unmap(m_constantBuffer.Get(), 0);
 
     // Set constant buffer
@@ -449,72 +525,7 @@ void Renderer::DrawLine(const XMFLOAT3& start, const XMFLOAT3& end, const XMFLOA
     m_lineVertices.push_back(v2);
 }
 
-void Renderer::FlushLines()
-{
-    if (m_lineVertices.empty() || !m_lineVertexBuffer)
-        return;
 
-    // Update vertex buffer
-    D3D11_MAPPED_SUBRESOURCE mapped;
-    if (SUCCEEDED(m_context->Map(m_lineVertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
-    {
-        // Check if buffer is large enough. For now assume it is (20k verts)
-        // In production, should handle resize or chunking.
-        size_t bytesToCopy = (std::min)(m_lineVertices.size() * sizeof(Vertex), (size_t)sizeof(Vertex) * 20000);
-        memcpy(mapped.pData, m_lineVertices.data(), bytesToCopy);
-        m_context->Unmap(m_lineVertexBuffer.Get(), 0);
-    }
-
-    // Set constant buffer (World is Identity for lines usually, but we set it anyway)
-    D3D11_MAPPED_SUBRESOURCE mappedCB;
-    m_context->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedCB);
-    ConstantBuffer* cb = static_cast<ConstantBuffer*>(mappedCB.pData);
-    cb->World = XMMatrixIdentity(); // Lines are drawn in world space directly
-    cb->World = XMMatrixTranspose(cb->World);
-    cb->View = XMMatrixTranspose(m_viewMatrix);
-    cb->Projection = XMMatrixTranspose(m_projMatrix);
-    cb->Color = XMFLOAT4(1, 1, 1, 1); // Vertex color used
-    cb->LightDir = XMFLOAT4(0, 1, 0, 0);
-    m_context->Unmap(m_constantBuffer.Get(), 0);
-
-    m_context->VSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
-    m_context->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
-
-    // Use Unlit shader
-    m_context->PSSetShader(m_pixelShaderUnlit.Get(), nullptr, 0);
-
-    // Set vertex buffer
-    UINT stride = sizeof(Vertex);
-    UINT offset = 0;
-    m_context->IASetVertexBuffers(0, 1, m_lineVertexBuffer.GetAddressOf(), &stride, &offset);
-    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-
-    // Draw
-    m_context->Draw(static_cast<UINT>(m_lineVertices.size()), 0);
-
-    // Restore state
-    m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-    
-    m_lineVertices.clear();
-}
-
-void Renderer::DrawGrid(float size, int divisions, const XMFLOAT4& color)
-{
-    float step = size / divisions;
-    float halfSize = size / 2.0f;
-
-    for (int i = 0; i <= divisions; ++i)
-    {
-        float pos = -halfSize + i * step;
-        
-        // Z lines (along X)
-        DrawLine(XMFLOAT3(-halfSize, 0, pos), XMFLOAT3(halfSize, 0, pos), color);
-        
-        // X lines (along Z)
-        DrawLine(XMFLOAT3(pos, 0, -halfSize), XMFLOAT3(pos, 0, halfSize), color);
-    }
-}
 
 Mesh Renderer::CreateSphereMesh(float radius, int segments)
 {
@@ -704,4 +715,72 @@ bool Renderer::UploadMesh(Mesh& mesh)
 
     hr = m_device->CreateBuffer(&ibd, &iInitData, &mesh.indexBuffer);
     return SUCCEEDED(hr);
+}
+
+void Renderer::FlushLines()
+{
+    if (m_lineVertices.empty() || !m_lineVertexBuffer)
+        return;
+
+    // Update vertex buffer
+    D3D11_MAPPED_SUBRESOURCE mapped;
+    if (SUCCEEDED(m_context->Map(m_lineVertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+    {
+        // Check if buffer is large enough. For now assume it is (20k verts)
+        // In production, should handle resize or chunking.
+        size_t bytesToCopy = (std::min)(m_lineVertices.size() * sizeof(Vertex), (size_t)sizeof(Vertex) * 20000);
+        memcpy(mapped.pData, m_lineVertices.data(), bytesToCopy);
+        m_context->Unmap(m_lineVertexBuffer.Get(), 0);
+    }
+
+    // Set constant buffer (World is Identity for lines usually, but we set it anyway)
+    D3D11_MAPPED_SUBRESOURCE mappedCB;
+    m_context->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedCB);
+    ConstantBuffer* cb = static_cast<ConstantBuffer*>(mappedCB.pData);
+    cb->World = XMMatrixIdentity(); // Lines are drawn in world space directly
+    cb->World = XMMatrixTranspose(cb->World);
+    cb->View = XMMatrixTranspose(m_viewMatrix);
+    cb->Projection = XMMatrixTranspose(m_projMatrix);
+    cb->Color = XMFLOAT4(1, 1, 1, 1); // Vertex color used
+    cb->LightDir = XMFLOAT4(0, 1, 0, 0);
+    cb->CameraPos = XMFLOAT4(m_cameraPos.x, m_cameraPos.y, m_cameraPos.z, 1.0f);
+    m_context->Unmap(m_constantBuffer.Get(), 0);
+
+    m_context->VSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
+    m_context->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
+
+    // Use Unlit shader
+    m_context->PSSetShader(m_pixelShaderUnlit.Get(), nullptr, 0);
+
+    // Set vertex buffer
+    UINT stride = sizeof(Vertex);
+    UINT offset = 0;
+    m_context->IASetVertexBuffers(0, 1, m_lineVertexBuffer.GetAddressOf(), &stride, &offset);
+    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+
+    // Draw
+    m_context->Draw(static_cast<UINT>(m_lineVertices.size()), 0);
+
+    // Restore state
+    m_context->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+    m_context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+    
+    m_lineVertices.clear();
+}
+
+void Renderer::DrawGrid(float size, int divisions, const XMFLOAT4& color)
+{
+    float step = size / divisions;
+    float halfSize = size / 2.0f;
+
+    for (int i = 0; i <= divisions; ++i)
+    {
+        float pos = -halfSize + i * step;
+        
+        // Z lines (along X)
+        DrawLine(XMFLOAT3(-halfSize, 0, pos), XMFLOAT3(halfSize, 0, pos), color);
+        
+        // X lines (along Z)
+        DrawLine(XMFLOAT3(pos, 0, -halfSize), XMFLOAT3(pos, 0, halfSize), color);
+    }
 }

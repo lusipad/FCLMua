@@ -161,76 +161,217 @@ void Scene::InitializeCrossroadScene()
     // Define road parameters
     const float roadWidth = 4.0f;      // Width of each road lane
     const float roadLength = 40.0f;    // Total length of road
-    const float roadThickness = 0.1f;  // Thickness of road
-    const XMFLOAT4 roadColor(0.3f, 0.3f, 0.3f, 1.0f);  // Dark gray
+    const float roadThickness = 0.02f; // Very thin, just above grid
     const XMFLOAT4 lineColor(1.0f, 1.0f, 1.0f, 1.0f);  // White
+    const XMFLOAT4 yellowColor(1.0f, 0.8f, 0.0f, 1.0f); // Yellow
+    const XMFLOAT4 poleColor(0.4f, 0.4f, 0.4f, 1.0f);   // Grey metal
+    const XMFLOAT4 lightBoxColor(0.2f, 0.2f, 0.2f, 1.0f); // Black housing
 
-    // Create horizontal road (East-West)
-    auto roadEW = std::make_unique<SceneObject>();
-    roadEW->name = "Road East-West";
-    roadEW->type = GeometryType::Box;
-    roadEW->position = XMFLOAT3(0, 0, 0);
-    roadEW->data.box.extents = XMFLOAT3(roadLength / 2.0f, roadThickness / 2.0f, roadWidth / 2.0f);
-    roadEW->color = roadColor;
-    if (m_driver && m_driver->IsConnected())
-    {
-        roadEW->fclHandle = m_driver->CreateBox(roadEW->position, roadEW->data.box.extents);
-    }
-    m_objects.push_back(std::move(roadEW));
+    // Helper to add a zebra crossing
+    auto AddZebraCrossing = [&](const XMFLOAT3& center, bool horizontal) {
+        int stripes = 6;
+        float stripeW = 0.6f;
+        float stripeL = 3.0f; // Length of crossing
+        float gap = 0.4f;
+        float totalW = stripes * stripeW + (stripes - 1) * gap;
+        float startOffset = -totalW / 2.0f + stripeW / 2.0f;
 
-    // Create vertical road (North-South)
-    auto roadNS = std::make_unique<SceneObject>();
-    roadNS->name = "Road North-South";
-    roadNS->type = GeometryType::Box;
-    roadNS->position = XMFLOAT3(0, 0, 0);
-    roadNS->data.box.extents = XMFLOAT3(roadWidth / 2.0f, roadThickness / 2.0f, roadLength / 2.0f);
-    roadNS->color = roadColor;
-    if (m_driver && m_driver->IsConnected())
-    {
-        roadNS->fclHandle = m_driver->CreateBox(roadNS->position, roadNS->data.box.extents);
-    }
-    m_objects.push_back(std::move(roadNS));
+        for (int i = 0; i < stripes; ++i) {
+            float offset = startOffset + i * (stripeW + gap);
+            XMFLOAT3 pos = center;
+            XMFLOAT3 size;
+            
+            if (horizontal) { // Stripes run Z, arranged along X
+                pos.x += offset;
+                size = XMFLOAT3(stripeW/2, roadThickness, stripeL/2);
+            } else { // Stripes run X, arranged along Z
+                pos.z += offset;
+                size = XMFLOAT3(stripeL/2, roadThickness, stripeW/2);
+            }
+            
+            auto stripe = std::make_unique<SceneObject>();
+            stripe->name = "Zebra Stripe";
+            stripe->type = GeometryType::Box;
+            stripe->position = pos;
+            stripe->data.box.extents = size;
+            stripe->color = lineColor;
+            m_objects.push_back(std::move(stripe));
+        }
+    };
 
-    // Create crossroad boundary lines (white lines marking the intersection)
-    const float lineThickness = 0.05f;
-    const float lineWidth = 0.15f;
-    const float intersectionSize = roadWidth * 1.5f; // Size of the intersection area
+    // Helper to add dashed lane lines
+    auto AddDashedLine = [&](const XMFLOAT3& start, const XMFLOAT3& end) {
+        float len = sqrt(pow(end.x - start.x, 2) + pow(end.z - start.z, 2));
+        float dashLen = 1.5f;
+        float gapLen = 1.5f;
+        int count = (int)(len / (dashLen + gapLen));
+        
+        float dx = (end.x - start.x) / len;
+        float dz = (end.z - start.z) / len;
+        
+        for (int i = 0; i < count; ++i) {
+            float dist = i * (dashLen + gapLen) + gapLen; // Start with gap
+            XMFLOAT3 center(start.x + dx * (dist + dashLen/2), roadThickness, start.z + dz * (dist + dashLen/2));
+            
+            auto dash = std::make_unique<SceneObject>();
+            dash->name = "Lane Dash";
+            dash->type = GeometryType::Box;
+            dash->position = center;
+            if (abs(dx) > abs(dz)) // Horizontal line
+                dash->data.box.extents = XMFLOAT3(dashLen/2, roadThickness, 0.08f);
+            else // Vertical line
+                dash->data.box.extents = XMFLOAT3(0.08f, roadThickness, dashLen/2);
+            dash->color = lineColor;
+            m_objects.push_back(std::move(dash));
+        }
+    };
 
-    // North boundary line (marks where vehicles entering from south can start turning)
-    auto lineNorth = std::make_unique<SceneObject>();
-    lineNorth->name = "Line North";
-    lineNorth->type = GeometryType::Box;
-    lineNorth->position = XMFLOAT3(0, roadThickness, intersectionSize / 2.0f);
-    lineNorth->data.box.extents = XMFLOAT3(roadWidth / 2.0f, lineThickness, lineWidth / 2.0f);
-    lineNorth->color = lineColor;
-    m_objects.push_back(std::move(lineNorth));
+    // Helper to add double yellow center lines
+    auto AddDoubleYellow = [&](const XMFLOAT3& center, float length, bool horizontal) {
+        float lineW = 0.1f;
+        float sep = 0.15f;
+        XMFLOAT3 size = horizontal ? XMFLOAT3(length/2, roadThickness, lineW) : XMFLOAT3(lineW, roadThickness, length/2);
+        
+        auto l1 = std::make_unique<SceneObject>();
+        l1->type = GeometryType::Box; l1->data.box.extents = size; l1->color = yellowColor;
+        l1->position = center; 
+        if (horizontal) l1->position.z -= sep; else l1->position.x -= sep;
+        m_objects.push_back(std::move(l1));
 
-    // South boundary line
-    auto lineSouth = std::make_unique<SceneObject>();
-    lineSouth->name = "Line South";
-    lineSouth->type = GeometryType::Box;
-    lineSouth->position = XMFLOAT3(0, roadThickness, -intersectionSize / 2.0f);
-    lineSouth->data.box.extents = XMFLOAT3(roadWidth / 2.0f, lineThickness, lineWidth / 2.0f);
-    lineSouth->color = lineColor;
-    m_objects.push_back(std::move(lineSouth));
+        auto l2 = std::make_unique<SceneObject>();
+        l2->type = GeometryType::Box; l2->data.box.extents = size; l2->color = yellowColor;
+        l2->position = center;
+        if (horizontal) l2->position.z += sep; else l2->position.x += sep;
+        m_objects.push_back(std::move(l2));
+    };
 
-    // East boundary line
-    auto lineEast = std::make_unique<SceneObject>();
-    lineEast->name = "Line East";
-    lineEast->type = GeometryType::Box;
-    lineEast->position = XMFLOAT3(intersectionSize / 2.0f, roadThickness, 0);
-    lineEast->data.box.extents = XMFLOAT3(lineWidth / 2.0f, lineThickness, roadWidth / 2.0f);
-    lineEast->color = lineColor;
-    m_objects.push_back(std::move(lineEast));
+    // Helper to add Traffic Light
+    auto AddTrafficLight = [&](const XMFLOAT3& pos, float rotationY) {
+        float poleH = 6.0f;
+        float armLen = 5.0f;
+        
+        // Pole
+        auto pole = std::make_unique<SceneObject>();
+        pole->type = GeometryType::Box; // Cylinder would be better but Box is fine
+        pole->position = XMFLOAT3(pos.x, poleH/2, pos.z);
+        pole->data.box.extents = XMFLOAT3(0.15f, poleH/2, 0.15f);
+        pole->color = poleColor;
+        m_objects.push_back(std::move(pole));
+        
+        // Arm
+        auto arm = std::make_unique<SceneObject>();
+        arm->type = GeometryType::Box;
+        // Arm extends towards center (0,0,0). 
+        // Assuming pos is at corner, rotation tells us direction.
+        // Rotation 0 = Arm along +X? 
+        // Let's simplify: Arm extends in the direction of rotationY
+        float armX = pos.x + (armLen/2) * sin(rotationY);
+        float armZ = pos.z + (armLen/2) * cos(rotationY);
+        
+        arm->position = XMFLOAT3(armX, poleH - 0.5f, armZ);
+        arm->rotation = XMFLOAT3(0, rotationY, 0);
+        arm->data.box.extents = XMFLOAT3(0.1f, 0.1f, armLen/2); // Length along Z local
+        arm->color = poleColor;
+        m_objects.push_back(std::move(arm));
+        
+        // Light Box
+        float boxW = 0.4f; float boxH = 1.2f; float boxD = 0.4f;
+        // Position at end of arm
+        float endX = pos.x + (armLen - 1.0f) * sin(rotationY);
+        float endZ = pos.z + (armLen - 1.0f) * cos(rotationY);
+        
+        auto box = std::make_unique<SceneObject>();
+        box->type = GeometryType::Box;
+        box->position = XMFLOAT3(endX, poleH - 1.0f, endZ);
+        box->rotation = XMFLOAT3(0, rotationY, 0);
+        box->data.box.extents = XMFLOAT3(boxW, boxH, boxD);
+        box->color = lightBoxColor;
+        m_objects.push_back(std::move(box));
+        
+        // Lights (Red, Yellow, Green)
+        auto AddLamp = [&](float yOffset, const XMFLOAT4& c) {
+            auto lamp = std::make_unique<SceneObject>();
+            lamp->type = GeometryType::Sphere;
+            lamp->data.sphere.radius = 0.25f;
+            // Position slightly forward in direction of rotation
+            // Local Z is direction of arm. Light faces perpendicular?
+            // If arm is along Z, traffic comes from -Z or +Z.
+            // Lights should face -Z (local).
+            float localZ = -boxD - 0.1f;
+            float worldX = endX + localZ * sin(rotationY);
+            float worldZ = endZ + localZ * cos(rotationY);
+            
+            lamp->position = XMFLOAT3(worldX, poleH - 1.0f + yOffset, worldZ);
+            lamp->color = c;
+            m_objects.push_back(std::move(lamp));
+        };
+        
+        AddLamp(0.6f, XMFLOAT4(1,0,0,1)); // Red
+        AddLamp(0.0f, XMFLOAT4(1,1,0,1)); // Yellow
+        AddLamp(-0.6f, XMFLOAT4(0,1,0,1)); // Green
+    };
 
-    // West boundary line
-    auto lineWest = std::make_unique<SceneObject>();
-    lineWest->name = "Line West";
-    lineWest->type = GeometryType::Box;
-    lineWest->position = XMFLOAT3(-intersectionSize / 2.0f, roadThickness, 0);
-    lineWest->data.box.extents = XMFLOAT3(lineWidth / 2.0f, lineThickness, roadWidth / 2.0f);
-    lineWest->color = lineColor;
-    m_objects.push_back(std::move(lineWest));
+    // --- Build The Scene ---
+
+    const float intersectionSize = roadWidth * 1.5f; 
+    const float stopLineDist = intersectionSize / 2.0f + 1.0f;
+
+    // 1. Stop Lines (Solid White)
+    auto AddStopLine = [&](float x, float z, bool horizontal) {
+        auto line = std::make_unique<SceneObject>();
+        line->type = GeometryType::Box;
+        line->position = XMFLOAT3(x, roadThickness, z);
+        if (horizontal) line->data.box.extents = XMFLOAT3(roadWidth/2, roadThickness, 0.3f);
+        else            line->data.box.extents = XMFLOAT3(0.3f, roadThickness, roadWidth/2);
+        line->color = lineColor;
+        m_objects.push_back(std::move(line));
+    };
+    
+    AddStopLine(0, stopLineDist, true);   // North
+    AddStopLine(0, -stopLineDist, true);  // South
+    AddStopLine(stopLineDist, 0, false);  // East
+    AddStopLine(-stopLineDist, 0, false); // West
+
+    // 2. Zebra Crossings (Behind Stop Lines)
+    AddZebraCrossing(XMFLOAT3(0, 0, stopLineDist + 2.5f), true);
+    AddZebraCrossing(XMFLOAT3(0, 0, -stopLineDist - 2.5f), true);
+    AddZebraCrossing(XMFLOAT3(stopLineDist + 2.5f, 0, 0), false);
+    AddZebraCrossing(XMFLOAT3(-stopLineDist - 2.5f, 0, 0), false);
+
+    // 3. Double Yellow Lines (From Zebra outwards)
+    float startDist = stopLineDist + 5.0f;
+    float lineLen = (roadLength/2 - startDist);
+    float centerDist = startDist + lineLen/2;
+    
+    AddDoubleYellow(XMFLOAT3(0, 0, centerDist), lineLen, false); // North
+    AddDoubleYellow(XMFLOAT3(0, 0, -centerDist), lineLen, false); // South
+    AddDoubleYellow(XMFLOAT3(centerDist, 0, 0), lineLen, true); // East
+    AddDoubleYellow(XMFLOAT3(-centerDist, 0, 0), lineLen, true); // West
+
+    // 4. Lane Markings (Dashed)
+    // Assuming 2 lanes per direction (roadWidth = 4.0 -> 2.0 per side)
+    // Wait, roadWidth 4.0 is total width? Or per side?
+    // In previous code: extents = roadWidth/2. So total width = roadWidth = 4.0.
+    // That's barely enough for 1 lane each way (lane ~3.5m).
+    // So no dashed lines needed for single lane roads. 
+    // Let's widen the road logically for dashed lines? 
+    // Or just assume it's a single lane road with double yellow center.
+    
+    // Let's add dashed lines on the *edges* (Shoulder lines)?
+    // No, let's keep it clean. Double yellow is enough for 2-lane road.
+
+    // 5. Traffic Lights (Removed as per user request)
+    /*
+    float poleDist = intersectionSize/2.0f + 2.0f;
+    // NE Corner -> Faces West/South traffic
+    AddTrafficLight(XMFLOAT3(poleDist, 0, poleDist), 3.14159f + 3.14159f/2.0f); // -90 deg?
+    // SE Corner
+    AddTrafficLight(XMFLOAT3(poleDist, 0, -poleDist), 3.14159f);
+    // SW Corner
+    AddTrafficLight(XMFLOAT3(-poleDist, 0, -poleDist), 3.14159f/2.0f);
+    // NW Corner
+    AddTrafficLight(XMFLOAT3(-poleDist, 0, poleDist), 0.0f);
+    */
 
     // Add default sample vehicles for demonstration
     // These vehicles showcase different types, directions, and movement intentions
@@ -570,10 +711,13 @@ void Scene::Render()
     float aspectRatio = static_cast<float>(m_renderer->GetDevice() ? 16.0f / 9.0f : 1.0f);
     XMMATRIX view = m_camera.GetViewMatrix();
     XMMATRIX proj = m_camera.GetProjectionMatrix(aspectRatio);
-    m_renderer->SetViewProjection(view, proj);
+    m_renderer->SetViewProjection(view, proj, m_camera.GetPosition());
 
-    // Render grid
-    RenderGrid();
+    // Render grid (Skip for Solar System)
+    if (m_sceneMode != SceneMode::SolarSystem)
+    {
+        RenderGrid();
+    }
     m_renderer->FlushLines(); // Draw grid before objects
 
     // Render orbits (for solar system)
@@ -844,6 +988,37 @@ void Scene::HandleInput(Window* window, float deltaTime)
 
 void Scene::RenderObjects()
 {
+    // 1. Draw Shadows (Blob)
+    // Skip shadows in Solar System mode (space) and Crossroad mode (clean grid)
+    if (m_sceneMode != SceneMode::SolarSystem && m_sceneMode != SceneMode::CrossroadSimulation)
+    {
+        m_renderer->SetAlphaBlending(true);
+        for (const auto& obj : m_objects)
+        {
+            // Skip shadow for orbiting objects (planets)
+            if (obj->isOrbiting) continue;
+
+            // Simple shadow position
+            XMFLOAT3 shadowPos = obj->position;
+            shadowPos.y = 0.02f; // Slightly above grid
+            
+            // Determine size
+            float size = 1.0f;
+            if (obj->type == GeometryType::Sphere) size = obj->data.sphere.radius;
+            else if (obj->type == GeometryType::Box) size = (std::max)(obj->data.box.extents.x, obj->data.box.extents.z);
+            else size = 1.5f; // Approx for mesh
+            
+            // Flattened sphere for shadow
+            XMMATRIX shadowWorld = XMMatrixScaling(size * 1.4f, 0.05f, size * 1.4f) * 
+                                   XMMatrixTranslation(shadowPos.x, shadowPos.y, shadowPos.z);
+            
+            // Draw dark semi-transparent shadow
+            m_renderer->DrawMesh(*m_renderer->GetSphereMesh(), shadowWorld, XMFLOAT4(0.0f, 0.0f, 0.0f, 0.4f));
+        }
+        m_renderer->SetAlphaBlending(false);
+    }
+
+    // 2. Draw Objects
     for (const auto& obj : m_objects)
     {
         // Determine color (highlight if selected or colliding)
