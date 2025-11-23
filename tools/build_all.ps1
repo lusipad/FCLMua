@@ -81,12 +81,15 @@ param(
     [switch]$Package
 )
 
-Set-StrictMode -Version Latest
+# Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 # 导入公共函数库
-$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$commonPath = Join-Path $scriptDir 'common.ps1'
+$scriptDir = $PSScriptRoot
+if (-not $scriptDir) {
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
+}
+$commonPath = Join-Path $scriptDir 'common.psm1'
 if (-not (Test-Path -Path $commonPath)) {
     throw "Common functions module not found: $commonPath"
 }
@@ -140,6 +143,16 @@ Write-Host "=====================" -ForegroundColor Cyan
 Write-Host "Configuration: $Configuration | $Platform" -ForegroundColor Gray
 Write-Host "Steps:         $($steps -join ' → ')" -ForegroundColor Gray
 Write-Host ""
+
+# ========================================
+# 步骤 0: 准备依赖
+# ========================================
+$currentStep++
+Write-BuildStep $currentStep $totalSteps "Setting up dependencies"
+$setupDepsScript = Join-Path $scriptDir 'setup_dependencies.ps1'
+Invoke-BuildCommand `
+    -ScriptBlock { & $setupDepsScript } `
+    -ErrorMessage "Dependency setup failed"
 
 # ========================================
 # 步骤 1: 构建驱动
@@ -224,6 +237,11 @@ if ($steps -contains "GUI") {
 
     # 动态查找 MSBuild（不再硬编码）
     $msbuild = Get-MSBuildPath
+    if (-not $msbuild) {
+        $msbuild = "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
+    }
+    Write-Host "DEBUG: MSBuild path resolved to: '$msbuild'"
+
 
     $guiProject = Join-Path $scriptDir 'gui_demo\FclGuiDemo.vcxproj'
     Invoke-BuildCommand `

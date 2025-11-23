@@ -1,88 +1,44 @@
 # FCL+Musa 构建系统公共函数库
 # 此文件包含所有构建脚本共享的函数，避免代码重复
 
-Set-StrictMode -Version Latest
+# Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 <#
 .SYNOPSIS
     查找 MSBuild.exe 的路径
-
-.DESCRIPTION
-    尝试从多个位置查找 MSBuild，按优先级：
-    1. PATH 环境变量
-    2. Visual Studio 2022（Enterprise/Professional/Community）
-    3. Visual Studio 2019
-
-.OUTPUTS
-    String - MSBuild.exe 的完整路径
-
-.EXAMPLE
-    $msbuild = Get-MSBuildPath
 #>
 function Get-MSBuildPath {
     [CmdletBinding()]
     [OutputType([string])]
     param()
 
-    # 1. 尝试从 PATH 查找
-    $fromPath = Get-Command msbuild.exe -ErrorAction SilentlyContinue
-    if ($fromPath) {
-        Write-Verbose "Found MSBuild in PATH: $($fromPath.Source)"
-        return $fromPath.Source
-    }
-
     # 2. 扫描已知的 Visual Studio 安装位置
     $candidates = @(
-        # Visual Studio 2022
         "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
         "C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe",
         "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe",
-        # Visual Studio 2019
         "C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Current\Bin\MSBuild.exe",
         "C:\Program Files (x86)\Microsoft Visual Studio\2019\Professional\MSBuild\Current\Bin\MSBuild.exe",
         "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\MSBuild\Current\Bin\MSBuild.exe",
-        # Build Tools
         "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\MSBuild\Current\Bin\MSBuild.exe",
         "C:\Program Files (x86)\Microsoft Visual Studio\2019\BuildTools\MSBuild\Current\Bin\MSBuild.exe"
     )
 
     foreach ($path in $candidates) {
+        # Write-Host "Checking $path"
         if (Test-Path -Path $path -PathType Leaf) {
             Write-Verbose "Found MSBuild at: $path"
             return $path
         }
     }
 
-    # 3. 未找到，抛出错误并提供帮助信息
-    throw @"
-MSBuild.exe not found in any expected location.
-
-Please install one of the following:
-- Visual Studio 2022 (Community/Professional/Enterprise)
-- Visual Studio 2019 (Community/Professional/Enterprise)
-- Visual Studio Build Tools 2022/2019
-
-Or add MSBuild.exe to your PATH environment variable.
-
-Searched locations:
-$($candidates -join "`n")
-"@
+    throw "MSBuild not found."
 }
 
 <#
 .SYNOPSIS
     确保 Musa.Runtime 发布配置存在
-
-.DESCRIPTION
-    检查 Musa.Runtime/Publish/Config 是否存在，如果不存在则从 NuGet 目录复制。
-    这是为了兼容官方 NuGet 包的目录结构。
-
-.PARAMETER RepoRoot
-    仓库根目录路径
-
-.EXAMPLE
-    Ensure-MusaRuntimePublish -RepoRoot $repoRoot
 #>
 function Ensure-MusaRuntimePublish {
     [CmdletBinding()]
@@ -100,7 +56,6 @@ function Ensure-MusaRuntimePublish {
 
     Write-Verbose "Musa.Runtime publish config not found, checking NuGet directory..."
 
-    # 尝试从 NuGet 目录复制
     $nugetConfigDir = Join-Path $RepoRoot 'external/Musa.Runtime/Musa.Runtime.NuGet'
     $nugetConfig = Join-Path $nugetConfigDir 'Musa.Runtime.Config.props'
 
@@ -120,16 +75,8 @@ function Ensure-MusaRuntimePublish {
         }
     }
 
-    # 最终检查
     if (-not (Test-Path -Path $publishConfig -PathType Leaf)) {
-        throw @"
-Musa.Runtime publish config not found: $publishConfig
-
-Please install the official Musa.Runtime package (for example via NuGet)
-to external/Musa.Runtime/Publish/ instead of building it locally.
-
-Expected file: $publishConfig
-"@
+        throw "Musa.Runtime publish config not found at $publishConfig. Please populate external/Musa.Runtime/Publish."
     }
 
     Write-Verbose "Musa.Runtime publish config ready."
@@ -138,18 +85,6 @@ Expected file: $publishConfig
 <#
 .SYNOPSIS
     执行构建命令并检查错误
-
-.DESCRIPTION
-    执行命令并自动检查 $LASTEXITCODE，如果失败则抛出详细错误。
-
-.PARAMETER ScriptBlock
-    要执行的脚本块
-
-.PARAMETER ErrorMessage
-    失败时的错误消息
-
-.EXAMPLE
-    Invoke-BuildCommand { & $msbuild solution.sln } "MSBuild failed"
 #>
 function Invoke-BuildCommand {
     [CmdletBinding()]
@@ -171,12 +106,6 @@ function Invoke-BuildCommand {
 <#
 .SYNOPSIS
     确保目录存在
-
-.PARAMETER Path
-    目录路径
-
-.EXAMPLE
-    Ensure-Directory "dist/output"
 #>
 function Ensure-Directory {
     [CmdletBinding()]
@@ -194,15 +123,6 @@ function Ensure-Directory {
 <#
 .SYNOPSIS
     复制文件（如果存在）
-
-.PARAMETER Source
-    源文件路径
-
-.PARAMETER Destination
-    目标路径
-
-.EXAMPLE
-    Copy-IfExists "file.sys" "dist/"
 #>
 function Copy-IfExists {
     [CmdletBinding()]
@@ -233,18 +153,6 @@ function Copy-IfExists {
 <#
 .SYNOPSIS
     打印带颜色的步骤标题
-
-.PARAMETER StepNumber
-    步骤编号
-
-.PARAMETER TotalSteps
-    总步骤数
-
-.PARAMETER Message
-    消息内容
-
-.EXAMPLE
-    Write-BuildStep 1 3 "Building driver"
 #>
 function Write-BuildStep {
     [CmdletBinding()]
@@ -265,12 +173,6 @@ function Write-BuildStep {
 <#
 .SYNOPSIS
     打印成功消息
-
-.PARAMETER Message
-    消息内容
-
-.EXAMPLE
-    Write-Success "Build completed"
 #>
 function Write-Success {
     [CmdletBinding()]
@@ -285,12 +187,6 @@ function Write-Success {
 <#
 .SYNOPSIS
     打印警告消息
-
-.PARAMETER Message
-    消息内容
-
-.EXAMPLE
-    Write-BuildWarning "Certificate not found"
 #>
 function Write-BuildWarning {
     [CmdletBinding()]
@@ -302,7 +198,6 @@ function Write-BuildWarning {
     Write-Host "WARNING: $Message" -ForegroundColor Yellow
 }
 
-# 导出所有函数
 Export-ModuleMember -Function @(
     'Get-MSBuildPath',
     'Ensure-MusaRuntimePublish',
