@@ -62,8 +62,10 @@
     <IncludePath>$(ProjectDir)..\core\include;$(ProjectDir)..\selftest\include;$(IncludePath)</IncludePath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <Musa_Runtime_Library>$(Musa_Runtime_Root)\Library\Release\$(Platform)</Musa_Runtime_Library>
-    <LibraryPath>$(Musa_Runtime_Root)\Library\Release\$(Platform);$(LibraryPath)</LibraryPath>
+    <Musa_Runtime_Library_Configuration Condition="'$(MUSA_RUNTIME_LIBRARY_CONFIGURATION)' == ''">$(Configuration)</Musa_Runtime_Library_Configuration>
+    <Musa_Runtime_Library_Configuration Condition="'$(MUSA_RUNTIME_LIBRARY_CONFIGURATION)' != ''">$(MUSA_RUNTIME_LIBRARY_CONFIGURATION)</Musa_Runtime_Library_Configuration>
+    <Musa_Runtime_Library>$(Musa_Runtime_Root)\Library\$(Musa_Runtime_Library_Configuration)\$(Platform)</Musa_Runtime_Library>
+    <LibraryPath>$(Musa_Runtime_Library);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>

@@ -7,50 +7,34 @@ param(
     [string]$Platform = 'x64'
 )
 
-Set-StrictMode -Version Latest
+# Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# 导入公共函数库
 $scriptDir = $PSScriptRoot
-$repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).ProviderPath
-
-function Ensure-MusaRuntimePublish {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$RepoRoot
-    )
-
-    $publishConfig = Join-Path $RepoRoot 'external/Musa.Runtime/Publish/Config/Musa.Runtime.Config.props'
-    if (Test-Path -Path $publishConfig -PathType Leaf) {
-        return
-    }
-
-    $nugetConfigDir = Join-Path $RepoRoot 'external/Musa.Runtime/Musa.Runtime.NuGet'
-    $nugetConfig = Join-Path $nugetConfigDir 'Musa.Runtime.Config.props'
-    if (Test-Path -Path $nugetConfig -PathType Leaf) {
-        $publishConfigDir = Split-Path -Parent $publishConfig
-        if (-not (Test-Path -Path $publishConfigDir -PathType Container)) {
-            New-Item -ItemType Directory -Force -Path $publishConfigDir | Out-Null
-        }
-
-        Copy-Item -Path $nugetConfig -Destination $publishConfig -Force
-
-        $nugetTargets = Join-Path $nugetConfigDir 'Musa.Runtime.Config.targets'
-        if (Test-Path -Path $nugetTargets -PathType Leaf) {
-            $publishTargets = Join-Path $publishConfigDir 'Musa.Runtime.Config.targets'
-            Copy-Item -Path $nugetTargets -Destination $publishTargets -Force
-        }
-    }
-
-    if (-not (Test-Path -Path $publishConfig -PathType Leaf)) {
-        throw "Musa.Runtime publish config not found: $publishConfig. Please install the official Musa.Runtime package (for example via NuGet into external/Musa.Runtime/Publish) instead of building it locally."
-    }
+if (-not $scriptDir) {
+    $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Definition
 }
+$commonPath = Join-Path $scriptDir 'common.psm1'
+if (-not (Test-Path -Path $commonPath)) {
+    throw "Common functions module not found: $commonPath"
+}
+Import-Module $commonPath -Force
 
+$repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).ProviderPath
 $kernelDir = Join-Path $repoRoot 'kernel/FclMusaDriver'
 $outputDir = Join-Path $kernelDir "out\$Platform\$Configuration"
 $driverSys = Join-Path $outputDir 'FclMusaDriver.sys'
 $driverPdb = Join-Path $outputDir 'FclMusaDriver.pdb'
 $distDir = Join-Path $repoRoot "dist\driver\$Platform\$Configuration"
+
+# 步骤 0: 准备依赖
+Write-Host "Setting up dependencies..." -ForegroundColor Cyan
+$setupDepsScript = Join-Path $scriptDir 'setup_dependencies.ps1'
+& $setupDepsScript
+if ($LASTEXITCODE -ne 0) {
+    throw "Dependency setup failed."
+}
 
 Ensure-MusaRuntimePublish -RepoRoot $repoRoot
 
@@ -89,7 +73,7 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host "[3/3] Packaging artifacts to $distDir" -ForegroundColor Cyan
-New-Item -ItemType Directory -Force -Path $distDir | Out-Null
+Ensure-Directory $distDir
 
 Copy-Item -Path $driverSys -Destination $distDir -Force
 if (Test-Path -Path $driverPdb -PathType Leaf) {
