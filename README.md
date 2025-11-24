@@ -29,7 +29,7 @@ PS> tools\manual_build.cmd                      # 仅构建驱动（不签名）
 - `tools/manual_build.cmd` 仅构建驱动不签名，适合 CI/自动化流水线。
 - 所有脚本使用相同的解决方案（`kernel/FclMusaDriver/FclMusaDriver.sln`）。
 
-> 依赖：WDK 10.0.26100.0、Visual Studio 2022、Musa.Runtime（仓库自带）、Eigen、libccd。
+> 依赖：WDK 10.0.22621.0、Visual Studio 2022、Musa.Runtime（仓库自带）、Eigen、libccd。
 
 构建成功后目录结构：
 
@@ -179,7 +179,6 @@ CLI 提供命令：
 - `fcl-source/` 内置的 FCL 基于 commit `5f7776e2101b8ec95d5054d732684d00dac45e3d`。
 - `tools/manual_build.cmd` 会检查 `fcl-source` HEAD 是否匹配该提交，避免混用其它版本。
 - 若需升级 upstream FCL，请在 `fcl-source/` 同步代码并更新脚本中的 `FCL_EXPECTED_COMMIT`。
-
 
 
 

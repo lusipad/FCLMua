@@ -61,7 +61,7 @@
 .NOTES
     依赖：
     - Visual Studio 2022/2019
-    - WDK 10.0.26100.0
+    - WDK 10.0.22621.0
     - Musa.Runtime（仓库自带）
 #>
 

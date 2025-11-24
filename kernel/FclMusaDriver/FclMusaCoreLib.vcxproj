@@ -14,7 +14,7 @@
     <ProjectGuid>{8E7C95F0-5E65-4B1C-A39F-31DA77F73F27}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>FclMusaCoreLib</RootNamespace>
-    <WindowsTargetPlatformVersion>10.0.26100.0</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
     <ProjectName>FclMusaCoreLib</ProjectName>
     <MusaRuntimeOnlyHeader>false</MusaRuntimeOnlyHeader>
   </PropertyGroup>
@@ -74,7 +74,7 @@
       <TreatWarningAsError>false</TreatWarningAsError>
       <DisableSpecificWarnings>4100;4127;4189;4201;4244;4267;4305;4458;4505;4509;4514;4571;4625;4626;4628;4661;4710;4820;5045;4146;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\core\include;$(ProjectDir)..\driver\include;$(ProjectDir)..\..\external\Eigen;$(ProjectDir)..\..\external\libccd\src;$(ProjectDir)..\..\external\libccd\src\ccd;$(ProjectDir)..\..\fcl-source\include;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\core\include;$(ProjectDir)..\driver\include;$(ProjectDir)..\..\external\Eigen;$(ProjectDir)..\..\external\libccd\src;$(ProjectDir)..\..\external\libccd\src\ccd;$(ProjectDir)..\..\fcl-source\include;C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\km;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>Disabled</Optimization>
     </ClCompile>
   </ItemDefinitionGroup>
@@ -89,7 +89,7 @@
       <TreatWarningAsError>false</TreatWarningAsError>
       <DisableSpecificWarnings>4100;4127;4189;4201;4244;4267;4305;4458;4505;4509;4514;4571;4625;4626;4628;4661;4710;4820;5045;4146;%(DisableSpecificWarnings)</DisableSpecificWarnings>
       <ExceptionHandling>Sync</ExceptionHandling>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\core\include;$(ProjectDir)..\driver\include;$(ProjectDir)..\..\external\Eigen;$(ProjectDir)..\..\external\libccd\src;$(ProjectDir)..\..\external\libccd\src\ccd;$(ProjectDir)..\..\fcl-source\include;C:\Program Files (x86)\Windows Kits\10\Include\10.0.26100.0\km;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\core\include;$(ProjectDir)..\driver\include;$(ProjectDir)..\..\external\Eigen;$(ProjectDir)..\..\external\libccd\src;$(ProjectDir)..\..\external\libccd\src\ccd;$(ProjectDir)..\..\fcl-source\include;C:\Program Files (x86)\Windows Kits\10\Include\10.0.22621.0\km;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <Optimization>MaxSpeed</Optimization>
     </ClCompile>
   </ItemDefinitionGroup>

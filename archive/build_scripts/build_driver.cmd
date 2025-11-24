@@ -43,7 +43,7 @@ if errorlevel 1 (
 
 echo.
 echo [2/5] 锟斤拷锟斤拷 Windows Driver Kit 锟斤拷锟斤拷...
-set "WDK_VERSION=10.0.26100.0"
+set "WDK_VERSION=10.0.22621.0"
 set "WINDOWS_KITS_ROOT=%ProgramFiles(x86)%\Windows Kits\10"
 set "WDK_INCLUDE_DIR=%WINDOWS_KITS_ROOT%\Include\%WDK_VERSION%\km"
 
