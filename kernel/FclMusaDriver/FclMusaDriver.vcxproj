@@ -111,7 +111,6 @@
     <ClCompile Include="..\driver\src\device_control.cpp" />
     <ClCompile Include="..\driver\src\device_control_demo.cpp" />
     <ClCompile Include="..\driver\src\driver_entry.cpp" />
-    <ClCompile Include="..\driver\src\periodic_scheduler.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\core\include\fclmusa\broadphase.h" />

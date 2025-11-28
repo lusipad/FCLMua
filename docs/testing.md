@@ -44,7 +44,6 @@ PS> tools\fcl-self-test.ps1 -DevicePath \\.\FclMusa
    > periodic_stop
    > selftest
    > selftest sphere
-   > selftest_pass
    > selftest_dpc
    > diag
    ```

@@ -79,23 +79,15 @@ int WINAPI WinMain(
 
         // Create scene
         auto scene = std::make_unique<Scene>(renderer.get(), driver.get());
-        scene->Initialize();
 
-        // Prime kernel diagnostics once to avoid showing empty data for users
-        FCL_DIAGNOSTICS_RESPONSE initialDiag = {};
-        driver->QueryDiagnostics(initialDiag);
-
-        // Connect UI events to scene
-        window->OnCreateSphere = [&scene, &window](float radius) {
-            XMFLOAT3 pos(0, 2, 0);
-            std::string name = "Sphere " + std::to_string(scene->GetObjectCount() + 1);
-            scene->AddSphere(name, pos, radius);
-            scene->SelectObject(scene->GetObjectCount() - 1);
-
-            wchar_t msg[128];
-            swprintf_s(msg, L"Created sphere with radius %.2f", radius);
-            window->SetStatusText(msg);
+        // Connect Window resize to Renderer resize
+        window->OnResize = [&renderer](int width, int height) {
+            if (renderer)
+            {
+                renderer->Resize(width, height);
+            }
         };
+
 
         window->OnCreateBox = [&scene, &window](float x, float y, float z) {
             XMFLOAT3 pos(0, 2, 0);
@@ -230,6 +222,7 @@ int WINAPI WinMain(
         // FPS tracking variables
         int frameCount = 0;
         float fpsTimer = 0.0f;
+        float uiUpdateTimer = 0.0f;
         float currentFPS = 0.0f;
         float avgFrameTime = 0.0f;
 
@@ -251,8 +244,9 @@ int WINAPI WinMain(
                 // Update FPS counter
                 frameCount++;
                 fpsTimer += deltaTime;
+                uiUpdateTimer += deltaTime;
 
-                // Update FPS display every 0.5 seconds
+                // Update FPS calculation every 0.5 seconds
                 if (fpsTimer >= 0.5f)
                 {
                     currentFPS = frameCount / fpsTimer;
@@ -274,102 +268,108 @@ int WINAPI WinMain(
                 // Update scene (physics, vehicles, collisions)
                 scene->Update(deltaTime);
 
-                // Update properties panel with selected object info
-                size_t selectedIdx = scene->GetSelectedObjectIndex();
-                std::wstring selectedObjName = L"None";
-                if (selectedIdx != static_cast<size_t>(-1))
-                {
-                    auto* obj = scene->GetObject(selectedIdx);
-                    if (obj)
-                    {
-                        window->UpdatePropertiesPanel(selectedIdx, obj->name,
-                                                     obj->position.x, obj->position.y, obj->position.z,
-                                                     obj->rotation.y);
-                        // Convert object name to wstring for status panel
-                        int size_needed = MultiByteToWideChar(CP_UTF8, 0, obj->name.c_str(), -1, NULL, 0);
-                        selectedObjName.resize(size_needed - 1);
-                        MultiByteToWideChar(CP_UTF8, 0, obj->name.c_str(), -1, &selectedObjName[0], size_needed);
-                    }
-                }
-                else
-                {
-                    window->UpdatePropertiesPanel(static_cast<size_t>(-1), "", 0, 0, 0, 0);
-                }
-
-                // Update enhanced status panel
-                std::wstring sceneModeName;
-                switch (scene->GetSceneMode())
-                {
-                case SceneMode::Default:
-                    sceneModeName = L"Default";
-                    break;
-                case SceneMode::SolarSystem:
-                    sceneModeName = L"Solar System";
-                    break;
-                case SceneMode::CrossroadSimulation:
-                    sceneModeName = L"Crossroad";
-                    break;
-                default:
-                    sceneModeName = L"Unknown";
-                    break;
-                }
-
-                window->UpdateStatusPanel(currentFPS, avgFrameTime, scene->GetObjectCount(),
-                                         sceneModeName, selectedObjName);
-
                 renderer->BeginFrame();
                 scene->Render();
                 renderer->EndFrame();
 
-                // Update overlay with collision + kernel timing diagnostics
-                const auto& stats = scene->GetCollisionStats();
-
-                FCL_DIAGNOSTICS_RESPONSE diag = {};
-                bool diagOk = driver->QueryDiagnostics(diag);
-
-                const double collisionAvgMs = (diag.Collision.CallCount > 0)
-                    ? static_cast<double>(diag.Collision.TotalDurationMicroseconds) /
-                          (1000.0 * static_cast<double>(diag.Collision.CallCount))
-                    : 0.0;
-                const double distanceAvgMs = (diag.Distance.CallCount > 0)
-                    ? static_cast<double>(diag.Distance.TotalDurationMicroseconds) /
-                          (1000.0 * static_cast<double>(diag.Distance.CallCount))
-                    : 0.0;
-                const double ccdAvgMs = (diag.ContinuousCollision.CallCount > 0)
-                    ? static_cast<double>(diag.ContinuousCollision.TotalDurationMicroseconds) /
-                          (1000.0 * static_cast<double>(diag.ContinuousCollision.CallCount))
-                    : 0.0;
-
-                wchar_t overlay[512];
-                if (diagOk)
+                // Update UI at 10Hz to prevent flickering of transparent overlays
+                if (uiUpdateTimer >= 0.1f)
                 {
-                    swprintf_s(
-                        overlay,
-                        L"Collision Stats  |  Frames: %llu  |  LastPairs: %u  Hits: %u  |  TotalPairs: %llu  TotalHits: %llu\n"
-                        L"Kernel Timing (avg, ms)  |  Collision: %.3f  Distance: %.3f  CCD: %.3f",
-                        static_cast<unsigned long long>(stats.FrameCount),
-                        stats.LastFramePairs,
-                        stats.LastFrameHits,
-                        static_cast<unsigned long long>(stats.TotalPairs),
-                        static_cast<unsigned long long>(stats.TotalHits),
-                        collisionAvgMs,
-                        distanceAvgMs,
-                        ccdAvgMs);
-                }
-                else
-                {
-                    swprintf_s(
-                        overlay,
-                        L"Collision Stats  |  Frames: %llu  |  LastPairs: %u  Hits: %u  |  TotalPairs: %llu  TotalHits: %llu\n"
-                        L"Kernel Timing: unavailable (driver not connected or IOCTL failed)",
-                        static_cast<unsigned long long>(stats.FrameCount),
-                        stats.LastFramePairs,
-                        stats.LastFrameHits,
-                        static_cast<unsigned long long>(stats.TotalPairs),
-                        static_cast<unsigned long long>(stats.TotalHits));
-                }
+                    uiUpdateTimer = 0.0f;
 
-                window->SetOverlayText(overlay);
+                    // Update properties panel with selected object info
+                    size_t selectedIdx = scene->GetSelectedObjectIndex();
+                    std::wstring selectedObjName = L"None";
+                    if (selectedIdx != static_cast<size_t>(-1))
+                    {
+                        auto* obj = scene->GetObject(selectedIdx);
+                        if (obj)
+                        {
+                            window->UpdatePropertiesPanel(selectedIdx, obj->name,
+                                                         obj->position.x, obj->position.y, obj->position.z,
+                                                         obj->rotation.y);
+                            // Convert object name to wstring for status panel
+                            int size_needed = MultiByteToWideChar(CP_UTF8, 0, obj->name.c_str(), -1, NULL, 0);
+                            selectedObjName.resize(size_needed - 1);
+                            MultiByteToWideChar(CP_UTF8, 0, obj->name.c_str(), -1, &selectedObjName[0], size_needed);
+                        }
+                    }
+                    else
+                    {
+                        window->UpdatePropertiesPanel(static_cast<size_t>(-1), "", 0, 0, 0, 0);
+                    }
+
+                    // Update enhanced status panel
+                    std::wstring sceneModeName;
+                    switch (scene->GetSceneMode())
+                    {
+                    case SceneMode::Default:
+                        sceneModeName = L"Default";
+                        break;
+                    case SceneMode::SolarSystem:
+                        sceneModeName = L"Solar System";
+                        break;
+                    case SceneMode::CrossroadSimulation:
+                        sceneModeName = L"Crossroad";
+                        break;
+                    default:
+                        sceneModeName = L"Unknown";
+                        break;
+                    }
+
+                    window->UpdateStatusPanel(currentFPS, avgFrameTime, scene->GetObjectCount(),
+                                             sceneModeName, selectedObjName);
+
+                    // Update overlay with collision + kernel timing diagnostics
+                    const auto& stats = scene->GetCollisionStats();
+
+                    FCL_DIAGNOSTICS_RESPONSE diag = {};
+                    bool diagOk = driver->QueryDiagnostics(diag);
+
+                    const double collisionAvgMs = (diag.Collision.CallCount > 0)
+                        ? static_cast<double>(diag.Collision.TotalDurationMicroseconds) /
+                              (1000.0 * static_cast<double>(diag.Collision.CallCount))
+                        : 0.0;
+                    const double distanceAvgMs = (diag.Distance.CallCount > 0)
+                        ? static_cast<double>(diag.Distance.TotalDurationMicroseconds) /
+                              (1000.0 * static_cast<double>(diag.Distance.CallCount))
+                        : 0.0;
+                    const double ccdAvgMs = (diag.ContinuousCollision.CallCount > 0)
+                        ? static_cast<double>(diag.ContinuousCollision.TotalDurationMicroseconds) /
+                              (1000.0 * static_cast<double>(diag.ContinuousCollision.CallCount))
+                        : 0.0;
+
+                    wchar_t overlay[512];
+                    if (diagOk)
+                    {
+                        swprintf_s(
+                            overlay,
+                            L"Collision Stats  |  Frames: %llu  |  LastPairs: %u  Hits: %u  |  TotalPairs: %llu  TotalHits: %llu\n"
+                            L"Kernel Timing (avg, ms)  |  Collision: %.3f  Distance: %.3f  CCD: %.3f",
+                            static_cast<unsigned long long>(stats.FrameCount),
+                            stats.LastFramePairs,
+                            stats.LastFrameHits,
+                            static_cast<unsigned long long>(stats.TotalPairs),
+                            static_cast<unsigned long long>(stats.TotalHits),
+                            collisionAvgMs,
+                            distanceAvgMs,
+                            ccdAvgMs);
+                    }
+                    else
+                    {
+                        swprintf_s(
+                            overlay,
+                            L"Collision Stats  |  Frames: %llu  |  LastPairs: %u  Hits: %u  |  TotalPairs: %llu  TotalHits: %llu\n"
+                            L"Kernel Timing: unavailable (driver not connected or IOCTL failed)",
+                            static_cast<unsigned long long>(stats.FrameCount),
+                            stats.LastFramePairs,
+                            stats.LastFrameHits,
+                            static_cast<unsigned long long>(stats.TotalPairs),
+                            static_cast<unsigned long long>(stats.TotalHits));
+                    }
+
+                    window->SetOverlayText(overlay);
+                }
             }
         }
 

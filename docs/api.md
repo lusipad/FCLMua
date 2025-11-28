@@ -298,22 +298,21 @@
 
 ---
 
-## 周期性碰撞 API
+## 周期性碰撞 IOCTL
 
-### NTSTATUS FclStartPeriodicCollision(FCL_GEOMETRY_HANDLE object1, const FCL_TRANSFORM* transform1, FCL_GEOMETRY_HANDLE object2, const FCL_TRANSFORM* transform2, ULONG periodMicroseconds, FCL_PERIODIC_COLLISION_CALLBACK callback, PVOID context)
-**功能**: 启动周期性碰撞检测（DPC + PASSIVE 两级模型）。
+### IOCTL_FCL_START_PERIODIC_COLLISION
+**功能**: 在 PASSIVE_LEVEL 配置周期性碰撞检测，驱动会在 DPC 中按设定周期运行碰撞计算。
 
 **参数**:
-- `object1` / `object2` - 几何句柄
-- `transform1` / `transform2` - 初始变换
-- `periodMicroseconds` - 周期（微秒）
-- `callback` - 回调函数（在 PASSIVE_LEVEL 执行）
-- `context` - 用户上下文指针
+- `Object1` / `Object2` - 几何句柄
+- `Transform1` / `Transform2` - 初始位姿
+- `PeriodMicroseconds` - 调度周期（微秒）
+- `Reserved[0]` - 可选：单次触发内的重复次数（默认 1，最大 1024）
 
 **返回值**:
 - `STATUS_SUCCESS` - 启动成功
 - `STATUS_INVALID_HANDLE` - 句柄无效
-- `STATUS_ALREADY_INITIALIZED` - 周期检测已在运行
+- `STATUS_DEVICE_BUSY` - 已存在周期调度
 
 **IRQL要求**: `PASSIVE_LEVEL`
 
@@ -324,10 +323,11 @@
 
 ---
 
-### VOID FclStopPeriodicCollision()
-**功能**: 停止周期性碰撞检测。
+### IOCTL_FCL_STOP_PERIODIC_COLLISION
+**功能**: 停止周期性碰撞调度，等待 DPC 完成并释放资源。
 
-**返回值**: 无
+**返回值**:
+- `STATUS_SUCCESS` - 停止成功
 
 **IRQL要求**: `PASSIVE_LEVEL`
 
@@ -519,8 +519,8 @@ typedef struct _FCL_POOL_STATS {
 - `FclContinuousCollision()` - 执行 CCD
 
 ### 周期碰撞
-- `FclStartPeriodicCollision()` - 启动周期检测
-- `FclStopPeriodicCollision()` - 停止周期检测
+- `IOCTL_FCL_START_PERIODIC_COLLISION` - 启动周期检测
+- `IOCTL_FCL_STOP_PERIODIC_COLLISION` - 停止周期检测
 
 ### 自检与诊断
 - `FclRunSelfTest()` - 完整自检
@@ -605,30 +605,35 @@ if (result.IsColliding) {
 ### 周期性碰撞
 
 ```c
-// 回调函数（在 PASSIVE_LEVEL 执行）
-VOID NTAPI MyCollisionCallback(
-    BOOLEAN isColliding,
-    const FCL_CONTACT_INFO* contact,
-    PVOID context
-) {
-    if (isColliding) {
-        KdPrint(("Periodic collision detected!\n"));
-    }
-}
+FCL_PERIODIC_COLLISION_CONFIG config = {};
+config.Object1 = handle1;
+config.Transform1 = transform1;
+config.Object2 = handle2;
+config.Transform2 = transform2;
+config.PeriodMicroseconds = 1000; // 1ms
 
-// 启动周期检测（1ms 周期）
-FclStartPeriodicCollision(
-    handle1, &transform1,
-    handle2, &transform2,
-    1000,  // 1ms = 1000us
-    MyCollisionCallback,
-    NULL   // context
-);
+DWORD bytes = 0;
+DeviceIoControl(
+    driverHandle,
+    IOCTL_FCL_START_PERIODIC_COLLISION,
+    &config,
+    sizeof(config),
+    &config,
+    sizeof(config),
+    &bytes,
+    NULL);
 
 // ... 执行其他任务 ...
 
-// 停止周期检测
-FclStopPeriodicCollision();
+DeviceIoControl(
+    driverHandle,
+    IOCTL_FCL_STOP_PERIODIC_COLLISION,
+    NULL,
+    0,
+    NULL,
+    0,
+    &bytes,
+    NULL);
 ```
 
 ---
@@ -638,7 +643,7 @@ FclStopPeriodicCollision();
 1. **IRQL 要求**：
    - 大多数 API 必须在 `PASSIVE_LEVEL` 调用
    - 快照 API（使用 `FCL_GEOMETRY_SNAPSHOT`）可在 `DISPATCH_LEVEL` 调用
-   - 周期碰撞回调在 `PASSIVE_LEVEL` 执行
+   - 周期碰撞调度在 DPC 中执行，可在 PASSIVE 线程读取 `FclPeriodicCollisionSnapshotResult`
 
 2. **内存管理**：
    - 所有几何对象使用 NonPagedPool 分配
@@ -648,7 +653,7 @@ FclStopPeriodicCollision();
 3. **线程安全**：
    - 几何管理器使用 EX_PUSH_LOCK 保护
    - 碰撞检测使用只读快照，无需额外锁定
-   - 周期碰撞使用事件同步机制
+   - 周期碰撞使用定时器 DPC + 事件同步机制
 
 4. **性能考虑**：
    - Mesh 几何会自动构建 BVH，创建时有开销

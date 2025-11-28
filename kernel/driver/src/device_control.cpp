@@ -8,8 +8,6 @@
 #include "fclmusa/logging.h"
 #include "fclmusa/self_test.h"
 
-#include "periodic_scheduler.h"
-
 #ifdef FCL_MUSA_ENABLE_DEMO
 #include "device_control_demo.h"
 #endif
@@ -405,65 +403,6 @@ NTSTATUS HandleStopPeriodicCollisionDpc(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATIO
     return STATUS_SUCCESS;
 }
 
-_Use_decl_annotations_
-VOID
-FclPeriodicCollisionWorkerCallback(PVOID context) noexcept {
-    auto* state = static_cast<FCL_PERIODIC_COLLISION_STATE*>(context);
-    if (state == nullptr) {
-        return;
-    }
-
-    FCL_PERIODIC_COLLISION_CONFIG config = {};
-    BOOLEAN enabled = FALSE;
-    ULONG innerIterations = 1;
-
-    ExEnterCriticalRegionAndAcquirePushLockShared(&state->Lock);
-    enabled = state->Enabled;
-    if (enabled) {
-        config = state->Config;
-        innerIterations = state->InnerIterations;
-    }
-    ExReleasePushLockSharedAndLeaveCriticalRegion(&state->Lock);
-
-    if (!enabled) {
-        return;
-    }
-
-    if (!FclIsGeometryHandleValid(config.Object1) || !FclIsGeometryHandleValid(config.Object2)) {
-        return;
-    }
-
-    if (innerIterations == 0) {
-        innerIterations = 1;
-    }
-
-    for (ULONG i = 0; i < innerIterations; ++i) {
-        BOOLEAN isColliding = FALSE;
-        FCL_CONTACT_INFO contact = {};
-        NTSTATUS status = FclCollisionDetect(
-            config.Object1,
-            &config.Transform1,
-            config.Object2,
-            &config.Transform2,
-            &isColliding,
-            &contact);
-
-        FCL_COLLISION_RESULT result = {};
-        result.IsColliding = isColliding ? 1 : 0;
-        if (isColliding) {
-            result.Contact = contact;
-        } else {
-            RtlZeroMemory(&result.Contact, sizeof(result.Contact));
-        }
-
-        ExEnterCriticalRegionAndAcquirePushLockExclusive(&state->Lock);
-        state->LastStatus = status;
-        state->LastResult = result;
-        InterlockedIncrement64(reinterpret_cast<volatile LONG64*>(&state->Sequence));
-        ExReleasePushLockExclusiveAndLeaveCriticalRegion(&state->Lock);
-    }
-}
-
 NTSTATUS HandlePing(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
     if (stack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(FCL_PING_RESPONSE)) {
         return STATUS_BUFFER_TOO_SMALL;
@@ -705,81 +644,6 @@ NTSTATUS HandleConvexCcdDemo(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
         irp->IoStatus.Information = sizeof(*buffer);
     }
     return status;
-}
-
-NTSTATUS HandleStartPeriodicCollision(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
-    if (stack->Parameters.DeviceIoControl.InputBufferLength < sizeof(FCL_PERIODIC_COLLISION_CONFIG) ||
-        stack->Parameters.DeviceIoControl.OutputBufferLength < sizeof(FCL_PERIODIC_COLLISION_CONFIG)) {
-        return STATUS_BUFFER_TOO_SMALL;
-    }
-
-    auto* config = reinterpret_cast<FCL_PERIODIC_COLLISION_CONFIG*>(irp->AssociatedIrp.SystemBuffer);
-
-    if (!FclIsGeometryHandleValid(config->Object1) ||
-        !FclIsGeometryHandleValid(config->Object2) ||
-        config->PeriodMicroseconds == 0) {
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    if (!fclmusa::geom::IsValidTransform(config->Transform1) ||
-        !fclmusa::geom::IsValidTransform(config->Transform2)) {
-        return STATUS_INVALID_PARAMETER;
-    }
-
-    ExEnterCriticalRegionAndAcquirePushLockExclusive(&g_PeriodicCollisionState.Lock);
-    g_PeriodicCollisionState.Enabled = TRUE;
-    g_PeriodicCollisionState.Config = *config;
-    {
-        ULONG configuredIterations = config->Reserved[0];
-        if (configuredIterations == 0) {
-            configuredIterations = 1;
-        }
-        if (configuredIterations > 1024) {
-            configuredIterations = 1024;
-        }
-        g_PeriodicCollisionState.InnerIterations = configuredIterations;
-    }
-    g_PeriodicCollisionState.Sequence = 0;
-    g_PeriodicCollisionState.LastStatus = STATUS_SUCCESS;
-    RtlZeroMemory(&g_PeriodicCollisionState.LastResult, sizeof(g_PeriodicCollisionState.LastResult));
-    ExReleasePushLockExclusiveAndLeaveCriticalRegion(&g_PeriodicCollisionState.Lock);
-
-    NTSTATUS status = FclPeriodicSchedulerInitialize(
-        FclPeriodicCollisionWorkerCallback,
-        &g_PeriodicCollisionState,
-        config->PeriodMicroseconds);
-
-    if (status == STATUS_ALREADY_INITIALIZED) {
-        // 调度器已在运行，视为更新配置成功
-        status = STATUS_SUCCESS;
-    }
-
-    if (!NT_SUCCESS(status)) {
-        ExEnterCriticalRegionAndAcquirePushLockExclusive(&g_PeriodicCollisionState.Lock);
-        g_PeriodicCollisionState.Enabled = FALSE;
-        ExReleasePushLockExclusiveAndLeaveCriticalRegion(&g_PeriodicCollisionState.Lock);
-        return status;
-    }
-
-    irp->IoStatus.Information = sizeof(FCL_PERIODIC_COLLISION_CONFIG);
-    return status;
-}
-
-NTSTATUS HandleStopPeriodicCollision(_Inout_ PIRP irp, _In_ PIO_STACK_LOCATION stack) {
-    UNREFERENCED_PARAMETER(stack);
-
-    FclPeriodicSchedulerShutdown();
-
-    ExEnterCriticalRegionAndAcquirePushLockExclusive(&g_PeriodicCollisionState.Lock);
-    g_PeriodicCollisionState.Enabled = FALSE;
-    RtlZeroMemory(&g_PeriodicCollisionState.Config, sizeof(g_PeriodicCollisionState.Config));
-    g_PeriodicCollisionState.Sequence = 0;
-    g_PeriodicCollisionState.LastStatus = STATUS_SUCCESS;
-    RtlZeroMemory(&g_PeriodicCollisionState.LastResult, sizeof(g_PeriodicCollisionState.LastResult));
-    ExReleasePushLockExclusiveAndLeaveCriticalRegion(&g_PeriodicCollisionState.Lock);
-
-    irp->IoStatus.Information = 0;
-    return STATUS_SUCCESS;
 }
 
 }  // namespace

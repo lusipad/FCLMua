@@ -94,7 +94,7 @@
 **关键内容**:
 - 三层架构（upstream FCL / FCL Core / IOCTL 层）
 - 模块职责划分
-- DPC + PASSIVE 两级调度模型
+- DPC 定时运行的周期碰撞
 - 并发与 IRQL 管理
 - 安全和稳定性考量
 - Upstream FCL 集成说明

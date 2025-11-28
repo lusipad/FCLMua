@@ -113,7 +113,7 @@ tools\run_all_tests.ps1
 > distance a b                    # 距离查询
 > ccd a b 2 0 0                   # 连续碰撞检测（CCD）
 
-# 周期碰撞（DPC+PASSIVE 模型）
+# 周期碰撞（DPC 模型）
 > periodic a b 1000               # 启动周期碰撞（1ms = 1000us）
 > periodic_stop                   # 停止周期调度
 > diag                            # 查询性能统计
@@ -121,7 +121,6 @@ tools\run_all_tests.ps1
 # 自检与诊断
 > selftest                        # 完整自检
 > selftest sphere                 # 球体场景自检
-> selftest_pass                   # PASSIVE_LEVEL 多次检测
 > selftest_dpc                    # DPC 周期自检
 
 # 场景脚本

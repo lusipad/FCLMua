@@ -16,7 +16,7 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
      - 几何对象生命周期管理：`FclCreateGeometry` / `FclDestroyGeometry` / `FclUpdateMeshGeometry` / `FclAcquireGeometryReference` / `FclReleaseGeometryReference`
      - BVH 构建与缓存（`geometry/bvh_model.cpp` 等，仅作为 upstream FCL 的数据准备层）
      - 碰撞 / 距离 / CCD 调用流程：`FclCollisionDetect` / `FclCollideObjects` / `FclDistanceCompute` / `FclContinuousCollision`
-     - **周期碰撞调度**：`FclStartPeriodicCollision` / `FclStopPeriodicCollision`（DPC + PASSIVE 两级模型）
+     - **周期碰撞调度**：`IOCTL_FCL_START_PERIODIC_COLLISION` / `IOCTL_FCL_STOP_PERIODIC_COLLISION`（由 DPC 定时执行）
      - 宽阶段碰撞对收集：`FclBroadphaseDetect`
      - 自测与健康检查：`FclRunSelfTest` / `FclRunSelfTestScenario` / `FclQueryHealth` / `FclQueryDiagnostics`
      - 内存池与统计：`memory/pool_allocator.cpp` / `FCL_POOL_STATS`
@@ -55,19 +55,11 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
   - 基于 upstream FCL 的 `DynamicAABBTreeCollisionManagerd` 实现宽阶段对收集；
   - 利用几何管理层提供的快照和绑定信息构造 `fcl::CollisionObjectd`，输出 `FCL_BROADPHASE_PAIR`。
 
-- 周期碰撞调度器：`kernel/driver/src/periodic_scheduler.cpp`
-  - **DPC + PASSIVE 两级模型**：
-    ```
-    时间进度 →
-
-    DISPATCH_LEVEL (DPC)：KeSetEvent 唤醒工作线程
-                     ↓
-    PASSIVE_LEVEL (工作线程)：执行实际碰撞检测回调
-    ```
-  - **DPC 回调**（`FclPeriodicTimerDpc`）：仅负责 `KeSetEvent(&WorkerEvent)` 唤醒
-  - **内核工作线程**：在 PASSIVE_LEVEL 等待事件，触发时调用用户回调
-  - **停止机制**：通过 `StopEvent` 安全退出线程
-  - 适用于实时控制环境，需要周期性碰撞检测的场景
+- 周期碰撞调度逻辑：`kernel/driver/src/device_control.cpp` 中的 DPC 计时器实现
+  - **FCL_PERIODIC_COLLISION_STATE**：在启动 IOCTL（PASSIVE_LEVEL）中获取几何引用、构造 `FCL_GEOMETRY_SNAPSHOT`、配置运动参数，并预分配 NonPaged Scratch 缓冲，随后由 DPC 周期性执行碰撞计算。
+  - **DPC 回调**（`FclPeriodicCollisionDpc`）：在 DISPATCH_LEVEL 直接调用 `FclCollisionCoreFromSnapshots`，将结果写入 `LastResult`/`LastStatus`，并使用 `Sequence` 自增 + `KeMemoryBarrier` 形成“双读”快照协议（`FclPeriodicCollisionSnapshotResult`）；可根据 InnerIterations 在一次 DPC 内执行多轮检测。
+  - **停止机制**：`IOCTL_FCL_STOP_PERIODIC_COLLISION` 取消计时器、等待 `DpcIdleEvent`，随后在 PASSIVE_LEVEL 释放引用/快照；实时碰撞逻辑始终留在 DPC，满足亚毫秒预算。
+  - 适用于实时控制环境，需要周期性碰撞检测的场景；如果只需 PASSIVE 线程查询，可直接复用 Snapshot Core API。
 
 - 自测：`kernel/core/src/testing/self_test.cpp` 等
   - 组合调用几何 / 碰撞 / 距离 / CCD / 宽阶段等 API
@@ -102,10 +94,10 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
    - `ExAcquirePushLockShared` / `ExReleasePushLockShared`：读操作（获取引用）
    - `ExAcquirePushLockExclusive` / `ExReleasePushLockExclusive`：写操作（创建/销毁）
 
-2. **周期调度两级模型**（解决 IRQL 问题）：
-   - **DPC 回调** (DISPATCH_LEVEL)：仅执行 `KeSetEvent` 唤醒工作线程
-   - **内核工作线程** (PASSIVE_LEVEL)：等待事件，触发时调用用户回调执行碰撞检测
-   - **停止机制**：通过 `StopEvent` 安全退出线程
+2. **周期调度 + Snapshot Core**：
+   - PASSIVE 层只在启动/停止阶段执行，负责构建 `FCL_PERIODIC_COLLISION_STATE`、持有 `FCL_GEOMETRY_SNAPSHOT`，并准备 NonPaged Scratch；周期计算完全由 DPC 驱动。
+   - `FclPeriodicCollisionDpc` 在 DISPATCH_LEVEL 直接调用 `FclCollisionCoreFromSnapshots`（必要时多次迭代），不访问任何 pageable 资源或需要 PushLock 的句柄表。
+   - `Sequence` 原子计数结合 `FclPeriodicCollisionSnapshotResult` 的双读协议提供一致性，无需额外锁；上层按照序列值判断是否读到完整结果。
 
 3. **原子性计时统计**：`volatile LONG64` 用于无锁更新检测性能数据
    ```c
@@ -122,7 +114,7 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
 - 所有内存分配均基于 NonPagedPool，由 `FCL_POOL_STATS` 做实时统计
 - 严格区分 IRQL 级别，碰撞 / 距离 / CCD 等 API 要求在 `PASSIVE_LEVEL` 调用
 - 快照 API（使用 `FCL_GEOMETRY_SNAPSHOT`）可在 `DISPATCH_LEVEL` 调用
-- 周期碰撞回调保证在 `PASSIVE_LEVEL` 执行，可安全调用所有 FCL API
+- 周期碰撞 DPC 仅依赖 Snapshot Core API，可在 DISPATCH_LEVEL 下安全运行；若业务需要 PASSIVE 语义，可在上层线程中调用 `FclPeriodicCollisionSnapshotResult` 读取 DPC 产出的结果快照
 - Driver Verifier 通过自测结构暴露泄漏/异常，避免内核崩溃并提升可观测性
 
 ## Upstream FCL 集成说明
@@ -133,4 +125,3 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
   - 处理内核可接受的浮点精度和数据布局。
 - `FclCollisionDetect` / `FclDistanceCompute` / `FclContinuousCollision` / `FclBroadphaseDetect` 等 API 统一使用 upstream FCL 的 `collide`、`distance`、`continuousCollide`、`DynamicAABBTreeCollisionManagerd` 等实现。
 - Mesh 几何构建时，会根据需要生成与 upstream FCL 兼容的 BVH 结构，以便其宽阶段 / 窄阶段算法使用。
-
