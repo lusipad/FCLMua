@@ -62,30 +62,30 @@ if(FCLMUSA_BUILD_KERNEL_LIB AND (NOT FCLMUSA_WDK_ROOT OR NOT FCLMUSA_WDK_VERSION
 endif()
 
 set(FCLMUSA_ROOT ${CMAKE_CURRENT_LIST_DIR})
-set(FCLMUSA_INCLUDE_DIR ${FCLMUSA_ROOT}/kernel/core/include)
-set(FCLMUSA_DRIVER_INCLUDE_DIR ${FCLMUSA_ROOT}/kernel/driver/include)
+set(FCLMUSA_INCLUDE_DIR ${FCLMUSA_ROOT}/src/kernel/core/include)
+set(FCLMUSA_DRIVER_INCLUDE_DIR ${FCLMUSA_ROOT}/src/kernel/driver/include)
 set(FCLMUSA_EIGEN_DIR ${FCLMUSA_ROOT}/external/Eigen)
-set(FCLMUSA_FCL_DIR ${FCLMUSA_ROOT}/fcl-source)
+set(FCLMUSA_FCL_DIR ${FCLMUSA_ROOT}/external/fcl-source)
 set(FCLMUSA_LIBCCD_DIR ${FCLMUSA_ROOT}/external/libccd)
 
 set(FCLMUSA_COMMON_SOURCES
-  ${FCLMUSA_ROOT}/kernel/core/src/broadphase/broadphase.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/collision/collision.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/collision/continuous_collision.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/distance/distance.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/geometry/geometry_manager.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/geometry/bvh_model.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/geometry/obbrss.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/memory/pool_allocator.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/upstream/geometry_bridge.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/upstream/upstream_bridge.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/narrowphase/libccd_memory.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/broadphase/broadphase.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/collision/collision.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/collision/continuous_collision.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/distance/distance.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/geometry/geometry_manager.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/geometry/bvh_model.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/geometry/obbrss.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/memory/pool_allocator.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/upstream/geometry_bridge.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/upstream/upstream_bridge.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/narrowphase/libccd_memory.cpp
 )
 
 set(FCLMUSA_KERNEL_ONLY_SOURCES
-  ${FCLMUSA_ROOT}/kernel/core/src/driver_state.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/runtime/c_runtime_stubs.cpp
-  ${FCLMUSA_ROOT}/kernel/core/src/runtime/nonpaged_new.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/driver_state.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/runtime/c_runtime_stubs.cpp
+  ${FCLMUSA_ROOT}/src/kernel/core/src/runtime/nonpaged_new.cpp
 )
 
 set(FCLMUSA_LIBCCD_SOURCES
@@ -185,7 +185,7 @@ endif()
 enable_testing()
 
 if(FCLMUSA_BUILD_USERLIB)
-  add_executable(FclMusaR3Smoke tests/r3_smoke.cpp)
+  add_executable(FclMusaR3Smoke src/tests/r3_smoke.cpp)
   target_link_libraries(FclMusaR3Smoke PRIVATE FclMusa::CoreUser)
   add_test(NAME fclmusa_r3_smoke COMMAND FclMusaR3Smoke)
 else()

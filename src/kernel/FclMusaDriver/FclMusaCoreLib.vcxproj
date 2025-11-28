@@ -1,0 +1,148 @@
+<?xml version='1.0' encoding='utf-8'?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003" DefaultTargets="Build" ToolsVersion="17.0">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{8E7C95F0-5E65-4B1C-A39F-31DA77F73F27}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>FclMusaCoreLib</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
+    <ProjectName>FclMusaCoreLib</ProjectName>
+    <MusaRuntimeOnlyHeader>false</MusaRuntimeOnlyHeader>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <TargetVersion>Windows10</TargetVersion>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <PlatformToolset>WindowsKernelModeDriver10.0</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+    <TargetVersion>Windows10</TargetVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="C:\Users\lus\.nuget\packages\musa.corelite\1.0.3\build\native\Config\Musa.CoreLite.Config.props" Condition="exists('C:\Users\lus\.nuget\packages\musa.corelite\1.0.3\build\native\Config\Musa.CoreLite.Config.props')" />
+    <Import Project="C:\Users\lus\.nuget\packages\musa.veil\1.5.0\build\native\config\Musa.Veil.Config.props" Condition="exists('C:\Users\lus\.nuget\packages\musa.veil\1.5.0\build\native\config\Musa.Veil.Config.props')" />
+    <Import Project="C:\Users\lus\.nuget\packages\musa.core\0.4.1\build\native\Config\Musa.Core.Config.props" Condition="exists('C:\Users\lus\.nuget\packages\musa.core\0.4.1\build\native\Config\Musa.Core.Config.props')" />
+    <Import Project="..\..\external\Musa.Runtime\Publish\Config\Musa.Runtime.Config.props" Condition="exists('..\..\external\Musa.Runtime\Publish\Config\Musa.Runtime.Config.props')" />
+  </ImportGroup>
+  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
+    <Import Project="C:\Users\lus\.nuget\packages\musa.corelite\1.0.3\build\native\Config\Musa.CoreLite.Config.props" Condition="exists('C:\Users\lus\.nuget\packages\musa.corelite\1.0.3\build\native\Config\Musa.CoreLite.Config.props')" />
+    <Import Project="C:\Users\lus\.nuget\packages\musa.veil\1.5.0\build\native\config\Musa.Veil.Config.props" Condition="exists('C:\Users\lus\.nuget\packages\musa.veil\1.5.0\build\native\config\Musa.Veil.Config.props')" />
+    <Import Project="C:\Users\lus\.nuget\packages\musa.core\0.4.1\build\native\Config\Musa.Core.Config.props" Condition="exists('C:\Users\lus\.nuget\packages\musa.core\0.4.1\build\native\Config\Musa.Core.Config.props')" />
+    <Import Project="..\..\external\Musa.Runtime\Publish\Config\Musa.Runtime.Config.props" Condition="exists('..\..\external\Musa.Runtime\Publish\Config\Musa.Runtime.Config.props')" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <OutDir>$(SolutionDir)out\$(Platform)\$(Configuration)\</OutDir>
+    <IntDir>$(SolutionDir)out\$(Platform)\$(Configuration)\obj\core\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup>
+    <IncludePath>$(ProjectDir)..\core\include;$(IncludePath)</IncludePath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <Musa_Runtime_Library>$(Musa_Runtime_Root)\Library\Release\$(Platform)</Musa_Runtime_Library>
+    <LibraryPath>$(Musa_Runtime_Root)\Library\Release\$(Platform);$(LibraryPath)</LibraryPath>
+  </PropertyGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ClCompile>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <AdditionalOptions>/utf-8 /bigobj /FS %(AdditionalOptions)</AdditionalOptions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions>FCL_MUSA_KERNEL_MODE=1;FCL_MUSA_ENABLE_LOGGING=1;FCL_MUSA_ENABLE_DEMO=1;FCL_MUSA_DPC_NO_DEBUG_CRT=1;_CRT_NO_DBG_MEMORY_ALLOC;_HAS_EXCEPTIONS=1;CCD_STATIC_DEFINE;CCD_DISABLE_DEBUG_IO;FCL_STATIC_DEFINE;FCL_ENABLE_STD_LOGGING=0;NDEBUG;_ITERATOR_DEBUG_LEVEL=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <UndefinePreprocessorDefinitions>_DEBUG;%(UndefinePreprocessorDefinitions)</UndefinePreprocessorDefinitions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <DisableSpecificWarnings>4100;4127;4189;4201;4244;4267;4305;4458;4505;4509;4514;4571;4625;4626;4628;4661;4710;4820;5045;4146;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\core\include;$(ProjectDir)..\driver\include;$(ProjectDir)..\..\external\Eigen;$(ProjectDir)..\..\external\libccd\src;$(ProjectDir)..\..\external\libccd\src\ccd;$(ProjectDir)..\..\fcl-source\include;C:\Program Files (x86)\Windows Kits\10\Include\$(WindowsTargetPlatformVersion)\km;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <Optimization>Disabled</Optimization>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ClCompile>
+      <MultiProcessorCompilation>false</MultiProcessorCompilation>
+      <AdditionalOptions>/utf-8 /bigobj /FS %(AdditionalOptions)</AdditionalOptions>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <PreprocessorDefinitions>FCL_MUSA_KERNEL_MODE=1;FCL_MUSA_ENABLE_LOGGING=1;_HAS_EXCEPTIONS=1;CCD_STATIC_DEFINE;CCD_DISABLE_DEBUG_IO;FCL_STATIC_DEFINE;FCL_ENABLE_STD_LOGGING=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <WarningLevel>Level4</WarningLevel>
+      <TreatWarningAsError>false</TreatWarningAsError>
+      <DisableSpecificWarnings>4100;4127;4189;4201;4244;4267;4305;4458;4505;4509;4514;4571;4625;4626;4628;4661;4710;4820;5045;4146;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+      <ExceptionHandling>Sync</ExceptionHandling>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\core\include;$(ProjectDir)..\driver\include;$(ProjectDir)..\..\external\Eigen;$(ProjectDir)..\..\external\libccd\src;$(ProjectDir)..\..\external\libccd\src\ccd;$(ProjectDir)..\..\fcl-source\include;C:\Program Files (x86)\Windows Kits\10\Include\$(WindowsTargetPlatformVersion)\km;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="..\core\src\driver_state.cpp" />
+    <ClCompile Include="..\core\src\broadphase\broadphase.cpp" />
+    <ClCompile Include="..\core\src\collision\collision.cpp" />
+    <ClCompile Include="..\core\src\collision\continuous_collision.cpp" />
+    <ClCompile Include="..\core\src\distance\distance.cpp" />
+    <ClCompile Include="..\core\src\geometry\geometry_manager.cpp" />
+    <ClCompile Include="..\core\src\geometry\bvh_model.cpp" />
+    <ClCompile Include="..\core\src\geometry\obbrss.cpp" />
+    <ClCompile Include="..\core\src\memory\pool_allocator.cpp" />
+    <ClCompile Include="..\core\src\runtime\c_runtime_stubs.cpp" />
+    <ClCompile Include="..\core\src\upstream\geometry_bridge.cpp" />
+    <ClCompile Include="..\core\src\upstream\upstream_bridge.cpp" />
+    <ClCompile Include="..\core\src\narrowphase\libccd_memory.cpp" />
+    <ClCompile Include="..\..\external\libccd\src\ccd.c">
+      <PreprocessorDefinitions>CCD_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4100;4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <ClCompile Include="..\..\external\libccd\src\mpr.c">
+      <PreprocessorDefinitions>CCD_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4100;4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <ClCompile Include="..\..\external\libccd\src\polytope.c">
+      <PreprocessorDefinitions>CCD_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4100;4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <ClCompile Include="..\..\external\libccd\src\support.c">
+      <PreprocessorDefinitions>CCD_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4100;4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+    <ClCompile Include="..\..\external\libccd\src\vec3.c">
+      <PreprocessorDefinitions>CCD_STATIC_DEFINE;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <DisableSpecificWarnings>4100;4267;%(DisableSpecificWarnings)</DisableSpecificWarnings>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\fcl-source\src\**\*.cpp">
+      <ObjectFileName>$(IntDir)fcl\%(RelativeDir)%(Filename).obj</ObjectFileName>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\core\include\fclmusa\broadphase.h" />
+    <ClInclude Include="..\core\include\fclmusa\collision.h" />
+    <ClInclude Include="..\core\include\fclmusa\distance.h" />
+    <ClInclude Include="..\core\include\fclmusa\geometry.h" />
+    <ClInclude Include="..\core\include\fclmusa\upstream\geometry_bridge.h" />
+    <ClInclude Include="..\core\include\fclmusa\upstream\upstream_bridge.h" />
+  </ItemGroup>
+  <Import Project="C:\Users\lus\.nuget\packages\musa.corelite\1.0.3\build\native\Config\Musa.CoreLite.Config.targets" Condition="exists('C:\Users\lus\.nuget\packages\musa.corelite\1.0.3\build\native\Config\Musa.CoreLite.Config.targets')" />
+  <Import Project="C:\Users\lus\.nuget\packages\musa.core\0.4.1\build\native\Config\Musa.Core.Config.targets" Condition="exists('C:\Users\lus\.nuget\packages\musa.core\0.4.1\build\native\Config\Musa.Core.Config.targets')" />
+  <Import Project="..\..\external\Musa.Runtime\Publish\Config\Musa.Runtime.Config.targets" Condition="exists('..\..\external\Musa.Runtime\Publish\Config\Musa.Runtime.Config.targets')" />
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

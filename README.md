@@ -37,7 +37,7 @@ PS> tools\manual_build.cmd                      # 仅构建驱动（不签名）
 - `tools/build_all.ps1` 会依次构建驱动、CLI Demo、GUI Demo，自动签名并打包到 `dist/bundle/` 目录（推荐）。
 - `tools/build_and_sign_driver.ps1` 构建驱动并自动生成测试证书签名，产物在 `dist/driver/x64/{Debug|Release}/`。
 - `tools/manual_build.cmd` 仅构建驱动不签名，适合 CI/自动化流水线。
-- 所有脚本使用相同的解决方案（`kernel/FclMusaDriver/FclMusaDriver.sln`）。
+- 所有脚本使用相同的解决方案（`src/kernel/FclMusaDriver/FclMusaDriver.sln`）。
 
 > 依赖：WDK 10.0.22621.0、Visual Studio 2022、Musa.Runtime（仓库自带）、Eigen、libccd。
 
@@ -105,7 +105,7 @@ PS> tools\manual_build.cmd                      # 仅构建驱动（不签名）
 |-------|------|------|
 | `IOCTL_FCL_DEMO_SPHERE_COLLISION` | 0x900 | Demo：创建两个球并返回碰撞测试结果（示例用途） |
 
-详细结构定义见 `kernel/core/include/fclmusa/ioctl.h`。
+详细结构定义见 `src/kernel/core/include/fclmusa/ioctl.h`。
 
 
 ## 用户态示例
@@ -149,7 +149,7 @@ CLI 提供命令：
 ## 内核态调用
 
 - 在 `DriverEntry` 中调用 `FclInitialize()`，`DriverUnload` 中调用 `FclCleanup()`。
-- API 位于 `kernel/core/include/fclmusa/*.h`，例如：
+- API 位于 `src/kernel/core/include/fclmusa/*.h`，例如：
   - **几何管理**：`FclCreateGeometry / FclDestroyGeometry / FclAcquireGeometryReference`
   - **碰撞检测**：`FclCollideObjects / FclCollisionDetect`
   - **距离计算**：`FclDistanceCompute`

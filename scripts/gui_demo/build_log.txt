@@ -1,0 +1,10 @@
+Attempting to find MSBuild...
+Found MSBuild at: "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe"
+
+  main.cpp
+  scene.cpp
+  姝ｅ湪鐢熸垚浠ｇ爜
+  Previous IPDB was built with incompatible compiler, fall back to full compilation.
+  All 1492 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  宸插畬鎴愪唬鐮佺殑鐢熸垚
+  FclGuiDemo.vcxproj -> D:\Repos\FCL+Musa\tools\gui_demo\build\Release\fcl_gui_demo.exe

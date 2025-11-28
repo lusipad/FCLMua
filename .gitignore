@@ -111,3 +111,6 @@ __pycache__/
 .Python
 env/
 venv/
+# Local build directories
+/build/
+/build_*/
