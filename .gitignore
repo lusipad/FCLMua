@@ -86,6 +86,10 @@ external/**/Output/
 external/**/.nuget/
 external/**/obj/
 external/**/bin/
+# external/ 下的依赖作为子模块保留
+!/external/fcl-source/
+!/external/Musa.Runtime/
+!/external/Musa.Core/
 
 # 测试输出
 TestResults/

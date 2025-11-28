@@ -1,0 +1,9 @@
+[submodule "external/fcl-source"]
+	path = external/fcl-source
+	url = https://github.com/flexible-collision-library/fcl.git
+[submodule "external/Musa.Runtime"]
+	path = external/Musa.Runtime
+	url = https://github.com/MiroKaku/Musa.Runtime.git
+[submodule "external/Musa.Core"]
+	path = external/Musa.Core
+	url = https://github.com/MiroKaku/Musa.Core.git

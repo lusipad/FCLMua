@@ -1,3 +1,0 @@
-[submodule "Boost.Math"]
-	path = Boost.Math
-	url = https://github.com/Boostorg/math.git
