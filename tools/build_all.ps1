@@ -38,6 +38,10 @@
 .PARAMETER Package
     打包所有产物到 dist/bundle/
 
+.PARAMETER WdkVersion
+    指定 WDK 版本（例如：10.0.22621.0, 10.0.26100.0）
+    如果不指定，将自动检测系统上可用的 WDK 版本
+
 .EXAMPLE
     .\build_all.ps1
     构建所有组件（Debug，不签名）
@@ -58,10 +62,14 @@
     .\build_all.ps1 -SkipGUI
     构建驱动和 CLI Demo，跳过 GUI Demo
 
+.EXAMPLE
+    .\build_all.ps1 -WdkVersion 10.0.26100.0
+    使用指定的 WDK 版本进行构建
+
 .NOTES
     依赖：
     - Visual Studio 2022/2019
-    - WDK 10.0.26100.0
+    - WDK 10.0.22621.0
     - Musa.Runtime（仓库自带）
 #>
 
@@ -78,11 +86,47 @@ param(
     [switch]$SkipDriver,
     [switch]$SkipCLI,
     [switch]$SkipGUI,
-    [switch]$Package
+    [switch]$Package,
+
+    [string]$WdkVersion = $null
 )
 
 # Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+
+# 读取配置文件（如果存在）
+function Read-BuildConfig {
+    param([string]$ConfigFile)
+
+    $config = @{}
+    if (Test-Path $ConfigFile) {
+        Get-Content $ConfigFile | ForEach-Object {
+            $line = $_.Trim()
+            if ($line -and -not $line.StartsWith('#')) {
+                if ($line -match '^(\w+)\s*=\s*(.+)$') {
+                    $config[$matches[1]] = $matches[2].Trim()
+                }
+            }
+        }
+    }
+    return $config
+}
+
+# 获取配置值（优先级：命令行 > 环境变量 > 配置文件 > 默认值）
+function Get-ConfigValue {
+    param(
+        [string]$ParamValue,
+        [string]$EnvVarName,
+        [hashtable]$ConfigFile,
+        [string]$ConfigKey,
+        [string]$DefaultValue
+    )
+
+    if ($ParamValue) { return $ParamValue }
+    if ($env:$EnvVarName) { return $env:$EnvVarName }
+    if ($ConfigFile.ContainsKey($ConfigKey)) { return $ConfigFile[$ConfigKey] }
+    return $DefaultValue
+}
 
 # 导入公共函数库
 $scriptDir = $PSScriptRoot
@@ -94,6 +138,24 @@ if (-not (Test-Path -Path $commonPath)) {
     throw "Common functions module not found: $commonPath"
 }
 Import-Module $commonPath -Force
+
+# 读取构建配置文件
+$buildConfig = Read-BuildConfig -ConfigFile (Join-Path $scriptDir 'build.config')
+
+# 应用配置（如果未通过命令行指定）
+if (-not $PSBoundParameters.ContainsKey('WdkVersion')) {
+    $configWdkVersion = Get-ConfigValue `
+        -ParamValue $null `
+        -EnvVarName 'FCL_MUSA_WDK_VERSION' `
+        -ConfigFile $buildConfig `
+        -ConfigKey 'WdkVersion' `
+        -DefaultValue $null
+
+    if ($configWdkVersion) {
+        $WdkVersion = $configWdkVersion
+        Write-Verbose "Using WDK version from config/env: $WdkVersion"
+    }
+}
 
 # 计算仓库根目录和关键路径
 $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).ProviderPath
@@ -165,11 +227,53 @@ if ($steps -contains "Driver") {
     # 确保 Musa.Runtime 配置存在
     Ensure-MusaRuntimePublish -RepoRoot $repoRoot
 
-    # 调用 manual_build.cmd
-    $manualBuildCmd = Join-Path $scriptDir 'manual_build.cmd'
+    # 检测或使用指定的 WDK 版本
+    $WINDOWS_KITS_ROOT = "${env:ProgramFiles(x86)}\Windows Kits\10"
+    $actualWdkVersion = $null
+
+    if ($WdkVersion) {
+        # 用户指定了 WDK 版本
+        $testHeader = "$WINDOWS_KITS_ROOT\Include\$WdkVersion\km\ntddk.h"
+        if (-not (Test-Path $testHeader)) {
+            throw "Specified WDK version $WdkVersion not found or incomplete."
+        }
+        $actualWdkVersion = $WdkVersion
+        Write-Host "  Using specified WDK: $actualWdkVersion" -ForegroundColor Gray
+    } else {
+        # 自动检测 WDK 版本
+        $WDK_VERSIONS = @('10.0.22621.0', '10.0.26100.0', '10.0.22000.0')
+        foreach ($ver in $WDK_VERSIONS) {
+            $testHeader = "$WINDOWS_KITS_ROOT\Include\$ver\km\ntddk.h"
+            if (Test-Path $testHeader) {
+                $actualWdkVersion = $ver
+                Write-Host "  Auto-detected WDK: $actualWdkVersion" -ForegroundColor Gray
+                break
+            }
+        }
+        if (-not $actualWdkVersion) {
+            throw "WDK not found. Please install WDK or specify version with -WdkVersion"
+        }
+    }
+
+    # 使用 MSBuild 直接构建
+    $msbuild = Get-MSBuildPath
+    $solutionFile = Join-Path $kernelDir 'FclMusaDriver.sln'
+
+    # 构建参数
+    $buildArgs = @(
+        $solutionFile
+        "/t:Build"
+        "/p:Configuration=$Configuration"
+        "/p:Platform=$Platform"
+        "/p:WindowsTargetPlatformVersion=$actualWdkVersion"
+        "/m"
+        "/v:minimal"
+        "/nologo"
+    )
+
     Invoke-BuildCommand `
-        -ScriptBlock { & $manualBuildCmd $Configuration } `
-        -ErrorMessage "manual_build.cmd failed. See kernel\FclMusaDriver\build_manual_build.log for details."
+        -ScriptBlock { & $msbuild @buildArgs } `
+        -ErrorMessage "Driver build failed"
 
     # 验证驱动文件存在
     if (-not (Test-Path -Path $driverSys -PathType Leaf)) {

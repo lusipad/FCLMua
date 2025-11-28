@@ -29,7 +29,7 @@ PS> tools\manual_build.cmd                      # 仅构建驱动（不签名）
 - `tools/manual_build.cmd` 仅构建驱动不签名，适合 CI/自动化流水线。
 - 所有脚本使用相同的解决方案（`kernel/FclMusaDriver/FclMusaDriver.sln`）。
 
-> 依赖：WDK 10.0.26100.0、Visual Studio 2022、Musa.Runtime（仓库自带）、Eigen、libccd。
+> 依赖：WDK 10.0.22621.0、Visual Studio 2022、Musa.Runtime（仓库自带）、Eigen、libccd。
 
 构建成功后目录结构：
 
@@ -87,7 +87,7 @@ PS> tools\manual_build.cmd                      # 仅构建驱动（不签名）
 ### 周期性碰撞接口（0x820-0x82F）
 | IOCTL | 代码 | 说明 |
 |-------|------|------|
-| `IOCTL_FCL_START_PERIODIC_COLLISION` | 0x820 | 启动周期碰撞检测（DPC+PASSIVE 两级模型） |
+| `IOCTL_FCL_START_PERIODIC_COLLISION` | 0x820 | 启动周期碰撞检测（纯 DPC 定时） |
 | `IOCTL_FCL_STOP_PERIODIC_COLLISION` | 0x821 | 停止周期调度 |
 
 ### Demo 接口（0x900-0x9FF）
@@ -119,17 +119,16 @@ CLI 提供命令：
 - `distance <A> <B>` - 距离查询
 - `ccd <mov> <static> <dx> <dy> <dz>` - 连续碰撞检测（CCD）
 
-**周期碰撞（DPC+PASSIVE 模型）：**
+**周期碰撞（DPC 模型）：**
 - `periodic <A> <B> <period_us>` - 启动周期碰撞检测（微秒）
 - `periodic_stop` - 停止周期调度
 
 **自检与诊断：**
 - `selftest` - 完整自检（所有模块）
 - `selftest <scenario>` - 场景自检（runtime|sphere|broadphase|mesh|ccd）
-- `selftest_pass` - PASSIVE_LEVEL 多次检测自检（640次）
 - `selftest_dpc` - DPC 周期自检（640ms@1ms周期）
 - `diag` - 查询性能计时统计
-- `diag_pass` / `diag_dpc` - 查看自检前后性能对比
+- `diag_dpc` - 查看周期自检前后性能对比
 
 **其他：**
 - `run <script>` - 执行场景脚本（如 `run scenes\two_spheres.txt`）
@@ -145,10 +144,10 @@ CLI 提供命令：
   - **碰撞检测**：`FclCollideObjects / FclCollisionDetect`
   - **距离计算**：`FclDistanceCompute`
   - **连续碰撞**：`FclInterpMotionInitialize / FclContinuousCollision`
-  - **周期碰撞**：`FclStartPeriodicCollision / FclStopPeriodicCollision`
+  - **周期碰撞**：`IOCTL_FCL_START_PERIODIC_COLLISION / IOCTL_FCL_STOP_PERIODIC_COLLISION`
 - **IRQL 要求**：
   - 大多数 API 要求在 `PASSIVE_LEVEL` 调用
-  - 周期碰撞回调在 `PASSIVE_LEVEL` 执行（由 DPC 触发，工作线程执行）
+  - 周期碰撞调度在 DPC 运行，通过快照/诊断查询获取结果
   - 快照版本的 Core API（使用 `FCL_GEOMETRY_SNAPSHOT`）可在 `DISPATCH_LEVEL` 调用
 - 几何句柄生命周期由驱动管理，使用引用计数机制。
 
@@ -179,8 +178,3 @@ CLI 提供命令：
 - `fcl-source/` 内置的 FCL 基于 commit `5f7776e2101b8ec95d5054d732684d00dac45e3d`。
 - `tools/manual_build.cmd` 会检查 `fcl-source` HEAD 是否匹配该提交，避免混用其它版本。
 - 若需升级 upstream FCL，请在 `fcl-source/` 同步代码并更新脚本中的 `FCL_EXPECTED_COMMIT`。
-
-
-
-
-

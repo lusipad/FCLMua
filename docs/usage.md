@@ -5,7 +5,7 @@
 ## 1. 环境准备
 
 1. 安装 **Visual Studio 2022**（含 “使用 C++ 的桌面开发”）
-2. 安装 **WDK 10.0.26100.0**
+2. 安装 **WDK 10.0.22621.0**
 3. 克隆仓库：
    ```powershell
    git clone https://github.com/lusipad/FCLMua.git
@@ -115,7 +115,7 @@ void DriverUnload(PDRIVER_OBJECT) {
 
 | 问题 | 处理办法 |
 |------|----------|
-| 构建时报找不到 WDK 头文件 | 确认已安装 WDK 10.0.26100.0，且 `tools/manual_build.cmd` 具备管理员权限 |
+| 构建时报找不到 WDK 头文件 | 确认已安装 WDK 10.0.22621.0，且 `tools/manual_build.cmd` 具备管理员权限 |
 | 驱动加载失败，错误 577 | 系统未启用测试签名，或证书未导入 Trusted Root/Publisher |
 | IOCTL 超时或错误 0xC0000008 | 设备名不匹配，确保 CreateFile 使用 `\\.\FclMusa`，并确认驱动正在运行 |
 | 需要 Release 构建 | 在 VS 中切换到 Release|x64，或编辑脚本添加参数后再运行 |
@@ -125,4 +125,3 @@ void DriverUnload(PDRIVER_OBJECT) {
 - 深入了解 IOCTL 结构：`docs/api.md`
 - 参考 `docs/testing.md` 拓展自测项
 - 结合 `docs/vm_debug_setup.md` 搭建 Hyper-V + WinDbg 远程调试环境
-

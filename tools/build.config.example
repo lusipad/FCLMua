@@ -1,0 +1,16 @@
+# FCL+Musa 构建配置文件
+# 复制此文件为 build.config 并修改配置
+
+# WDK 版本（可选）
+# 如果不指定，将自动检测系统上可用的 WDK 版本
+# 示例：WdkVersion=10.0.26100.0
+# WdkVersion=10.0.22621.0
+
+# 默认构建配置（可选）
+# Configuration=Release
+
+# 默认平台（可选）
+# Platform=x64
+
+# 默认是否签名（可选）
+# Sign=true

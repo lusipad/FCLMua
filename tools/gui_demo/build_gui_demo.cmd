@@ -3,6 +3,7 @@ REM FCL GUI Demo Build Script
 REM Compiles the Windows GUI collision detection demo using MSBuild
 
 setlocal enabledelayedexpansion
+cd /d "%~dp0"
 
 echo ========================================
 echo FCL Collision Demo - Build Script
@@ -35,7 +36,7 @@ REM Find MSBuild
 set "MSBUILD=%VSINSTALLDIR%\MSBuild\Current\Bin\MSBuild.exe"
 if not exist "%MSBUILD%" (
     echo Error: MSBuild not found!
-    echo Expected at: %MSBUILD%
+    echo Expected at: "%MSBUILD%"
     exit /b 1
 )
 

@@ -2,7 +2,7 @@
 
 ## 1. 环境搭建和依赖集成
 
-- [x] 1.1 安装 Windows Driver Kit (WDK) ✅ **已验证**: WDK 10.0.26100.0 已安装
+- [x] 1.1 安装 Windows Driver Kit (WDK) ✅ **已验证**: WDK 10.0.22621.0 已安装
 - [x] 1.2 配置 Visual Studio 驱动开发环境 ✅ **已验证**: VS 2022 Enterprise 配置正确
 - [x] 1.3 集成 Musa.Runtime 到项目（通过NuGet：Musa.Core 0.4.1, Musa.CoreLite 1.0.3, Musa.Veil 1.5.0） ✅
 - [x] 1.4 创建基本的内核驱动项目结构 ✅

@@ -287,8 +287,6 @@ using SceneMap = std::unordered_map<std::string, SceneObject>;
 
 static bool g_DpcBaselineValid = false;
 static FCL_DIAGNOSTICS_RESPONSE g_DpcBaselineDiag = {};
-static bool g_PassBaselineValid = false;
-static FCL_DIAGNOSTICS_RESPONSE g_PassBaselineDiag = {};
 
 FCL_TRANSFORM IdentityTransform() {
     FCL_TRANSFORM t = {};
@@ -679,104 +677,6 @@ void ListObjects(const SceneMap& objects) {
     }
 }
 
-bool SelfTestPass(HANDLE device) {
-    FCL_DIAGNOSTICS_RESPONSE baseline = {};
-    if (!SendIoctl(device, IOCTL_FCL_QUERY_DIAGNOSTICS, &baseline, sizeof(baseline))) {
-        printf("  [FAIL] IOCTL_FCL_QUERY_DIAGNOSTICS failed (baseline for selftest_pass).\n");
-        return true;
-    }
-    g_PassBaselineDiag = baseline;
-    g_PassBaselineValid = true;
-
-    FCL_GEOMETRY_HANDLE handleA = {};
-    FCL_GEOMETRY_HANDLE handleB = {};
-
-    // 几何本地中心固定在原点，位置差异通过变换表示，保持与内核 self_test 一致
-    FCL_VECTOR3 localCenter = {0.0f, 0.0f, 0.0f};
-    if (!CreateSphere(device, 0.5f, localCenter, handleA)) {
-        printf("  [FAIL] selftest_pass: failed to create sphere A.\n");
-        return true;
-    }
-    if (!CreateSphere(device, 0.5f, localCenter, handleB)) {
-        printf("  [FAIL] selftest_pass: failed to create sphere B.\n");
-        DestroyGeometry(device, handleA);
-        return true;
-    }
-
-    SceneObject a{};
-    a.Name = "PassA";
-    a.Handle = handleA;
-    a.Transform = IdentityTransform();
-    a.Transform.Translation = {0.0f, 0.0f, 0.0f};
-
-    SceneObject b{};
-    b.Name = "PassB";
-    b.Handle = handleB;
-    b.Transform = IdentityTransform();
-    b.Transform.Translation = {0.6f, 0.0f, 0.0f};
-
-    const int iterations = 640;
-    printf("Running PASSIVE collision self-test: two spheres, iterations=%d, period=1ms...\n", iterations);
-
-    FCL_COLLISION_RESULT result = {};
-    for (int i = 0; i < iterations; ++i) {
-        result = {};
-        if (!QueryCollision(device, a, b, result)) {
-            printf("  [FAIL] selftest_pass: QueryCollision failed at iteration %d.\n", i);
-            break;
-        }
-        if (!result.IsColliding) {
-            printf("  [FAIL] selftest_pass: expected collision at iteration %d.\n", i);
-            break;
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    }
-
-    DestroyGeometry(device, handleB);
-    DestroyGeometry(device, handleA);
-
-    printf("PASSIVE collision self-test completed. Use 'diag_pass' to view delta diagnostics.\n");
-    return true;
-}
-
-bool PrintDiagPass(HANDLE device) {
-    if (!g_PassBaselineValid) {
-        printf("diag_pass: baseline not set. Run 'selftest_pass' first.\n");
-        return true;
-    }
-
-    FCL_DIAGNOSTICS_RESPONSE now = {};
-    if (!SendIoctl(device, IOCTL_FCL_QUERY_DIAGNOSTICS, &now, sizeof(now))) {
-        printf("  [FAIL] IOCTL_FCL_QUERY_DIAGNOSTICS failed in diag_pass.\n");
-        return true;
-    }
-
-    const auto& base = g_PassBaselineDiag;
-
-    const uint64_t deltaCalls =
-        (now.Collision.CallCount >= base.Collision.CallCount)
-            ? (now.Collision.CallCount - base.Collision.CallCount)
-            : 0;
-    const uint64_t deltaTotal =
-        (now.Collision.TotalDurationMicroseconds >= base.Collision.TotalDurationMicroseconds)
-            ? (now.Collision.TotalDurationMicroseconds - base.Collision.TotalDurationMicroseconds)
-            : 0;
-
-    printf("PASSIVE collision diagnostics (delta since selftest_pass):\n");
-    if (deltaCalls == 0) {
-        printf("  Collision: no additional samples recorded.\n");
-        return true;
-    }
-
-    const double avgUs = static_cast<double>(deltaTotal) / static_cast<double>(deltaCalls);
-    printf("  Collision: calls=%llu total=%.3f ms avg=%.3f ms (global min=%.3f ms max=%.3f ms)\n",
-           static_cast<unsigned long long>(deltaCalls),
-           static_cast<double>(deltaTotal) / 1000.0,
-           avgUs / 1000.0,
-           static_cast<double>(now.Collision.MinDurationMicroseconds) / 1000.0,
-           static_cast<double>(now.Collision.MaxDurationMicroseconds) / 1000.0);
-    return true;
-}
 bool SelfTestDpc(HANDLE device) {
     FCL_DIAGNOSTICS_RESPONSE baseline = {};
     if (!SendIoctl(device, IOCTL_FCL_QUERY_DIAGNOSTICS, &baseline, sizeof(baseline))) {
@@ -789,7 +689,7 @@ bool SelfTestDpc(HANDLE device) {
     FCL_GEOMETRY_HANDLE handleA = {};
     FCL_GEOMETRY_HANDLE handleB = {};
 
-    // 与 PASSIVE 自测保持一致：几何本地中心固定在原点，位移由变换提供
+    // 保持与内核自测一致：几何本地中心固定在原点，位移由变换提供
     FCL_VECTOR3 localCenter = {0.0f, 0.0f, 0.0f};
     if (!CreateSphere(device, 0.5f, localCenter, handleA)) {
         printf("  [FAIL] selftest_dpc: failed to create sphere A.\n");
@@ -952,17 +852,15 @@ void PrintHelp() {
     printf("  distance <nameA> <nameB>             Compute closest distance\n");
     printf("  simulate <mov> <static> <dx dy dz> <steps> <interval_ms>\n");
     printf("  ccd <mov> <static> <dx dy dz>        Run convex CCD query\n");
-    printf("  periodic <mov> <static> <period_us>  Start periodic collision (DPC+PASSIVE)\n");
+    printf("  periodic <mov> <static> <period_us>  Start periodic collision (DPC)\n");
     printf("  periodic_stop                        Stop periodic collision\n");
-    printf("  selftest_pass                        Run PASSIVE collision self-test (multi-call)\n");
-    printf("  selftest_dpc                         Run periodic DPC self-test (DPC+PASSIVE)\n");
+    printf("  selftest_dpc                         Run periodic DPC self-test\n");
     printf("  destroy <name>                       Destroy a geometry\n");
     printf("  list                                 List registered geometries\n");
     printf("  demo                                 Run legacy sphere demo\n");
     printf("  selftest                             Run driver self-test (ping + IOCTL_FCL_SELF_TEST)\n");
     printf("  selftest <scenario>                  Run single self-test scenario (runtime|sphere|broadphase|mesh|ccd)\n");
     printf("  diag                                 Query kernel detection timing diagnostics\n");
-    printf("  diag_pass                            Show diagnostics delta since selftest_pass\n");
     printf("  diag_dpc                             Show diagnostics delta since selftest_dpc\n");
     printf("  quit                                 Exit the tool\n");
 }
@@ -1050,8 +948,6 @@ bool ExecuteCommand(const std::vector<std::string>& tokens, HANDLE device, Scene
     PrintTimingStats("Distance", diag.Distance);
     PrintTimingStats("ContinuousCollision", diag.ContinuousCollision);
     PrintTimingStats("DpcCollision", diag.DpcCollision);
-    } else if (cmd == "diag_pass") {
-        return PrintDiagPass(device);
     } else if (cmd == "diag_dpc") {
         return PrintDiagDpc(device);
     } else if (cmd == "selftest") {
@@ -1104,8 +1000,6 @@ bool ExecuteCommand(const std::vector<std::string>& tokens, HANDLE device, Scene
                self.CollisionDetected,
                self.BroadphasePairCount,
                self.DistanceValue);
-    } else if (cmd == "selftest_pass") {
-        return SelfTestPass(device);
     } else if (cmd == "selftest_dpc") {
         return SelfTestDpc(device);
     } else if (cmd == "run") {

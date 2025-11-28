@@ -8,7 +8,7 @@ if "%BUILD_CONFIGURATION%"=="" set "BUILD_CONFIGURATION=Debug"
 call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" -arch=amd64 -host_arch=amd64
 if errorlevel 1 exit /b 1
 
-set "WDK_VERSION=10.0.26100.0"
+set "WDK_VERSION=10.0.22621.0"
 set "WINDOWS_KITS_ROOT=%ProgramFiles(x86)%\Windows Kits\10"
 set "WDK_INCLUDE=%WINDOWS_KITS_ROOT%\Include\%WDK_VERSION%"
 set "WDK_LIB=%WINDOWS_KITS_ROOT%\Lib\%WDK_VERSION%"

@@ -31,13 +31,13 @@
 
 ## 构建指引
 
-1. 安装 **Visual Studio 2022 + WDK 10.0.26100**（必须包含 *WindowsKernelModeDriver10.0* 工具集）。
+1. 安装 **Visual Studio 2022 + WDK 10.0.22621**（必须包含 *WindowsKernelModeDriver10.0* 工具集）。
 2. 直接打开 `kernel/FclMusaDriver/FclMusaDriver.sln`（已预置 Debug/Release x64 配置）。
 3. 运行 `external/Musa.Runtime/BuildAllTargets.cmd`，在 `external/Musa.Runtime/Publish/Library/<Config>/<Platform>` 下生成 `ucxxrt.lib`。
 4. `FclMusaDriver.vcxproj` 自动导入 `../external/Musa.Runtime/Publish/Config/Musa.Runtime.Config.props`，如需调整路径请同步修改 `ImportGroup`。
 5. 项目已启用 C++17、/kernel、/driver 以及池标签、日志配置；如需自定义请在 VS 属性页中覆盖。
 
-> 如未安装 WDK 或未勾选 **WindowsKernelModeDriver10.0** 工具集，`msbuild` 会报 `MSB8020`。请先从微软官网下载并安装 WDK 10.0.26100，再运行 `BuildAllTargets.cmd` 与解决方案生成。
+> 如未安装 WDK 或未勾选 **WindowsKernelModeDriver10.0** 工具集，`msbuild` 会报 `MSB8020`。请先从微软官网下载并安装 WDK 10.0.22621，再运行 `BuildAllTargets.cmd` 与解决方案生成。
 
 ## 验证步骤
 

@@ -99,7 +99,6 @@ kernel/selftest/
 kernel/driver/src/
 ├── driver_entry.cpp           # 驱动入口点 (DriverEntry, DriverUnload)
 ├── device_control.cpp         # IOCTL 分发与参数校验
-├── periodic_scheduler.cpp     # 周期性碰撞调度器 (DPC + WorkItem)
 └── device_control_demo.cpp    # Demo 专用 IOCTL 处理
 ```
 
