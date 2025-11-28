@@ -1,7 +1,6 @@
 ﻿#pragma once
 
-#include <ntddk.h>
-#include <ntintsafe.h>
+#include "fclmusa/platform.h"
 
 #include <cstddef>
 #include <new>

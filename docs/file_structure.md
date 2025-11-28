@@ -54,11 +54,18 @@ FCL+Musa/
 ```
 kernel/
 ├── FclMusaDriver/             # Visual Studio 驱动工程文件
-├── core/                      # FCL 核心逻辑库
+├── core/                      # FCL 核心逻辑库（支持 R0 和 R3 双模式构建）
 │   ├── include/               # 核心头文件
-│   └── src/                   # 核心实现代码
+│   │   ├── fclmusa/platform.h         # [关键] 平台抽象层（R0/R3 统一接口）
+│   │   ├── fclmusa/driver.h           # 驱动入口 API（含用户态 stub）
+│   │   ├── fclmusa/logging.h          # 日志宏（内核 DbgPrint/用户态 fprintf）
+│   │   ├── fclmusa/collision.h        # 碰撞检测 API
+│   │   ├── fclmusa/distance.h         # 距离计算 API
+│   │   ├── fclmusa/geometry.h         # 几何对象 API
+│   │   └── fclmusa/ioctl.h            # IOCTL 结构定义
+│   └── src/                   # 核心实现代码（平台无关）
 ├── selftest/                  # 自测与回归测试模块
-└── driver/                    # 驱动入口与 WDF 适配
+└── driver/                    # 驱动入口与 WDF 适配（仅 R0）
     └── src/                   # 驱动层实现
 ```
 
@@ -128,13 +135,14 @@ tools/
 | 文档 | 内容 |
 |------|------|
 | **api.md** | 内核 C API 与 IOCTL 接口参考 |
-| **architecture.md** | 架构设计、分层说明、关键流程 |
+| **architecture.md** | 架构设计、分层说明、平台抽象、关键流程 |
 | **file_structure.md** | (本文档) 文件结构说明 |
 | **usage.md** | 详细构建与使用指南 |
 | **deployment.md** | 部署与签名指南 |
 | **demo.md** | 代码示例 |
 | **testing.md** | 测试策略与覆盖率 |
 | **vm_debug_setup.md** | 调试环境配置 |
+| **cpm_integration.md** | CPM 集成指南（R3 静态库构建） |
 
 ---
 

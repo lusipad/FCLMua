@@ -1,5 +1,4 @@
-﻿#include <ntddk.h>
-#include <ntintsafe.h>
+﻿#include "fclmusa/platform.h"
 
 #include <new>
 #include <cstddef>

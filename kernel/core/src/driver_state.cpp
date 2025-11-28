@@ -1,5 +1,4 @@
-﻿#include <ntddk.h>
-#include <wdm.h>
+﻿#include "fclmusa/platform.h"
 
 #include "fclmusa/driver.h"
 #include "fclmusa/logging.h"
@@ -8,35 +7,6 @@
 #include "fclmusa/memory/pool_allocator.h"
 
 using fclmusa::geom::IdentityTransform;
-
-// Compatibility helpers for PushLock APIs
-#ifndef ExEnterCriticalRegionAndAcquirePushLockExclusive
-inline VOID ExEnterCriticalRegionAndAcquirePushLockExclusive(PEX_PUSH_LOCK PushLock) {
-    KeEnterCriticalRegion();
-    ExAcquirePushLockExclusive(PushLock);
-}
-#endif
-
-#ifndef ExReleasePushLockExclusiveAndLeaveCriticalRegion
-inline VOID ExReleasePushLockExclusiveAndLeaveCriticalRegion(PEX_PUSH_LOCK PushLock) {
-    ExReleasePushLockExclusive(PushLock);
-    KeLeaveCriticalRegion();
-}
-#endif
-
-#ifndef ExEnterCriticalRegionAndAcquirePushLockShared
-inline VOID ExEnterCriticalRegionAndAcquirePushLockShared(PEX_PUSH_LOCK PushLock) {
-    KeEnterCriticalRegion();
-    ExAcquirePushLockShared(PushLock);
-}
-#endif
-
-#ifndef ExReleasePushLockSharedAndLeaveCriticalRegion
-inline VOID ExReleasePushLockSharedAndLeaveCriticalRegion(PEX_PUSH_LOCK PushLock) {
-    ExReleasePushLockShared(PushLock);
-    KeLeaveCriticalRegion();
-}
-#endif
 
 namespace {
 

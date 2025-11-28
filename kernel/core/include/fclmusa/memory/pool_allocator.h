@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <ntddk.h>
+#include "fclmusa/platform.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -21,6 +21,7 @@ namespace fclmusa::memory {
 
 void InitializePoolTracking();
 void ShutdownPoolTracking();
+void EnablePoolTracking(BOOLEAN enable);
 
 _Must_inspect_result_
 void* Allocate(_In_ size_t size, _In_ ULONG poolTag = FCL_MUSA_POOL_TAG) noexcept;

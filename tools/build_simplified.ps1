@@ -29,7 +29,9 @@ param(
     [ValidateSet('x64')]
     [string]$Platform = 'x64',
 
-    [string]$WdkVersion = $null
+    [string]$WdkVersion = $null,
+
+    [string]$WdkRoot = $null
 )
 
 $ErrorActionPreference = 'Stop'
@@ -63,7 +65,17 @@ $solutionFile = Join-Path $kernelDir 'FclMusaDriver.sln'
 # 读取构建配置文件
 $buildConfig = Read-BuildConfig -ConfigFile (Join-Path $scriptDir 'build.config')
 
-# 应用 WDK 版本配置（优先级：命令行 > 环境变量 > 配置文件）
+# 应用 WDK 根/版本配置（优先级：命令行 > 环境变量 > 配置文件）
+if (-not $WdkRoot) {
+    if ($env:FCL_MUSA_WDK_ROOT) {
+        $WdkRoot = $env:FCL_MUSA_WDK_ROOT
+    } elseif ($buildConfig.ContainsKey('WdkRoot')) {
+        $WdkRoot = $buildConfig['WdkRoot']
+    } elseif ($env:WDKContentRoot) {
+        $WdkRoot = $env:WDKContentRoot
+    }
+}
+
 if (-not $WdkVersion) {
     if ($env:FCL_MUSA_WDK_VERSION) {
         $WdkVersion = $env:FCL_MUSA_WDK_VERSION
@@ -86,35 +98,40 @@ Write-Host "Locating MSBuild..." -ForegroundColor Cyan
 $msbuild = Get-MSBuildPath
 Write-Host "  Found: $msbuild" -ForegroundColor Green
 
-# Auto-detect WDK version
-$WINDOWS_KITS_ROOT = "${env:ProgramFiles(x86)}\Windows Kits\10"
+# Auto-detect WDK root/version
+Write-Host "Detecting WDK installation..." -ForegroundColor Cyan
+$WINDOWS_KITS_ROOT = $WdkRoot
+if (-not $WINDOWS_KITS_ROOT) {
+    $WINDOWS_KITS_ROOT = "${env:ProgramFiles(x86)}\Windows Kits\10"
+}
+
+if (-not (Test-Path $WINDOWS_KITS_ROOT)) {
+    throw "WDK root not found. Please install Windows Driver Kit or specify -WdkRoot."
+}
+
+function Get-AvailableWdkVersions {
+    param([string]$Root)
+    Get-ChildItem -Path (Join-Path $Root 'Include') -Directory |
+        Where-Object { Test-Path (Join-Path $_.FullName 'km\ntddk.h') } |
+        Select-Object -ExpandProperty Name |
+        Sort-Object { $_ } -Descending
+}
 
 if ($WdkVersion) {
-    # User specified WDK version
-    Write-Host "Using specified WDK version: $WdkVersion" -ForegroundColor Cyan
     $testHeader = "$WINDOWS_KITS_ROOT\Include\$WdkVersion\km\ntddk.h"
     if (-not (Test-Path $testHeader)) {
-        throw "Specified WDK version $WdkVersion not found or incomplete. Please check installation."
+        $available = Get-AvailableWdkVersions -Root $WINDOWS_KITS_ROOT
+        throw "Specified WDK version $WdkVersion not found under $WINDOWS_KITS_ROOT. Available: $($available -join ', ')"
     }
     $WDK_VERSION = $WdkVersion
+    Write-Host "  Using specified WDK $WDK_VERSION" -ForegroundColor Green
 } else {
-    # Auto-detect from available versions
-    $WDK_VERSIONS = @('10.0.22621.0', '10.0.26100.0', '10.0.22000.0')
-    $WDK_VERSION = $null
-
-    Write-Host "Detecting WDK installation..." -ForegroundColor Cyan
-    foreach ($ver in $WDK_VERSIONS) {
-        $testHeader = "$WINDOWS_KITS_ROOT\Include\$ver\km\ntddk.h"
-        if (Test-Path $testHeader) {
-            $WDK_VERSION = $ver
-            Write-Host "  Found WDK $WDK_VERSION" -ForegroundColor Green
-            break
-        }
+    $available = Get-AvailableWdkVersions -Root $WINDOWS_KITS_ROOT
+    if (-not $available -or $available.Count -eq 0) {
+        throw "WDK not found under $WINDOWS_KITS_ROOT. Please install Windows Driver Kit or pass -WdkRoot/-WdkVersion."
     }
-
-    if (-not $WDK_VERSION) {
-        throw "WDK not found. Tested versions: $($WDK_VERSIONS -join ', '). Please install Windows Driver Kit or specify version with -WdkVersion parameter."
-    }
+    $WDK_VERSION = $available[0]
+    Write-Host "  Auto-selected WDK $WDK_VERSION (root: $WINDOWS_KITS_ROOT)" -ForegroundColor Green
 }
 
 $WDK_INCLUDE = "$WINDOWS_KITS_ROOT\Include\$WDK_VERSION"

@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <ntddk.h>
+#include "fclmusa/platform.h"
 
 #include "fclmusa/geometry/math_utils.h"
 

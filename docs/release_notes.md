@@ -1,5 +1,38 @@
 # 发布说明
 
+## v0.2 – 平台抽象与 CPM 集成（2025-11-28）
+
+### 新增特性
+
+- **平台抽象层**：新增 `platform.h`，统一内核（R0）和用户态（R3）的 API 接口
+  - 自动适配 EX_PUSH_LOCK（R0）和 SRWLOCK（R3）
+  - 日志系统支持内核 DbgPrint 和用户态 fprintf
+  - 通过 `FCL_MUSA_KERNEL_MODE` 宏控制编译模式
+
+- **用户态静态库**：支持构建 `FclMusa::CoreUser` 静态库，可用于 R3 项目
+  - 提供用户态 stub 函数（`FclInitialize`、`FclCleanup` 等返回 `STATUS_NOT_SUPPORTED`）
+  - 兼容标准 C++ 环境，无需 WDK 即可集成核心算法
+
+- **CPM 集成支持**：新增 `docs/cpm_integration.md` 和 `CMakeLists.txt`
+  - 支持通过 CPM 包管理器引入 FclMusa 源码
+  - 可选择性构建 R0/R3 静态库
+  - 自动检测 WDK 环境并适配编译参数
+
+### 改进
+
+- **代码结构优化**：所有头文件从直接 `#include <ntddk.h>` 改为 `#include "fclmusa/platform.h"`
+- **geometry_manager.cpp**：重构几何管理模块，优化引用计数和资源管理（+352 行）
+- **pool_allocator.cpp**：改进内存池分配器，增强统计和调试功能（+252 行）
+
+### 文档更新
+
+- `docs/architecture.md`：新增平台抽象章节
+- `docs/file_structure.md`：添加 `platform.h` 详细说明
+- `docs/index.md`：补充 CPM 集成指南链接
+- `README.md`：添加特性列表，修正文档索引链接
+
+---
+
 ## v0.1 – 内核移植原型（2025-11-12）
 
 ### 亮点

@@ -3,7 +3,7 @@
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
-#include <ntddk.h>
+#include "fclmusa/platform.h"
 
 #include "fclmusa/collision.h"
 #include "fclmusa/distance.h"

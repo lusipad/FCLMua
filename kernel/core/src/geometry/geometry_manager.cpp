@@ -1,28 +1,19 @@
-﻿#include <ntddk.h>
-#include <ntintsafe.h>
-#include <wdm.h>
+#include "fclmusa/platform.h"
+#if !FCL_MUSA_KERNEL_MODE
+    #include <limits>
+    #include <atomic>
+    #include <mutex>
+    #include <unordered_map>
+#endif
 
 #include <float.h>
 #include <new>
+#include <algorithm>
 
 #include "fclmusa/geometry.h"
 #include "fclmusa/geometry/bvh_model.h"
 #include "fclmusa/logging.h"
 #include "fclmusa/memory/pool_allocator.h"
-
-#ifndef ExEnterCriticalRegionAndAcquirePushLockExclusive
-inline VOID ExEnterCriticalRegionAndAcquirePushLockExclusive(PEX_PUSH_LOCK PushLock) {
-    KeEnterCriticalRegion();
-    ExAcquirePushLockExclusive(PushLock);
-}
-#endif
-
-#ifndef ExReleasePushLockExclusiveAndLeaveCriticalRegion
-inline VOID ExReleasePushLockExclusiveAndLeaveCriticalRegion(PEX_PUSH_LOCK PushLock) {
-    ExReleasePushLockExclusive(PushLock);
-    KeLeaveCriticalRegion();
-}
-#endif
 
 namespace {
 
@@ -56,10 +47,17 @@ struct GeometryEntry {
     } Payload;
 };
 
-RTL_AVL_TABLE g_GeometryTable = {};
-EX_PUSH_LOCK g_GeometryLock = 0;
-BOOLEAN g_GeometryInitialized = FALSE;
-volatile LONG64 g_NextGeometryHandle = 0;
+inline bool SafeSizeMult(size_t a, size_t b, size_t* out) noexcept {
+#if FCL_MUSA_KERNEL_MODE
+    return NT_SUCCESS(RtlSizeTMult(a, b, out));
+#else
+    if (a != 0 && b > (std::numeric_limits<size_t>::max)() / a) {
+        return false;
+    }
+    *out = a * b;
+    return true;
+#endif
+}
 
 bool IsFiniteFloat(float value) noexcept {
     return (value == value) && (value < FLT_MAX) && (value > -FLT_MAX);
@@ -148,15 +146,13 @@ NTSTATUS CopyMeshPayload(const FCL_MESH_GEOMETRY_DESC* desc, MeshPayload* payloa
     }
 
     size_t verticesSize = 0;
-    NTSTATUS status = RtlSizeTMult(desc->VertexCount, sizeof(FCL_VECTOR3), &verticesSize);
-    if (!NT_SUCCESS(status)) {
-        return status;
+    if (!SafeSizeMult(desc->VertexCount, sizeof(FCL_VECTOR3), &verticesSize)) {
+        return STATUS_INTEGER_OVERFLOW;
     }
 
     size_t indicesSize = 0;
-    status = RtlSizeTMult(desc->IndexCount, sizeof(UINT32), &indicesSize);
-    if (!NT_SUCCESS(status)) {
-        return status;
+    if (!SafeSizeMult(desc->IndexCount, sizeof(UINT32), &indicesSize)) {
+        return STATUS_INTEGER_OVERFLOW;
     }
 
     auto* vertices = static_cast<FCL_VECTOR3*>(fclmusa::memory::Allocate(verticesSize));
@@ -190,6 +186,7 @@ NTSTATUS CopyMeshPayload(const FCL_MESH_GEOMETRY_DESC* desc, MeshPayload* payloa
     payload->Indices = indices;
     payload->IndexCount = desc->IndexCount;
 
+    NTSTATUS status = STATUS_SUCCESS;
     if (existingModel != nullptr) {
         status = FclBvhUpdateModel(
             existingModel,
@@ -240,9 +237,46 @@ GeometryEntry MakeEntryTemplate(FCL_GEOMETRY_TYPE type) noexcept {
     return entry;
 }
 
+void CopyEntryToSnapshot(const GeometryEntry& entry, PFCL_GEOMETRY_SNAPSHOT snapshot) noexcept {
+    if (snapshot == nullptr) {
+        return;
+    }
+
+    snapshot->Type = entry.Type;
+    switch (entry.Type) {
+        case FCL_GEOMETRY_SPHERE:
+            snapshot->Data.Sphere.Center = entry.Payload.Sphere.Center;
+            snapshot->Data.Sphere.Radius = entry.Payload.Sphere.Radius;
+            break;
+        case FCL_GEOMETRY_OBB:
+            snapshot->Data.Obb.Center = entry.Payload.Obb.Center;
+            snapshot->Data.Obb.Extents = entry.Payload.Obb.Extents;
+            snapshot->Data.Obb.Rotation = entry.Payload.Obb.Rotation;
+            break;
+        case FCL_GEOMETRY_MESH:
+            snapshot->Data.Mesh.Vertices = entry.Payload.Mesh.Vertices;
+            snapshot->Data.Mesh.VertexCount = entry.Payload.Mesh.VertexCount;
+            snapshot->Data.Mesh.Indices = entry.Payload.Mesh.Indices;
+            snapshot->Data.Mesh.IndexCount = entry.Payload.Mesh.IndexCount;
+            snapshot->Data.Mesh.Bvh = entry.Payload.Mesh.Bvh;
+            break;
+        default:
+            break;
+    }
+}
+
+}  // namespace
+
+#if FCL_MUSA_KERNEL_MODE
+
 using GeometryCompareRoutine = RTL_AVL_COMPARE_ROUTINE;
 using GeometryAllocateRoutine = RTL_AVL_ALLOCATE_ROUTINE;
 using GeometryFreeRoutine = RTL_AVL_FREE_ROUTINE;
+
+RTL_AVL_TABLE g_GeometryTable = {};
+EX_PUSH_LOCK g_GeometryLock = 0;
+BOOLEAN g_GeometryInitialized = FALSE;
+volatile LONG64 g_NextGeometryHandle = 0;
 
 _Function_class_(PRTL_AVL_COMPARE_ROUTINE)
 RTL_GENERIC_COMPARE_RESULTS
@@ -309,36 +343,6 @@ NTSTATUS InsertEntryLocked(GeometryEntry* entryTemplate, PFCL_GEOMETRY_HANDLE ha
 bool EnsureInitialized() noexcept {
     return g_GeometryInitialized != FALSE;
 }
-
-void CopyEntryToSnapshot(const GeometryEntry& entry, PFCL_GEOMETRY_SNAPSHOT snapshot) noexcept {
-    if (snapshot == nullptr) {
-        return;
-    }
-
-    snapshot->Type = entry.Type;
-    switch (entry.Type) {
-        case FCL_GEOMETRY_SPHERE:
-            snapshot->Data.Sphere.Center = entry.Payload.Sphere.Center;
-            snapshot->Data.Sphere.Radius = entry.Payload.Sphere.Radius;
-            break;
-        case FCL_GEOMETRY_OBB:
-            snapshot->Data.Obb.Center = entry.Payload.Obb.Center;
-            snapshot->Data.Obb.Extents = entry.Payload.Obb.Extents;
-            snapshot->Data.Obb.Rotation = entry.Payload.Obb.Rotation;
-            break;
-        case FCL_GEOMETRY_MESH:
-            snapshot->Data.Mesh.Vertices = entry.Payload.Mesh.Vertices;
-            snapshot->Data.Mesh.VertexCount = entry.Payload.Mesh.VertexCount;
-            snapshot->Data.Mesh.Indices = entry.Payload.Mesh.Indices;
-            snapshot->Data.Mesh.IndexCount = entry.Payload.Mesh.IndexCount;
-            snapshot->Data.Mesh.Bvh = entry.Payload.Mesh.Bvh;
-            break;
-        default:
-            break;
-    }
-}
-
-}  // namespace
 
 extern "C"
 NTSTATUS
@@ -616,3 +620,237 @@ FclReleaseGeometryReference(
 
     reference->HandleValue = 0;
 }
+
+#else  // FCL_MUSA_KERNEL_MODE == 0 (user-mode implementation)
+
+std::mutex g_GeometryMutex;
+std::unordered_map<ULONGLONG, GeometryEntry> g_GeometryMap;
+std::atomic<long long> g_NextGeometryHandle{0};
+bool g_GeometryInitialized = false;
+
+bool EnsureInitialized() noexcept {
+    return g_GeometryInitialized;
+}
+
+GeometryEntry* LookupEntryLocked(ULONGLONG handleValue) noexcept {
+    auto it = g_GeometryMap.find(handleValue);
+    if (it == g_GeometryMap.end()) {
+        return nullptr;
+    }
+    return &it->second;
+}
+
+NTSTATUS InsertEntryLocked(const GeometryEntry& entryTemplate, PFCL_GEOMETRY_HANDLE handle) noexcept {
+    const ULONGLONG handleValue = static_cast<ULONGLONG>(++g_NextGeometryHandle);
+    GeometryEntry copy = entryTemplate;
+    copy.HandleValue = handleValue;
+    auto [it, inserted] = g_GeometryMap.emplace(handleValue, std::move(copy));
+    if (!inserted) {
+        return STATUS_INTERNAL_ERROR;
+    }
+    handle->Value = handleValue;
+    return STATUS_SUCCESS;
+}
+
+extern "C"
+NTSTATUS
+FclGeometrySubsystemInitialize() noexcept {
+    std::lock_guard<std::mutex> guard(g_GeometryMutex);
+    if (g_GeometryInitialized) {
+        return STATUS_SUCCESS;
+    }
+    g_GeometryMap.clear();
+    g_NextGeometryHandle = 0;
+    g_GeometryInitialized = true;
+    return STATUS_SUCCESS;
+}
+
+extern "C"
+VOID
+FclGeometrySubsystemShutdown() noexcept {
+    std::lock_guard<std::mutex> guard(g_GeometryMutex);
+    if (!g_GeometryInitialized) {
+        return;
+    }
+    for (auto& kv : g_GeometryMap) {
+        ReleasePayload(kv.second);
+    }
+    g_GeometryMap.clear();
+    g_GeometryInitialized = false;
+}
+
+extern "C"
+NTSTATUS
+FclCreateGeometry(
+    _In_ FCL_GEOMETRY_TYPE type,
+    _In_ const VOID* geometryDesc,
+    _Out_ PFCL_GEOMETRY_HANDLE handle) noexcept {
+    if (handle == nullptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    handle->Value = 0;
+    if (!EnsureInitialized()) {
+        return STATUS_DEVICE_NOT_READY;
+    }
+    if (geometryDesc == nullptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+
+    NTSTATUS status = STATUS_SUCCESS;
+    GeometryEntry entry = MakeEntryTemplate(type);
+
+    switch (type) {
+        case FCL_GEOMETRY_SPHERE: {
+            auto* desc = reinterpret_cast<const FCL_SPHERE_GEOMETRY_DESC*>(geometryDesc);
+            status = ValidateSphereDesc(desc);
+            if (!NT_SUCCESS(status)) {
+                return status;
+            }
+            entry.Payload.Sphere.Center = desc->Center;
+            entry.Payload.Sphere.Radius = desc->Radius;
+            break;
+        }
+        case FCL_GEOMETRY_OBB: {
+            auto* desc = reinterpret_cast<const FCL_OBB_GEOMETRY_DESC*>(geometryDesc);
+            status = ValidateObbDesc(desc);
+            if (!NT_SUCCESS(status)) {
+                return status;
+            }
+            entry.Payload.Obb.Center = desc->Center;
+            entry.Payload.Obb.Extents = desc->Extents;
+            entry.Payload.Obb.Rotation = desc->Rotation;
+            break;
+        }
+        case FCL_GEOMETRY_MESH: {
+            auto* desc = reinterpret_cast<const FCL_MESH_GEOMETRY_DESC*>(geometryDesc);
+            status = ValidateMeshDesc(desc);
+            if (!NT_SUCCESS(status)) {
+                return status;
+            }
+            status = CopyMeshPayload(desc, &entry.Payload.Mesh);
+            if (!NT_SUCCESS(status)) {
+                return status;
+            }
+            break;
+        }
+        default:
+            return STATUS_INVALID_PARAMETER;
+    }
+
+    std::lock_guard<std::mutex> guard(g_GeometryMutex);
+    status = InsertEntryLocked(entry, handle);
+    if (!NT_SUCCESS(status)) {
+        ReleasePayload(entry);
+    }
+    return status;
+}
+
+extern "C"
+NTSTATUS
+FclDestroyGeometry(
+    _In_ FCL_GEOMETRY_HANDLE handleValue) noexcept {
+    if (!EnsureInitialized()) {
+        return STATUS_DEVICE_NOT_READY;
+    }
+    if (!FclIsGeometryHandleValid(handleValue)) {
+        return STATUS_INVALID_HANDLE;
+    }
+
+    std::lock_guard<std::mutex> guard(g_GeometryMutex);
+    auto it = g_GeometryMap.find(handleValue.Value);
+    if (it == g_GeometryMap.end()) {
+        return STATUS_INVALID_HANDLE;
+    }
+    if (it->second.ActiveReferences != 0) {
+        return STATUS_DEVICE_BUSY;
+    }
+    GeometryEntry entry = std::move(it->second);
+    g_GeometryMap.erase(it);
+    ReleasePayload(entry);
+    return STATUS_SUCCESS;
+}
+
+extern "C"
+NTSTATUS
+FclUpdateMeshGeometry(
+    _In_ FCL_GEOMETRY_HANDLE handleValue,
+    _In_ const FCL_MESH_GEOMETRY_DESC* geometryDesc) noexcept {
+    if (!EnsureInitialized()) {
+        return STATUS_DEVICE_NOT_READY;
+    }
+    if (!FclIsGeometryHandleValid(handleValue)) {
+        return STATUS_INVALID_HANDLE;
+    }
+    NTSTATUS status = ValidateMeshDesc(geometryDesc);
+    if (!NT_SUCCESS(status)) {
+        return status;
+    }
+
+    std::lock_guard<std::mutex> guard(g_GeometryMutex);
+    auto* entry = LookupEntryLocked(handleValue.Value);
+    if (entry == nullptr) {
+        return STATUS_INVALID_HANDLE;
+    }
+    if (entry->Type != FCL_GEOMETRY_MESH) {
+        return STATUS_NOT_SUPPORTED;
+    }
+    if (entry->ActiveReferences != 0) {
+        return STATUS_DEVICE_BUSY;
+    }
+    return CopyMeshPayload(geometryDesc, &entry->Payload.Mesh);
+}
+
+extern "C"
+BOOLEAN
+FclIsGeometryHandleValid(
+    _In_ FCL_GEOMETRY_HANDLE handle) noexcept {
+    return handle.Value != 0;
+}
+
+extern "C"
+NTSTATUS
+FclAcquireGeometryReference(
+    _In_ FCL_GEOMETRY_HANDLE handle,
+    _Out_ PFCL_GEOMETRY_REFERENCE reference,
+    _Out_opt_ PFCL_GEOMETRY_SNAPSHOT snapshot) noexcept {
+    if (reference == nullptr) {
+        return STATUS_INVALID_PARAMETER;
+    }
+    reference->HandleValue = 0;
+    if (!EnsureInitialized()) {
+        return STATUS_DEVICE_NOT_READY;
+    }
+    if (!FclIsGeometryHandleValid(handle)) {
+        return STATUS_INVALID_HANDLE;
+    }
+
+    std::lock_guard<std::mutex> guard(g_GeometryMutex);
+    auto* entry = LookupEntryLocked(handle.Value);
+    if (entry == nullptr) {
+        if (snapshot != nullptr) {
+            RtlZeroMemory(snapshot, sizeof(*snapshot));
+        }
+        return STATUS_INVALID_HANDLE;
+    }
+    ++entry->ActiveReferences;
+    CopyEntryToSnapshot(*entry, snapshot);
+    reference->HandleValue = handle.Value;
+    return STATUS_SUCCESS;
+}
+
+extern "C"
+VOID
+FclReleaseGeometryReference(
+    _Inout_opt_ PFCL_GEOMETRY_REFERENCE reference) noexcept {
+    if (reference == nullptr || reference->HandleValue == 0) {
+        return;
+    }
+    std::lock_guard<std::mutex> guard(g_GeometryMutex);
+    auto* entry = LookupEntryLocked(reference->HandleValue);
+    if (entry != nullptr && entry->ActiveReferences > 0) {
+        --entry->ActiveReferences;
+    }
+    reference->HandleValue = 0;
+}
+
+#endif  // FCL_MUSA_KERNEL_MODE

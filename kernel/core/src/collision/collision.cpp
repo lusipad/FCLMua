@@ -1,6 +1,4 @@
-﻿#include <ntddk.h>
-#include <ntintsafe.h>
-#include <wdm.h>
+#include "fclmusa/platform.h"
 
 #include "fclmusa/collision.h"
 #include "fclmusa/driver.h"

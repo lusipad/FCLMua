@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <ntddk.h>
+#include "fclmusa/platform.h"
 
 #define FCL_MUSA_DRIVER_VERSION_MAJOR 0u
 #define FCL_MUSA_DRIVER_VERSION_MINOR 1u

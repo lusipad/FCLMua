@@ -2,13 +2,23 @@
 
 FCL+Musa 是一个面向 Windows 内核（Ring 0）的碰撞检测驱动。项目将 Flexible Collision Library（FCL）与 Musa.Runtime、Eigen、libccd 进行裁剪整合，使 Sphere / OBB / Mesh 及连续碰撞（CCD）在内核态可直接调用，同时保留 BVH/OBBRSS 加速结构与自检能力。
 
+## 特性
+
+- ✅ **双模式支持**：同时支持内核模式（R0）驱动和用户模式（R3）静态库
+- ✅ **CPM 集成**：可通过 CPM 包管理器集成到用户态项目，无需手动配置 WDK
+- ✅ **平台抽象**：统一的 `platform.h` 抽象层，自动适配内核/用户态环境
+- ✅ **完整 API**：几何管理、碰撞检测、距离计算、连续碰撞（CCD）、周期性碰撞
+- ✅ **自检体系**：内置完整自检、场景测试和性能诊断
+- ✅ **上游对齐**：基于 FCL upstream，保持与官方版本的一致性验证
+
 ## 快速导航
 
 - 🚀 **新用户**？先看 [快速开始](QUICKSTART.md)（3分钟上手）
-- 📚 **所有文档**？浏览 [文档索引](docs/INDEX.md)
+- 📚 **所有文档**？浏览 [文档索引](docs/index.md)
 - 🔧 **构建问题**？参考 [使用指南](docs/usage.md)
 - 📖 **API 查询**？查看 [API 文档](docs/api.md)
 - 🏗️ **理解设计**？阅读 [架构说明](docs/architecture.md)
+- 📦 **CPM 集成**？参考 [CPM 集成指南](docs/cpm_integration.md)
 
 ## 构建
 

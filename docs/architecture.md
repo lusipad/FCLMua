@@ -1,6 +1,16 @@
 FCL+Musa 架构说明
 =================
 
+## 平台抽象
+
+FCL+Musa 通过 `platform.h` 实现跨平台抽象，支持内核模式（R0）和用户模式（R3）的双重构建：
+
+- **内核模式（R0）**：完整的驱动功能，依赖 WDK 环境，使用 NonPagedPool、EX_PUSH_LOCK、IRQL 等内核特性
+- **用户模式（R3）**：静态库形式，可通过 CPM 集成到用户态项目，使用 SRWLOCK、标准 C++ 等用户态特性
+- **条件编译**：通过 `FCL_MUSA_KERNEL_MODE` 宏控制，默认为 1（内核模式），用户态构建时设为 0
+
+所有头文件统一使用 `#include "fclmusa/platform.h"` 而非直接包含 `<ntddk.h>`，确保跨平台兼容性。
+
 ## 分层总览
 
 FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互：
@@ -9,6 +19,7 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
    - 提供所有几何 / 碰撞 / 距离 / CCD 的核心算法实现
    - 使用原生 `fcl::collide`、`fcl::distance`、`fcl::continuousCollide` 等接口
    - 不感知 IRP/设备对象，仅处理数学和几何问题
+   - 平台无关，同时支持 R0 和 R3 环境
 
 2. **第 1 层：FCL 内核管理模块**（FclCore）
    - **位置**：`kernel/core/src` 下的 `geometry/`、`collision/`、`distance/`、`broadphase/`、`testing/` 等目录
@@ -82,9 +93,10 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
 
 ## 关键依赖
 
-- Musa.Runtime：为内核环境提供 STL/异常/线程本地存储等运行时基础。
-- Eigen：通过 `math/eigen_config.h` 做内核兼容包装，支撑 OBBRSS 等几何/线性代数运算。
-- libccd：内嵌于 `external/libccd`，提供 GJK/EPA 支持，由 upstream FCL 间接使用。
+- **platform.h**：平台抽象层，提供 R0/R3 统一的 API 接口（EX_PUSH_LOCK/SRWLOCK、NTSTATUS、日志宏等）
+- **Musa.Runtime**：为内核环境提供 STL/异常/线程本地存储等运行时基础（仅 R0 需要）
+- **Eigen**：通过 `math/eigen_config.h` 做内核兼容包装，支撑 OBBRSS 等几何/线性代数运算
+- **libccd**：内嵌于 `external/libccd`，提供 GJK/EPA 支持，由 upstream FCL 间接使用
 
 ## 并发与 IRQL 管理
 

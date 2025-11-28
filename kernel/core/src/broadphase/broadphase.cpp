@@ -1,9 +1,8 @@
-﻿#ifndef NOMINMAX
+#ifndef NOMINMAX
 #define NOMINMAX
 #endif
 
-#include <ntddk.h>
-#include <wdm.h>
+#include "fclmusa/platform.h"
 
 #include <memory>
 #include <vector>

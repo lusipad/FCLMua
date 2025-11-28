@@ -1,6 +1,6 @@
 ﻿#pragma once
 
-#include <ntddk.h>
+#include "fclmusa/platform.h"
 
 EXTERN_C_START
 
