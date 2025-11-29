@@ -669,10 +669,10 @@ DeviceIoControl(
 
 ## 参考资料
 
-- **IOCTL 定义**: `kernel/core/include/fclmusa/ioctl.h`
-- **几何类型**: `kernel/core/include/fclmusa/geometry.h`
-- **碰撞 API**: `kernel/core/include/fclmusa/collision.h`
-- **距离 API**: `kernel/core/include/fclmusa/distance.h`
-- **自测 API**: `kernel/selftest/include/fclmusa/self_test.h`
+- **IOCTL 定义**: `r0/core/include/fclmusa/ioctl.h`
+- **几何类型**: `r0/core/include/fclmusa/geometry.h`
+- **碰撞 API**: `r0/core/include/fclmusa/collision.h`
+- **距离 API**: `r0/core/include/fclmusa/distance.h`
+- **自测 API**: `r0/selftest/include/fclmusa/self_test.h`
 - **架构说明**: `docs/architecture.md`
 - **使用指南**: `docs/usage.md`

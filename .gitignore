@@ -15,10 +15,10 @@ temp.txt
 nul
 
 # 驱动输出目录
-kernel/*/out/
-kernel/*/x64/
-kernel/*/Debug/
-kernel/*/Release/
+r0/**/out/
+r0/**/x64/
+r0/**/Debug/
+r0/**/Release/
 
 # Visual Studio
 .vs/
@@ -90,6 +90,8 @@ external/**/bin/
 !/external/fcl-source/
 !/external/Musa.Runtime/
 !/external/Musa.Core/
+!/external/Eigen/
+!/external/libccd/
 
 # 测试输出
 TestResults/

@@ -7,9 +7,11 @@
 ## 目录
 
 - [项目根目录](#项目根目录)
-- [kernel/ - 内核驱动](#kernel---内核驱动)
+- [r0/ - Ring0 内核组件](#r0---ring0-内核组件)
   - [core/ - FCL 核心模块](#core---fcl-核心模块)
   - [driver/ - 驱动封装层](#driver---驱动封装层)
+  - [selftest/ - 自测模块](#selftest---自测模块)
+- [r3/ - 用户态库与示例](#r3---用户态库与示例)
 - [fcl-source/ - FCL 上游源码](#fcl-source---fcl-上游源码)
 - [tools/ - 工具集](#tools---工具集)
 - [docs/ - 文档](#docs---文档)
@@ -28,7 +30,8 @@ FCL+Musa/
 ├── .gitignore                 # Git 忽略规则
 ├── .github/                   # GitHub Actions CI/CD 配置
 ├── dist/                      # 构建产物输出目录
-├── kernel/                    # 内核驱动模块
+├── r0/                        # Ring0（核心+驱动+自测）
+├── r3/                        # Ring3（用户态库与 Demo）
 ├── fcl-source/                # FCL 上游库源码
 ├── tools/                     # 开发工具与测试程序
 ├── docs/                      # 项目文档
@@ -47,26 +50,20 @@ FCL+Musa/
 
 ---
 
-## kernel/ - 内核驱动
+## r0/ - Ring0 内核组件
 
-内核驱动的核心代码，分为核心逻辑层 (core)、自测模块 (selftest) 和驱动适配层 (driver)。
+旧版 `kernel/` 目录全部迁入 `r0/`，统一承载 Ring0 代码：核心逻辑 (core)、驱动适配 (driver) 与内核自测 (selftest)。
 
 ```
-kernel/
-├── FclMusaDriver/             # Visual Studio 驱动工程文件
-├── core/                      # FCL 核心逻辑库（支持 R0 和 R3 双模式构建）
+r0/
+├── core/                      # FCL 核心逻辑库（支持 R0/R3 双模式构建）
 │   ├── include/               # 核心头文件
-│   │   ├── fclmusa/platform.h         # [关键] 平台抽象层（R0/R3 统一接口）
-│   │   ├── fclmusa/driver.h           # 驱动入口 API（含用户态 stub）
-│   │   ├── fclmusa/logging.h          # 日志宏（内核 DbgPrint/用户态 fprintf）
-│   │   ├── fclmusa/collision.h        # 碰撞检测 API
-│   │   ├── fclmusa/distance.h         # 距离计算 API
-│   │   ├── fclmusa/geometry.h         # 几何对象 API
-│   │   └── fclmusa/ioctl.h            # IOCTL 结构定义
-│   └── src/                   # 核心实现代码（平台无关）
-├── selftest/                  # 自测与回归测试模块
-└── driver/                    # 驱动入口与 WDF 适配（仅 R0）
-    └── src/                   # 驱动层实现
+│   └── src/                   # 平台无关实现
+├── driver/                    # Ring0 驱动入口与 WDK 解决方案
+│   ├── include/               # 驱动层头文件
+│   ├── src/                   # 驱动入口、IOCTL 处理
+│   └── msbuild/               # FclMusaDriver.sln & *.vcxproj
+└── selftest/                  # Ring0 自测模块
 ```
 
 ### core/src/ - FCL 核心模块
@@ -74,7 +71,7 @@ kernel/
 负责几何管理、碰撞算法桥接、内存管理等，不依赖特定驱动框架，纯 C/C++ 实现。
 
 ```
-kernel/core/src/
+r0/core/src/
 ├── driver_state.cpp           # 全局状态管理（初始化/清理）
 ├── geometry/                  # 几何对象管理 (geometry_manager.cpp, bvh_model.cpp)
 ├── collision/                 # 碰撞检测 (collision.cpp, continuous_collision.cpp)
@@ -89,7 +86,7 @@ kernel/core/src/
 包含所有内核自检、回归测试和单元测试逻辑，通过 `IOCTL_FCL_SELF_TEST` 触发。
 
 ```
-kernel/selftest/
+r0/selftest/
 ├── include/                   # 自测头文件 (self_test.h)
 └── src/                       # 自测实现
     ├── self_test.cpp          # 自测主流程
@@ -98,16 +95,29 @@ kernel/selftest/
     └── eigen_extended_test.cpp # Eigen 扩展测试
 ```
 
-### driver/src/ - 驱动封装层
+### driver/ - 驱动封装层
 
 负责处理 DriverEntry、IRP 分发、IOCTL 解析。
 
 ```
-kernel/driver/src/
-├── driver_entry.cpp           # 驱动入口点 (DriverEntry, DriverUnload)
-├── device_control.cpp         # IOCTL 分发与参数校验
-└── device_control_demo.cpp    # Demo 专用 IOCTL 处理
+r0/driver/
+├── include/                   # 驱动私有接口、libccd 包装
+└── src/                       # 驱动层实现（driver_entry/device_control 等）
 ```
+
+### selftest/ - 自测模块
+
+与旧结构一致，负责 `IOCTL_FCL_SELF_TEST` 场景。
+
+```
+r0/selftest/
+├── include/                   # 自测头文件 (self_test.h)
+└── src/                       # 自测实现
+```
+
+## r3/ - 用户态库与示例
+
+`r3/` 下存放纯用户态的 CMake 目标与示例（如 `r3/samples/user_demo`），展示如何仅依赖 `FclMusa::CoreUser` 完成几何创建、碰撞/距离计算。
 
 ---
 

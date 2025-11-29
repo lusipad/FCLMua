@@ -96,10 +96,11 @@ function Invoke-BuildCommand {
         [string]$ErrorMessage
     )
 
+    $global:LASTEXITCODE = 0
     & $ScriptBlock
-
-    if ($LASTEXITCODE -ne 0) {
-        throw "$ErrorMessage (Exit code: $LASTEXITCODE)"
+    $exitCode = if ($null -eq $LASTEXITCODE) { 0 } else { $LASTEXITCODE }
+    if ($exitCode -ne 0) {
+        throw "$ErrorMessage (Exit code: $exitCode)"
     }
 }
 

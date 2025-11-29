@@ -22,7 +22,7 @@ if (-not (Test-Path -Path $commonPath)) {
 Import-Module $commonPath -Force
 
 $repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).ProviderPath
-$kernelDir = Join-Path $repoRoot 'kernel/FclMusaDriver'
+$kernelDir = Join-Path $repoRoot 'r0/driver/msbuild'
 $outputDir = Join-Path $kernelDir "out\$Platform\$Configuration"
 $driverSys = Join-Path $outputDir 'FclMusaDriver.sys'
 $driverPdb = Join-Path $outputDir 'FclMusaDriver.pdb'
@@ -49,7 +49,7 @@ if ($Configuration -eq 'Debug') {
 try {
     & (Join-Path $scriptDir 'manual_build.cmd') $Configuration
     if ($LASTEXITCODE -ne 0) {
-        throw "manual_build.cmd failed with exit code $LASTEXITCODE. See kernel\\FclMusaDriver\\build_manual_build.log for details."
+        throw "manual_build.cmd failed with exit code $LASTEXITCODE. See r0\\driver\\msbuild\\build_manual_build.log for details."
     }
 }
 finally {

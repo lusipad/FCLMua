@@ -19,23 +19,23 @@
 
 ## 工程拆分
 
-- kernel/FclMusaDriver/：VS 解决方案与唯一的 `.vcxproj`，直接编译 `kernel/driver/src` 下的所有 Ring0 源文件并生成 `FclMusaDriver.sys`。
-- kernel/driver/：当前目录，提供 `include/` 与 `src/` 树，涵盖碰撞/距离/宽相/内存/上游桥接以及自检脚本，驱动无需额外静态库即可使用。
+- r0/driver/msbuild/：VS 解决方案与唯一的 `.vcxproj`，直接编译 `r0/driver/src` 下的所有 Ring0 源文件并生成 `FclMusaDriver.sys`。
+- r0/driver/：当前目录，提供 `include/` 与 `src/` 树，涵盖碰撞/距离/宽相/内存/上游桥接以及自检脚本，驱动无需额外静态库即可使用。
 
 
 ## 目录结构
 
-- `kernel/core/src/upstream/geometry_bridge.*`：封装 R0 几何句柄到 upstream FCL `CollisionObject` 的转换逻辑，供 `upstream_bridge.cpp`、宽相管理等模块共用。
-- `kernel/selftest/src/self_test.cpp`：集中维护 `IOCTL_FCL_SELF_TEST` 所需的各类场景与回归逻辑，其他模块无需直接依赖。
+- `r0/core/src/upstream/geometry_bridge.*`：封装 R0 几何句柄到 upstream FCL `CollisionObject` 的转换逻辑，供 `upstream_bridge.cpp`、宽相管理等模块共用。
+- `r0/selftest/src/self_test.cpp`：集中维护 `IOCTL_FCL_SELF_TEST` 所需的各类场景与回归逻辑，其他模块无需直接依赖。
 - 其余子目录（`collision/`、`distance/`、`broadphase/` 等）各自聚焦对应 API，仅通过 `fclmusa/*.h` 引出公共接口。
 
 ## 构建指引
 
 1. 安装 **Visual Studio 2022 + WDK 10.0.22621**（必须包含 *WindowsKernelModeDriver10.0* 工具集）。
-2. 直接打开 `kernel/FclMusaDriver/FclMusaDriver.sln`（已预置 Debug/Release x64 配置）。
+2. 直接打开 `r0/driver/msbuild/FclMusaDriver.sln`（已预置 Debug/Release x64 配置）。
 3. 运行 `external/Musa.Runtime/BuildAllTargets.cmd`，在 `external/Musa.Runtime/Publish/Library/<Config>/<Platform>` 下生成 `ucxxrt.lib`。
-4. `FclMusaDriver.vcxproj` 自动导入 `../external/Musa.Runtime/Publish/Config/Musa.Runtime.Config.props`，如需调整路径请同步修改 `ImportGroup`。
-5. 项目已启用 C++17、/kernel、/driver 以及池标签、日志配置；如需自定义请在 VS 属性页中覆盖。
+4. `FclMusaDriver.vcxproj` 自动导入 `..\..\external\Musa.Runtime\Publish\Config\Musa.Runtime.Config.props`，如需调整路径请同步修改 `ImportGroup`。
+5. 项目已启用 C++17、/kernel 编译选项、池标签与日志配置；如需自定义请在 VS 属性页中覆盖。
 
 > 如未安装 WDK 或未勾选 **WindowsKernelModeDriver10.0** 工具集，`msbuild` 会报 `MSB8020`。请先从微软官网下载并安装 WDK 10.0.22621，再运行 `BuildAllTargets.cmd` 与解决方案生成。
 

@@ -22,6 +22,18 @@ FCL+Musa 是一个面向 Windows 内核（Ring 0）的碰撞检测驱动。项�
 
 ## 构建
 
+### 快速开始
+
+**推荐方式 1: 交互式菜单（适合新手）**
+
+```powershell
+PS> .\build.ps1
+```
+
+这将显示一个交互式菜单，让你选择要构建的组件。
+
+**推荐方式 2: 命令行构建（适合熟练用户）**
+
 ```powershell
 PS> git clone https://github.com/lusipad/FCLMua.git
 PS> cd FCLMua
@@ -32,12 +44,21 @@ PS> tools\build_and_sign_driver.ps1             # 仅构建+签名驱动
 PS> tools\manual_build.cmd                      # 仅构建驱动（不签名）
 ```
 
+**查看详细构建选项:**
+
+```powershell
+PS> Get-Content BUILD_GUIDE.md
+```
+
 说明：
 
-- `tools/build_all.ps1` 会依次构建驱动、CLI Demo、GUI Demo，自动签名并打包到 `dist/bundle/` 目录（推荐）。
+- `build.ps1` 提供交互式菜单，适合快速选择构建选项
+- `tools/build_all.ps1` 会依次构建驱动、CLI Demo、GUI Demo，自动签名并打包到 `dist/bundle/` 目录（推荐）。  
+  - 追加 `-BuildRelease` 可在同一流程中调用 `tools/manual_build.cmd Release` 产出 Release 版驱动。  
+  - 追加 `-BuildR3` 可一并构建纯用户态示例 `r3/samples/user_demo`（链接 `FclMusa::CoreUser`，无需驱动）。
 - `tools/build_and_sign_driver.ps1` 构建驱动并自动生成测试证书签名，产物在 `dist/driver/x64/{Debug|Release}/`。
 - `tools/manual_build.cmd` 仅构建驱动不签名，适合 CI/自动化流水线。
-- 所有脚本使用相同的解决方案（`kernel/FclMusaDriver/FclMusaDriver.sln`）。
+- 所有脚本使用相同的解决方案（`r0/driver/msbuild/FclMusaDriver.sln`）。
 
 > 依赖：WDK 10.0.22621.0、Visual Studio 2022、Musa.Runtime（仓库自带）、Eigen、libccd。
 
@@ -105,7 +126,7 @@ PS> tools\manual_build.cmd                      # 仅构建驱动（不签名）
 |-------|------|------|
 | `IOCTL_FCL_DEMO_SPHERE_COLLISION` | 0x900 | Demo：创建两个球并返回碰撞测试结果（示例用途） |
 
-详细结构定义见 `kernel/core/include/fclmusa/ioctl.h`。
+详细结构定义见 `r0/core/include/fclmusa/ioctl.h`。
 
 
 ## 用户态示例
@@ -149,7 +170,7 @@ CLI 提供命令：
 ## 内核态调用
 
 - 在 `DriverEntry` 中调用 `FclInitialize()`，`DriverUnload` 中调用 `FclCleanup()`。
-- API 位于 `kernel/core/include/fclmusa/*.h`，例如：
+- API 位于 `r0/core/include/fclmusa/*.h`，例如：
   - **几何管理**：`FclCreateGeometry / FclDestroyGeometry / FclAcquireGeometryReference`
   - **碰撞检测**：`FclCollideObjects / FclCollisionDetect`
   - **距离计算**：`FclDistanceCompute`

@@ -44,7 +44,7 @@ target_link_libraries(my_um_target PRIVATE FclMusa::CoreUser)
 
 ## 产物
 - 生成的静态库：`FclMusaCore.lib`
-- 头文件包含目录：`kernel/core/include`（通过 `target_include_directories` 已导出，直接 `#include <fclmusa/...>` 即可）
+- 头文件包含目录：`r0/core/include`（通过 `target_include_directories` 已导出，直接 `#include <fclmusa/...>` 即可）
 
 ## 已知限制
 - 驱动 `.sys` 构建未在 CMake 中启用；如果需要，请在 `CMakeLists.txt` 的占位段自行按 WDK/LLVM-MSVC 环境添加。

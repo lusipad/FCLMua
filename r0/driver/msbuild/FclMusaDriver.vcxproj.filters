@@ -54,61 +54,61 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\driver\src\broadphase\broadphase.cpp">
+    <ClCompile Include="..\src\broadphase\broadphase.cpp">
       <Filter>Source Files\Broadphase</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\collision\collision_self_test.cpp">
+    <ClCompile Include="..\src\collision\collision_self_test.cpp">
       <Filter>Source Files\Collision</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\collision\collision.cpp">
+    <ClCompile Include="..\src\collision\collision.cpp">
       <Filter>Source Files\Collision</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\collision\continuous_collision.cpp">
+    <ClCompile Include="..\src\collision\continuous_collision.cpp">
       <Filter>Source Files\Collision</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\distance\distance.cpp">
+    <ClCompile Include="..\src\distance\distance.cpp">
       <Filter>Source Files\Distance</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\device_control.cpp">
+    <ClCompile Include="..\src\device_control.cpp">
       <Filter>Source Files\Driver</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\driver_entry.cpp">
+    <ClCompile Include="..\src\driver_entry.cpp">
       <Filter>Source Files\Driver</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\driver_state.cpp">
+    <ClCompile Include="..\src\driver_state.cpp">
       <Filter>Source Files\Driver</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\geometry\geometry_manager.cpp">
+    <ClCompile Include="..\src\geometry\geometry_manager.cpp">
       <Filter>Source Files\Geometry</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\geometry\bvh_model.cpp">
+    <ClCompile Include="..\src\geometry\bvh_model.cpp">
       <Filter>Source Files\Geometry</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\geometry\obbrss.cpp">
+    <ClCompile Include="..\src\geometry\obbrss.cpp">
       <Filter>Source Files\Geometry</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\math\eigen_self_test.cpp">
+    <ClCompile Include="..\src\math\eigen_self_test.cpp">
       <Filter>Source Files\Math</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\memory\pool_allocator.cpp">
+    <ClCompile Include="..\src\memory\pool_allocator.cpp">
       <Filter>Source Files\Memory</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\runtime\musa_runtime_adapter.cpp">
+    <ClCompile Include="..\src\runtime\musa_runtime_adapter.cpp">
       <Filter>Source Files\Runtime</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\runtime\c_runtime_stubs.cpp">
+    <ClCompile Include="..\src\runtime\c_runtime_stubs.cpp">
       <Filter>Source Files\Runtime</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\testing\self_test.cpp">
+    <ClCompile Include="..\src\testing\self_test.cpp">
       <Filter>Source Files\Testing</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\upstream\geometry_bridge.cpp">
+    <ClCompile Include="..\src\upstream\geometry_bridge.cpp">
       <Filter>Source Files\Upstream</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\upstream\upstream_bridge.cpp">
+    <ClCompile Include="..\src\upstream\upstream_bridge.cpp">
       <Filter>Source Files\Upstream</Filter>
     </ClCompile>
-    <ClCompile Include="..\driver\src\narrowphase\libccd_memory.cpp">
+    <ClCompile Include="..\src\narrowphase\libccd_memory.cpp">
       <Filter>Source Files\Narrowphase</Filter>
     </ClCompile>
     <ClCompile Include="..\..\external\libccd\src\ccd.c">
@@ -131,30 +131,30 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\driver\include\fclmusa\broadphase.h">
+    <ClInclude Include="..\include\fclmusa\broadphase.h">
       <Filter>Header Files\Public</Filter>
     </ClInclude>
-    <ClInclude Include="..\driver\include\fclmusa\collision.h">
+    <ClInclude Include="..\include\fclmusa\collision.h">
       <Filter>Header Files\Public</Filter>
     </ClInclude>
-    <ClInclude Include="..\driver\include\fclmusa\distance.h">
+    <ClInclude Include="..\include\fclmusa\distance.h">
       <Filter>Header Files\Public</Filter>
     </ClInclude>
-    <ClInclude Include="..\driver\include\fclmusa\geometry.h">
+    <ClInclude Include="..\include\fclmusa\geometry.h">
       <Filter>Header Files\Public</Filter>
     </ClInclude>
-    <ClInclude Include="..\driver\include\fclmusa\self_test.h">
+    <ClInclude Include="..\include\fclmusa\self_test.h">
       <Filter>Header Files\Public</Filter>
     </ClInclude>
-    <ClInclude Include="..\driver\include\fclmusa\upstream\geometry_bridge.h">
+    <ClInclude Include="..\include\fclmusa\upstream\geometry_bridge.h">
       <Filter>Header Files\Upstream</Filter>
     </ClInclude>
-    <ClInclude Include="..\driver\include\fclmusa\upstream\upstream_bridge.h">
+    <ClInclude Include="..\include\fclmusa\upstream\upstream_bridge.h">
       <Filter>Header Files\Upstream</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="..\driver\README.md">
+    <None Include="..\README.md">
       <Filter>Source Files</Filter>
     </None>
   </ItemGroup>

@@ -228,7 +228,7 @@ void Scene::LoadObjFile(const std::string& path) {
 
 - [FCL文档](../../docs/api.md)
 - [Direct3D 11编程指南](https://docs.microsoft.com/en-us/windows/win32/direct3d11/dx-graphics-overviews)
-- [IOCTL参考](../../kernel/core/include/fclmusa/ioctl.h)
+- [IOCTL参考](../../r0/core/include/fclmusa/ioctl.h)
 
 ## 许可
 
