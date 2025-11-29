@@ -7,3 +7,9 @@
 [submodule "external/Musa.Core"]
 	path = external/Musa.Core
 	url = https://github.com/MiroKaku/Musa.Core.git
+[submodule "external/Eigen"]
+	path = external/Eigen
+	url = https://gitlab.com/libeigen/eigen.git
+[submodule "external/libccd"]
+	path = external/libccd
+	url = https://github.com/danfis/libccd.git
