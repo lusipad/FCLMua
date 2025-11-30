@@ -89,7 +89,7 @@ void Scene::InitializeSolarSystem()
     sun->data.sphere.radius = 2.0f;  // Reduced from 3.0f to avoid overlap with Mercury (orbit 5.0f)
     sun->color = XMFLOAT4(1.0f, 0.9f, 0.2f, 1.0f); // Yellow
     sun->isOrbiting = false;
-    if (m_driver && m_driver->IsConnected())
+    if (m_driver && m_driver->IsReady())
     {
         sun->fclHandle = m_driver->CreateSphere(sun->position, sun->data.sphere.radius);
     }
@@ -141,7 +141,7 @@ void Scene::InitializeSolarSystem()
         planet->position.z = sunCenter.z + planet->orbitalRadius * sin(planet->currentAngle);
 
         // Create FCL geometry
-        if (m_driver && m_driver->IsConnected())
+        if (m_driver && m_driver->IsReady())
         {
             planet->fclHandle = m_driver->CreateSphere(planet->position, planet->data.sphere.radius);
         }
@@ -696,7 +696,7 @@ void Scene::UpdateVehicleMovement(float deltaTime)
         }
 
         // Update FCL transform if collision detection is active
-        if (m_driver && m_driver->IsConnected() && obj->fclHandle.Value != 0)
+        if (m_driver && m_driver->IsReady() && obj->fclHandle.Value != 0)
         {
             FCL_TRANSFORM transform = FclDriver::CreateTransform(
                 obj->position, obj->GetRotationMatrix(), obj->scale);
@@ -1147,7 +1147,7 @@ void Scene::AddSphere(const std::string& name, const XMFLOAT3& position, float r
     obj->data.sphere.radius = radius;
 
     // Create FCL geometry if driver is connected
-    if (m_driver && m_driver->IsConnected())
+    if (m_driver && m_driver->IsReady())
     {
         obj->fclHandle = m_driver->CreateSphere(position, radius);
     }
@@ -1184,7 +1184,7 @@ void Scene::AddMesh(const std::string& name, const XMFLOAT3& position,
     obj->data.customMesh.mesh = new Mesh(std::move(mesh));
 
     // Create FCL geometry if driver is connected
-    if (m_driver && m_driver->IsConnected())
+    if (m_driver && m_driver->IsReady())
     {
         obj->fclHandle = m_driver->CreateMesh(vertices, indices);
     }
@@ -1198,7 +1198,7 @@ void Scene::DeleteObject(size_t index)
         return;
 
     // Destroy FCL geometry
-    if (m_driver && m_driver->IsConnected())
+    if (m_driver && m_driver->IsReady())
     {
         m_driver->DestroyGeometry(m_objects[index]->fclHandle);
     }
@@ -1226,7 +1226,7 @@ void Scene::ClearAllObjects()
 {
     for (auto& obj : m_objects)
     {
-        if (m_driver && m_driver->IsConnected())
+        if (m_driver && m_driver->IsReady())
         {
             m_driver->DestroyGeometry(obj->fclHandle);
         }
@@ -1280,7 +1280,7 @@ SceneObject* Scene::GetObject(size_t index)
 
 void Scene::DetectCollisions()
 {
-    if (!m_driver || !m_driver->IsConnected())
+    if (!m_driver || !m_driver->IsReady())
         return;
 
     // Reset collision flags
@@ -1417,7 +1417,7 @@ void Scene::AddAsteroid(const std::string& name, const XMFLOAT3& position,
     obj->velocity = velocity;
 
     // Create FCL geometry if driver is connected
-    if (m_driver && m_driver->IsConnected())
+    if (m_driver && m_driver->IsReady())
     {
         obj->fclHandle = m_driver->CreateSphere(position, radius);
     }
@@ -2037,7 +2037,7 @@ void Scene::AddVehicle(const std::string& name, VehicleType type,
         obj->data.customMesh.mesh = new Mesh(std::move(mesh));
 
         // Create FCL collision geometry using full mesh
-        if (m_driver && m_driver->IsConnected())
+        if (m_driver && m_driver->IsReady())
         {
             // Extract positions for FCL driver (which expects XMFLOAT3)
             std::vector<XMFLOAT3> positions;
@@ -2129,7 +2129,7 @@ void Scene::AddVehicleFromOBJ(const std::string& name, const std::string& objFil
         obj->data.customMesh.mesh = new Mesh(std::move(mesh));
 
         // Create FCL collision geometry using full mesh
-        if (m_driver && m_driver->IsConnected())
+        if (m_driver && m_driver->IsReady())
         {
             obj->fclHandle = m_driver->CreateMesh(meshData.vertices, meshData.indices);
         }

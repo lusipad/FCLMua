@@ -33,15 +33,29 @@ jobs:
           git -C external/fcl-source clean -fd
           .\tools\scripts\apply_fcl_patch.ps1
 
+      - name: Build R3 library (Release)
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: |
+          .\tools\build\build-tasks.ps1 -Task R3-Lib-Release
+
       - name: Build R3 demo (Release)
         shell: pwsh
         working-directory: ${{ github.workspace }}
         run: |
           .\tools\build\build-tasks.ps1 -Task R3-Demo-Release
 
+      - name: Build GUI demo (Release, user-mode)
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: |
+          .\tools\build\build-tasks.ps1 -Task GUI-Demo
+
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fclmusa-r3-demo
-          path: build/r3-demo/Release/FclMusaUserDemo.exe
+          name: fclmusa-user-demos
+          path: |
+            build/r3-demo/Release/FclMusaUserDemo.exe
+            dist/gui_demo/**
           retention-days: 7

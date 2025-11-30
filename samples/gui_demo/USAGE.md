@@ -25,6 +25,23 @@ sc start FclMusa
 build\fcl_gui_demo.exe
 ```
 
+- 使用 `--mode=r3` 可强制用户态 R3 模式（需要 `dist/lib/r3/<配置>/FclMusaCoreUser.lib`）
+- 使用 `--mode=driver` 可强制要求内核驱动（失败时直接报错）
+- 也可以通过环境变量 `FCL_GUI_BACKEND=r3` / `driver` 指定默认后端
+
+## 碰撞后端模式
+
+1. **Kernel（默认）**：连接 `\\.\FclMusa` 驱动，提供完整诊断信息。
+2. **R3 用户态**：无需驱动，仅依赖 `FclMusaCoreUser.lib`。首次使用请执行：
+
+   ```powershell
+   pwsh -File tools\build\build-tasks.ps1 -Task R3-Lib-Release
+   ```
+
+   运行时追加 `--mode=r3` 或设置 `FCL_GUI_BACKEND=r3`。
+
+3. **自动模式**：不加开关时，程序会先尝试驱动，失败后自动切换到 R3（若库已准备好）。
+
 ## 操作演示
 
 ### 场景初始化
@@ -147,9 +164,10 @@ A: 这通常表示Direct3D初始化失败。请检查：
 
 ### Q: 提示"Failed to connect to FCL driver"
 
-A: 这是正常的，如果驱动未加载。程序仍可运行，但碰撞检测不可用：
-- 如需碰撞检测：`sc start FclMusa`
-- 如仅测试UI：直接继续使用
+A: 这是正常的，如果驱动未加载。现在可以选择：
+- 启动驱动：`sc start FclMusa`
+- 构建用户态库并运行 `build\Release\fcl_gui_demo.exe --mode=r3`
+- 仅测试UI：直接继续使用（碰撞检测关闭）
 
 ### Q: 物体选择后没有反应
 

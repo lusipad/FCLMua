@@ -23,7 +23,7 @@
 - Windows 10/11 (64位)
 - Visual Studio 2019或更新版本（含C++工具）
 - Direct3D 11支持的显卡
-- FclMusa内核驱动（可选，用于实际碰撞检测）
+- FclMusa内核驱动（Kernel 模式）或已构建的 `dist/lib/r3/<配置>/FclMusaCoreUser.lib`（R3 模式）
 
 ## 编译
 
@@ -37,7 +37,7 @@ build_gui_demo.cmd
 
 ## 运行
 
-### 方法1：连接驱动运行（完整功能）
+### 方法1：连接驱动运行（Kernel 模式，默认）
 
 1. 确保FclMusa驱动已加载：
    ```cmd
@@ -49,15 +49,23 @@ build_gui_demo.cmd
    build\Release\fcl_gui_demo.exe
    ```
 
-### 方法2：独立运行（仅UI测试）
+### 方法2：R3 用户态模式（无驱动）
 
-直接运行，不连接驱动也可以测试UI和3D渲染功能：
+在不安装驱动的环境中同样可以进行碰撞检测。请先构建用户态库：
 
-```cmd
-build\Release\fcl_gui_demo.exe
+```powershell
+pwsh -File tools\build\build-tasks.ps1 -Task R3-Lib-Release
 ```
 
-**注意**: 不连接驱动时，碰撞检测功能将不可用。
+然后以 R3 模式启动 GUI：
+
+```cmd
+build\Release\fcl_gui_demo.exe --mode=r3
+```
+
+也可以设置环境变量 `FCL_GUI_BACKEND=r3` 后直接运行。若不指定 `--mode`，程序会优先尝试连接内核驱动，失败时自动回退到 R3（前提是 `dist/lib/r3` 中存在对应库）。
+
+使用 `--mode=driver` 可强制要求驱动连接，方便调试两种模式的行为差异。
 
 ## 操作说明
 

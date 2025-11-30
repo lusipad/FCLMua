@@ -1,121 +1,34 @@
 #pragma once
+
+#ifndef WIN32_NO_STATUS
+#define WIN32_NO_STATUS
+#define FCL_GUI_DEMO_DEFINED_WIN32_NO_STATUS
+#endif
 #include <windows.h>
+#ifdef FCL_GUI_DEMO_DEFINED_WIN32_NO_STATUS
+#undef WIN32_NO_STATUS
+#undef FCL_GUI_DEMO_DEFINED_WIN32_NO_STATUS
+#endif
+
+#include <directxmath.h>
 #include <string>
 #include <vector>
-#include <directxmath.h>
 
-struct FCL_VECTOR3 {
-    float X, Y, Z;
-};
-
-struct FCL_MATRIX3X3 {
-    float M[3][3];
-};
-
-struct FCL_TRANSFORM {
-    FCL_MATRIX3X3 Rotation;
-    FCL_VECTOR3 Translation;
-};
-
-struct FCL_GEOMETRY_HANDLE {
-    ULONGLONG Value;
-};
-
-struct FCL_CONTACT_INFO {
-    FCL_VECTOR3 PointOnObject1;
-    FCL_VECTOR3 PointOnObject2;
-    FCL_VECTOR3 Normal;
-    float PenetrationDepth;
-};
-
-struct FCL_COLLISION_QUERY {
-    FCL_GEOMETRY_HANDLE Object1;
-    FCL_TRANSFORM Transform1;
-    FCL_GEOMETRY_HANDLE Object2;
-    FCL_TRANSFORM Transform2;
-};
-
-struct FCL_DISTANCE_RESULT {
-    float Distance;
-    FCL_VECTOR3 ClosestPoint1;
-    FCL_VECTOR3 ClosestPoint2;
-};
-
-struct FCL_COLLISION_RESULT {
-    UCHAR IsColliding;
-    UCHAR Reserved[3];
-    FCL_CONTACT_INFO Contact;
-};
-
-struct FCL_COLLISION_IO_BUFFER {
-    FCL_COLLISION_QUERY Query;
-    FCL_COLLISION_RESULT Result;
-};
-
-struct FCL_DISTANCE_QUERY {
-    FCL_GEOMETRY_HANDLE Object1;
-    FCL_TRANSFORM Transform1;
-    FCL_GEOMETRY_HANDLE Object2;
-    FCL_TRANSFORM Transform2;
-};
-
-struct FCL_DISTANCE_IO_BUFFER {
-    FCL_DISTANCE_QUERY Query;
-    FCL_DISTANCE_RESULT Result;
-};
-
-struct FCL_SPHERE_GEOMETRY_DESC {
-    FCL_VECTOR3 Center;
-    float Radius;
-};
-
-struct FCL_CREATE_SPHERE_INPUT {
-    FCL_SPHERE_GEOMETRY_DESC Desc;
-};
-
-struct FCL_CREATE_SPHERE_OUTPUT {
-    FCL_GEOMETRY_HANDLE Handle;
-};
-
-struct FCL_DESTROY_INPUT {
-    FCL_GEOMETRY_HANDLE Handle;
-};
-
-struct FCL_CREATE_MESH_BUFFER {
-    UINT32 VertexCount;
-    UINT32 IndexCount;
-    UINT32 Reserved0;
-    UINT32 Reserved1;
-    FCL_GEOMETRY_HANDLE Handle; // Output
-    // Followed by: VertexCount * FCL_VECTOR3, then IndexCount * UINT32
-};
-
-struct FCL_DETECTION_TIMING_STATS {
-    ULONGLONG CallCount;
-    ULONGLONG TotalDurationMicroseconds;
-    ULONGLONG MinDurationMicroseconds;
-    ULONGLONG MaxDurationMicroseconds;
-};
-
-struct FCL_DIAGNOSTICS_RESPONSE {
-    FCL_DETECTION_TIMING_STATS Collision;
-    FCL_DETECTION_TIMING_STATS Distance;
-    FCL_DETECTION_TIMING_STATS ContinuousCollision;
-    FCL_DETECTION_TIMING_STATS DpcCollision;
-};
-
-// IOCTL codes (must match r0/core/include/fclmusa/ioctl.h)
-#define IOCTL_FCL_PING                CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_QUERY_DIAGNOSTICS   CTL_CODE(FILE_DEVICE_UNKNOWN, 0x803, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_CREATE_SPHERE       CTL_CODE(FILE_DEVICE_UNKNOWN, 0x812, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_CREATE_MESH         CTL_CODE(FILE_DEVICE_UNKNOWN, 0x814, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_DESTROY_GEOMETRY    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x813, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_QUERY_COLLISION     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x810, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
-#define IOCTL_FCL_QUERY_DISTANCE      CTL_CODE(FILE_DEVICE_UNKNOWN, 0x811, METHOD_BUFFERED, FILE_READ_DATA | FILE_WRITE_DATA)
+#include "fclmusa/collision.h"
+#include "fclmusa/distance.h"
+#include "fclmusa/geometry.h"
+#include "fclmusa/ioctl.h"
 
 class FclDriver
 {
 public:
+    enum class BackendMode
+    {
+        None,
+        Driver,
+        R3
+    };
+
     FclDriver();
     ~FclDriver();
 
@@ -123,6 +36,13 @@ public:
     bool Connect(const std::wstring& devicePath);
     void Disconnect();
     bool IsConnected() const { return m_device != INVALID_HANDLE_VALUE; }
+    bool InitializeR3();
+    void ShutdownR3();
+    bool IsReady() const;
+    BackendMode GetBackendMode() const { return m_backendMode; }
+    bool IsR3Mode() const { return m_backendMode == BackendMode::R3 && m_r3Initialized; }
+    bool IsDriverMode() const { return m_backendMode == BackendMode::Driver && IsConnected(); }
+    std::wstring GetBackendDisplayName() const;
 
     // Geometry creation
     FCL_GEOMETRY_HANDLE CreateSphere(const DirectX::XMFLOAT3& center, float radius);
@@ -154,4 +74,6 @@ public:
 
 private:
     HANDLE m_device;
+    bool m_r3Initialized;
+    BackendMode m_backendMode;
 };

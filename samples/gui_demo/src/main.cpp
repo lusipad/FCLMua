@@ -1,10 +1,21 @@
 // FCL Collision Demo - Windows GUI Application
 // 3D visualization and collision detection demo with interactive wizard
 
+#ifndef WIN32_NO_STATUS
+#define WIN32_NO_STATUS
+#define FCL_GUI_MAIN_DEFINED_WIN32_NO_STATUS
+#endif
 #include <windows.h>
+#ifdef FCL_GUI_MAIN_DEFINED_WIN32_NO_STATUS
+#undef WIN32_NO_STATUS
+#undef FCL_GUI_MAIN_DEFINED_WIN32_NO_STATUS
+#endif
+#include <shellapi.h>
 #include <d3d11.h>
 #include <d3dcompiler.h>
 #include <directxmath.h>
+#include <algorithm>
+#include <cwctype>
 #include <vector>
 #include <memory>
 #include <string>
@@ -18,6 +29,87 @@
 #pragma comment(lib, "dxgi.lib")
 
 using namespace DirectX;
+
+namespace
+{
+enum class BackendPreference
+{
+    Auto,
+    DriverOnly,
+    R3Only
+};
+
+std::wstring ToLower(std::wstring text)
+{
+    std::transform(text.begin(), text.end(), text.begin(),
+        [](wchar_t ch) { return static_cast<wchar_t>(towlower(ch)); });
+    return text;
+}
+
+BackendPreference ParseBackendPreferenceFromArgs()
+{
+    BackendPreference preference = BackendPreference::Auto;
+    int argc = 0;
+    LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
+    if (!argv)
+    {
+        return preference;
+    }
+
+    for (int i = 1; i < argc; ++i)
+    {
+        std::wstring lower = ToLower(std::wstring(argv[i]));
+        if (lower == L"--mode=r3" || lower == L"/mode=r3" ||
+            lower == L"--r3" || lower == L"/r3" || lower == L"-r3" ||
+            lower == L"--use-r3")
+        {
+            preference = BackendPreference::R3Only;
+        }
+        else if (lower == L"--mode=driver" || lower == L"/mode=driver" ||
+                 lower == L"--driver" || lower == L"/driver" ||
+                 lower == L"-driver" || lower == L"--use-driver" ||
+                 lower == L"--mode=r0")
+        {
+            preference = BackendPreference::DriverOnly;
+        }
+    }
+
+    LocalFree(argv);
+    return preference;
+}
+
+BackendPreference ParseBackendPreferenceFromEnv()
+{
+    wchar_t buffer[32] = {};
+    DWORD length = GetEnvironmentVariableW(L"FCL_GUI_BACKEND", buffer, static_cast<DWORD>(_countof(buffer)));
+    if (length == 0 || length >= _countof(buffer))
+    {
+        return BackendPreference::Auto;
+    }
+
+    std::wstring lower = ToLower(std::wstring(buffer, length));
+    if (lower == L"r3" || lower == L"user")
+    {
+        return BackendPreference::R3Only;
+    }
+    if (lower == L"driver" || lower == L"r0" || lower == L"kernel")
+    {
+        return BackendPreference::DriverOnly;
+    }
+    return BackendPreference::Auto;
+}
+
+BackendPreference ResolveBackendPreference()
+{
+    BackendPreference preference = ParseBackendPreferenceFromArgs();
+    if (preference != BackendPreference::Auto)
+    {
+        return preference;
+    }
+    preference = ParseBackendPreferenceFromEnv();
+    return preference;
+}
+} // namespace
 
 // Application entry point
 int WINAPI WinMain(
@@ -64,18 +156,71 @@ int WINAPI WinMain(
             return -1;
         }
 
-        // Initialize FCL driver connection
+        const BackendPreference backendPreference = ResolveBackendPreference();
+
+        // Initialize collision backend
         auto driver = std::make_unique<FclDriver>();
-        if (!driver->Connect(L"\\\\.\\FclMusa"))
-        {
+        bool backendReady = false;
+
+        auto showDriverInstructions = []() {
             MessageBoxA(nullptr,
-                "Failed to connect to FCL driver.\n\n"
-                "Please make sure the FclMusa driver is loaded:\n"
-                "  sc start FclMusa\n\n"
-                "Or run as Administrator.",
+                "Failed to connect to the FCL driver.\n\n"
+                "Make sure the kernel driver is loaded (sc start FclMusa)\n"
+                "or run the GUI with Administrator privileges.",
                 "Driver Connection Error", MB_OK | MB_ICONWARNING);
-            // Continue anyway for UI testing
+        };
+
+        auto showR3Instructions = []() {
+            MessageBoxA(nullptr,
+                "Failed to initialize the user-mode R3 backend.\n\n"
+                "Build the user-mode library first:\n"
+                "  pwsh -File tools\\build\\build-tasks.ps1 -Task R3-Lib-Release",
+                "R3 Backend Error", MB_OK | MB_ICONWARNING);
+        };
+
+        switch (backendPreference)
+        {
+        case BackendPreference::DriverOnly:
+            backendReady = driver->Connect(L"\\\\.\\FclMusa");
+            if (!backendReady)
+            {
+                showDriverInstructions();
+            }
+            break;
+        case BackendPreference::R3Only:
+            backendReady = driver->InitializeR3();
+            if (!backendReady)
+            {
+                showR3Instructions();
+            }
+            break;
+        case BackendPreference::Auto:
+        default:
+            backendReady = driver->Connect(L"\\\\.\\FclMusa");
+            if (!backendReady)
+            {
+                backendReady = driver->InitializeR3();
+                if (backendReady)
+                {
+                    MessageBoxA(nullptr,
+                        "Kernel driver unavailable. Collision detection will run with the user-mode R3 backend.",
+                        "Switched to R3 backend", MB_OK | MB_ICONINFORMATION);
+                }
+                else
+                {
+                    showDriverInstructions();
+                    showR3Instructions();
+                }
+            }
+            break;
         }
+
+        std::wstring backendStatus = L"Collision backend: " + driver->GetBackendDisplayName();
+        if (!backendReady)
+        {
+            backendStatus += L" (collision disabled)";
+        }
+        window->SetStatusText(backendStatus);
 
         // Create scene
         auto scene = std::make_unique<Scene>(renderer.get(), driver.get());
@@ -325,6 +470,7 @@ int WINAPI WinMain(
 
                     FCL_DIAGNOSTICS_RESPONSE diag = {};
                     bool diagOk = driver->QueryDiagnostics(diag);
+                    const std::wstring backendLabel = driver->GetBackendDisplayName();
 
                     const double collisionAvgMs = (diag.Collision.CallCount > 0)
                         ? static_cast<double>(diag.Collision.TotalDurationMicroseconds) /
@@ -344,8 +490,10 @@ int WINAPI WinMain(
                     {
                         swprintf_s(
                             overlay,
+                            L"Backend: %s\n"
                             L"Collision Stats  |  Frames: %llu  |  LastPairs: %u  Hits: %u  |  TotalPairs: %llu  TotalHits: %llu\n"
                             L"Kernel Timing (avg, ms)  |  Collision: %.3f  Distance: %.3f  CCD: %.3f",
+                            backendLabel.c_str(),
                             static_cast<unsigned long long>(stats.FrameCount),
                             stats.LastFramePairs,
                             stats.LastFrameHits,
@@ -357,15 +505,21 @@ int WINAPI WinMain(
                     }
                     else
                     {
+                        const wchar_t* diagMessage = driver->IsR3Mode()
+                            ? L"Kernel Timing: unavailable (R3 backend)"
+                            : L"Kernel Timing: unavailable (driver not connected or IOCTL failed)";
                         swprintf_s(
                             overlay,
+                            L"Backend: %s\n"
                             L"Collision Stats  |  Frames: %llu  |  LastPairs: %u  Hits: %u  |  TotalPairs: %llu  TotalHits: %llu\n"
-                            L"Kernel Timing: unavailable (driver not connected or IOCTL failed)",
+                            L"%s",
+                            backendLabel.c_str(),
                             static_cast<unsigned long long>(stats.FrameCount),
                             stats.LastFramePairs,
                             stats.LastFrameHits,
                             static_cast<unsigned long long>(stats.TotalPairs),
-                            static_cast<unsigned long long>(stats.TotalHits));
+                            static_cast<unsigned long long>(stats.TotalHits),
+                            diagMessage);
                     }
 
                     window->SetOverlayText(overlay);

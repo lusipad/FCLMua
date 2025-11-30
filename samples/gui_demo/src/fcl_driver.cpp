@@ -5,16 +5,26 @@ using namespace DirectX;
 
 FclDriver::FclDriver()
     : m_device(INVALID_HANDLE_VALUE)
+    , m_r3Initialized(false)
+    , m_backendMode(BackendMode::None)
 {
 }
 
 FclDriver::~FclDriver()
 {
     Disconnect();
+    ShutdownR3();
 }
 
 bool FclDriver::Connect(const std::wstring& devicePath)
 {
+    if (IsR3Mode())
+    {
+        ShutdownR3();
+    }
+
+    Disconnect();
+
     m_device = CreateFileW(
         devicePath.c_str(),
         GENERIC_READ | GENERIC_WRITE,
@@ -25,7 +35,14 @@ bool FclDriver::Connect(const std::wstring& devicePath)
         nullptr
     );
 
-    return m_device != INVALID_HANDLE_VALUE;
+    if (m_device != INVALID_HANDLE_VALUE)
+    {
+        m_backendMode = BackendMode::Driver;
+        return true;
+    }
+
+    m_backendMode = BackendMode::None;
+    return false;
 }
 
 void FclDriver::Disconnect()
@@ -35,35 +52,117 @@ void FclDriver::Disconnect()
         CloseHandle(m_device);
         m_device = INVALID_HANDLE_VALUE;
     }
+
+    if (m_backendMode == BackendMode::Driver && m_device == INVALID_HANDLE_VALUE)
+    {
+        m_backendMode = BackendMode::None;
+    }
+}
+
+bool FclDriver::InitializeR3()
+{
+    if (m_backendMode == BackendMode::Driver)
+    {
+        Disconnect();
+    }
+
+    if (m_r3Initialized)
+    {
+        m_backendMode = BackendMode::R3;
+        return true;
+    }
+
+    NTSTATUS status = FclGeometrySubsystemInitialize();
+    if (!NT_SUCCESS(status))
+    {
+        m_backendMode = BackendMode::None;
+        return false;
+    }
+
+    m_r3Initialized = true;
+    m_backendMode = BackendMode::R3;
+    return true;
+}
+
+void FclDriver::ShutdownR3()
+{
+    if (m_r3Initialized)
+    {
+        FclGeometrySubsystemShutdown();
+        m_r3Initialized = false;
+    }
+
+    if (m_backendMode == BackendMode::R3)
+    {
+        m_backendMode = BackendMode::None;
+    }
+}
+
+bool FclDriver::IsReady() const
+{
+    if (IsDriverMode())
+    {
+        return true;
+    }
+    if (IsR3Mode())
+    {
+        return true;
+    }
+    return false;
+}
+
+std::wstring FclDriver::GetBackendDisplayName() const
+{
+    switch (m_backendMode)
+    {
+    case BackendMode::Driver:
+        return IsConnected() ? L"Kernel Driver (R0)" : L"Kernel Driver (disconnected)";
+    case BackendMode::R3:
+        return m_r3Initialized ? L"R3 (User Mode)" : L"R3 (uninitialized)";
+    default:
+        return L"Unavailable";
+    }
 }
 
 FCL_GEOMETRY_HANDLE FclDriver::CreateSphere(const XMFLOAT3& center, float radius)
 {
-    if (!IsConnected())
+    if (!IsReady())
         return FCL_GEOMETRY_HANDLE{ 0 };
 
-    FCL_CREATE_SPHERE_INPUT input = {};
-    input.Desc.Center = ToFclVector(center);
-    input.Desc.Radius = radius;
+    if (IsDriverMode())
+    {
+        FCL_CREATE_SPHERE_INPUT input = {};
+        input.Desc.Center = ToFclVector(center);
+        input.Desc.Radius = radius;
 
-    FCL_CREATE_SPHERE_OUTPUT output = {};
+        FCL_CREATE_SPHERE_OUTPUT output = {};
 
-    DWORD bytesReturned = 0;
-    BOOL success = DeviceIoControl(
-        m_device,
-        IOCTL_FCL_CREATE_SPHERE,
-        &input,
-        static_cast<DWORD>(sizeof(input)),
-        &output,
-        static_cast<DWORD>(sizeof(output)),
-        &bytesReturned,
-        nullptr
-    );
+        DWORD bytesReturned = 0;
+        BOOL success = DeviceIoControl(
+            m_device,
+            IOCTL_FCL_CREATE_SPHERE,
+            &input,
+            static_cast<DWORD>(sizeof(input)),
+            &output,
+            static_cast<DWORD>(sizeof(output)),
+            &bytesReturned,
+            nullptr
+        );
 
-    if (!success)
+        if (!success)
+            return FCL_GEOMETRY_HANDLE{ 0 };
+
+        return output.Handle;
+    }
+
+    FCL_SPHERE_GEOMETRY_DESC desc = {};
+    desc.Center = ToFclVector(center);
+    desc.Radius = radius;
+    FCL_GEOMETRY_HANDLE handle = {};
+    NTSTATUS status = FclCreateGeometry(FCL_GEOMETRY_SPHERE, &desc, &handle);
+    if (!NT_SUCCESS(status))
         return FCL_GEOMETRY_HANDLE{ 0 };
-
-    return output.Handle;
+    return handle;
 }
 
 FCL_GEOMETRY_HANDLE FclDriver::CreateBox(const XMFLOAT3& center, const XMFLOAT3& extents)
@@ -112,105 +211,152 @@ FCL_GEOMETRY_HANDLE FclDriver::CreateBox(const XMFLOAT3& center, const XMFLOAT3&
 FCL_GEOMETRY_HANDLE FclDriver::CreateMesh(const std::vector<XMFLOAT3>& vertices,
                                            const std::vector<uint32_t>& indices)
 {
-    if (!IsConnected())
+    if (!IsReady())
         return FCL_GEOMETRY_HANDLE{ 0 };
 
-    // Calculate buffer size
-    const size_t headerSize = sizeof(FCL_CREATE_MESH_BUFFER);
-    size_t bufferSize = headerSize +
-                        vertices.size() * sizeof(FCL_VECTOR3) +
-                        indices.size() * sizeof(uint32_t);
-
-    std::vector<BYTE> buffer(bufferSize);
-    auto* meshBuffer = reinterpret_cast<FCL_CREATE_MESH_BUFFER*>(buffer.data());
-
-    meshBuffer->VertexCount = static_cast<UINT32>(vertices.size());
-    meshBuffer->IndexCount = static_cast<UINT32>(indices.size());
-    meshBuffer->Reserved0 = 0;
-    meshBuffer->Reserved1 = 0;
-
-    // Copy vertices
-    auto* vertexData = reinterpret_cast<FCL_VECTOR3*>(meshBuffer + 1);
-    for (size_t i = 0; i < vertices.size(); ++i)
+    if (IsDriverMode())
     {
-        vertexData[i] = ToFclVector(vertices[i]);
+        // Calculate buffer size
+        const size_t headerSize = sizeof(FCL_CREATE_MESH_BUFFER);
+        size_t bufferSize = headerSize +
+                            vertices.size() * sizeof(FCL_VECTOR3) +
+                            indices.size() * sizeof(uint32_t);
+
+        std::vector<BYTE> buffer(bufferSize);
+        auto* meshBuffer = reinterpret_cast<FCL_CREATE_MESH_BUFFER*>(buffer.data());
+
+        meshBuffer->VertexCount = static_cast<UINT32>(vertices.size());
+        meshBuffer->IndexCount = static_cast<UINT32>(indices.size());
+        meshBuffer->Reserved0 = 0;
+        meshBuffer->Reserved1 = 0;
+
+        // Copy vertices
+        auto* vertexData = reinterpret_cast<FCL_VECTOR3*>(meshBuffer + 1);
+        for (size_t i = 0; i < vertices.size(); ++i)
+        {
+            vertexData[i] = ToFclVector(vertices[i]);
+        }
+
+        // Copy indices
+        auto* indexData = reinterpret_cast<uint32_t*>(vertexData + vertices.size());
+        memcpy(indexData, indices.data(), indices.size() * sizeof(uint32_t));
+
+        DWORD bytesReturned = 0;
+        BOOL success = DeviceIoControl(
+            m_device,
+            IOCTL_FCL_CREATE_MESH,
+            buffer.data(),
+            static_cast<DWORD>(bufferSize),
+            buffer.data(),
+            static_cast<DWORD>(bufferSize),
+            &bytesReturned,
+            nullptr
+        );
+
+        if (!success)
+            return FCL_GEOMETRY_HANDLE{ 0 };
+
+        return meshBuffer->Handle;
     }
 
-    // Copy indices
-    auto* indexData = reinterpret_cast<uint32_t*>(vertexData + vertices.size());
-    memcpy(indexData, indices.data(), indices.size() * sizeof(uint32_t));
+    std::vector<FCL_VECTOR3> converted(vertices.size());
+    for (size_t i = 0; i < vertices.size(); ++i)
+    {
+        converted[i] = ToFclVector(vertices[i]);
+    }
 
-    DWORD bytesReturned = 0;
-    BOOL success = DeviceIoControl(
-        m_device,
-        IOCTL_FCL_CREATE_MESH,
-        buffer.data(),
-        static_cast<DWORD>(bufferSize),
-        buffer.data(),
-        static_cast<DWORD>(bufferSize),
-        &bytesReturned,
-        nullptr
-    );
+    FCL_MESH_GEOMETRY_DESC desc = {};
+    desc.Vertices = converted.data();
+    desc.VertexCount = static_cast<ULONG>(converted.size());
+    desc.Indices = indices.data();
+    desc.IndexCount = static_cast<ULONG>(indices.size());
 
-    if (!success)
+    FCL_GEOMETRY_HANDLE handle = {};
+    NTSTATUS status = FclCreateGeometry(FCL_GEOMETRY_MESH, &desc, &handle);
+    if (!NT_SUCCESS(status))
         return FCL_GEOMETRY_HANDLE{ 0 };
 
-    return meshBuffer->Handle;
+    return handle;
 }
 
 bool FclDriver::DestroyGeometry(FCL_GEOMETRY_HANDLE handle)
 {
-    if (!IsConnected())
+    if (!IsReady())
         return false;
 
-    FCL_DESTROY_INPUT input = {};
-    input.Handle = handle;
+    if (IsDriverMode())
+    {
+        FCL_DESTROY_INPUT input = {};
+        input.Handle = handle;
 
-    DWORD bytesReturned = 0;
-    BOOL success = DeviceIoControl(
-        m_device,
-        IOCTL_FCL_DESTROY_GEOMETRY,
-        &input,
-        static_cast<DWORD>(sizeof(input)),
-        nullptr,
-        0,
-        &bytesReturned,
-        nullptr
-    );
+        DWORD bytesReturned = 0;
+        BOOL success = DeviceIoControl(
+            m_device,
+            IOCTL_FCL_DESTROY_GEOMETRY,
+            &input,
+            static_cast<DWORD>(sizeof(input)),
+            nullptr,
+            0,
+            &bytesReturned,
+            nullptr
+        );
 
-    return success != FALSE;
+        return success != FALSE;
+    }
+
+    NTSTATUS status = FclDestroyGeometry(handle);
+    return NT_SUCCESS(status);
 }
 
 bool FclDriver::QueryCollision(FCL_GEOMETRY_HANDLE obj1, const FCL_TRANSFORM& transform1,
                                 FCL_GEOMETRY_HANDLE obj2, const FCL_TRANSFORM& transform2,
                                 bool& isColliding, FCL_CONTACT_INFO& contactInfo)
 {
-    if (!IsConnected())
+    if (!IsReady())
         return false;
 
-    FCL_COLLISION_IO_BUFFER buffer = {};
-    buffer.Query.Object1 = obj1;
-    buffer.Query.Transform1 = transform1;
-    buffer.Query.Object2 = obj2;
-    buffer.Query.Transform2 = transform2;
+    if (IsDriverMode())
+    {
+        FCL_COLLISION_IO_BUFFER buffer = {};
+        buffer.Query.Object1 = obj1;
+        buffer.Query.Transform1 = transform1;
+        buffer.Query.Object2 = obj2;
+        buffer.Query.Transform2 = transform2;
 
-    DWORD bytesReturned = 0;
-    BOOL success = DeviceIoControl(
-        m_device,
-        IOCTL_FCL_QUERY_COLLISION,
-        &buffer,
-        static_cast<DWORD>(sizeof(buffer)),
-        &buffer,
-        static_cast<DWORD>(sizeof(buffer)),
-        &bytesReturned,
-        nullptr
-    );
+        DWORD bytesReturned = 0;
+        BOOL success = DeviceIoControl(
+            m_device,
+            IOCTL_FCL_QUERY_COLLISION,
+            &buffer,
+            static_cast<DWORD>(sizeof(buffer)),
+            &buffer,
+            static_cast<DWORD>(sizeof(buffer)),
+            &bytesReturned,
+            nullptr
+        );
 
-    if (!success)
+        if (!success)
+            return false;
+
+        isColliding = buffer.Result.IsColliding != 0;
+        contactInfo = buffer.Result.Contact;
+        return true;
+    }
+
+    BOOLEAN intersecting = FALSE;
+    FCL_CONTACT_INFO info = {};
+    NTSTATUS status = FclCollisionDetect(
+        obj1,
+        &transform1,
+        obj2,
+        &transform2,
+        &intersecting,
+        &info);
+    if (!NT_SUCCESS(status))
         return false;
 
-    isColliding = buffer.Result.IsColliding != 0;
-    contactInfo = buffer.Result.Contact;
+    isColliding = intersecting != FALSE;
+    contactInfo = info;
     return true;
 }
 
@@ -218,37 +364,55 @@ bool FclDriver::QueryDistance(FCL_GEOMETRY_HANDLE obj1, const FCL_TRANSFORM& tra
                                FCL_GEOMETRY_HANDLE obj2, const FCL_TRANSFORM& transform2,
                                FCL_DISTANCE_RESULT& result)
 {
-    if (!IsConnected())
+    if (!IsReady())
         return false;
 
-    FCL_DISTANCE_IO_BUFFER buffer = {};
-    buffer.Query.Object1 = obj1;
-    buffer.Query.Transform1 = transform1;
-    buffer.Query.Object2 = obj2;
-    buffer.Query.Transform2 = transform2;
+    if (IsDriverMode())
+    {
+        FCL_DISTANCE_IO_BUFFER buffer = {};
+        buffer.Query.Object1 = obj1;
+        buffer.Query.Transform1 = transform1;
+        buffer.Query.Object2 = obj2;
+        buffer.Query.Transform2 = transform2;
 
-    DWORD bytesReturned = 0;
-    BOOL success = DeviceIoControl(
-        m_device,
-        IOCTL_FCL_QUERY_DISTANCE,
-        &buffer,
-        static_cast<DWORD>(sizeof(buffer)),
-        &buffer,
-        static_cast<DWORD>(sizeof(buffer)),
-        &bytesReturned,
-        nullptr
-    );
+        DWORD bytesReturned = 0;
+        BOOL success = DeviceIoControl(
+            m_device,
+            IOCTL_FCL_QUERY_DISTANCE,
+            &buffer,
+            static_cast<DWORD>(sizeof(buffer)),
+            &buffer,
+            static_cast<DWORD>(sizeof(buffer)),
+            &bytesReturned,
+            nullptr
+        );
 
-    if (!success)
+        if (!success)
+            return false;
+
+        result.Distance = buffer.Result.Distance;
+        result.ClosestPoint1 = buffer.Result.ClosestPoint1;
+        result.ClosestPoint2 = buffer.Result.ClosestPoint2;
+        return true;
+    }
+
+    FCL_DISTANCE_RESULT local = {};
+    NTSTATUS status = FclDistanceCompute(
+        obj1,
+        &transform1,
+        obj2,
+        &transform2,
+        &local);
+    if (!NT_SUCCESS(status))
         return false;
 
-    result = buffer.Result;
+    result = local;
     return true;
 }
 
 bool FclDriver::QueryDiagnostics(FCL_DIAGNOSTICS_RESPONSE& diagnostics)
 {
-    if (!IsConnected())
+    if (!IsDriverMode())
         return false;
 
     DWORD bytesReturned = 0;

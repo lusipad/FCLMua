@@ -69,31 +69,25 @@ function Build-GUIDemoInternal {
         New-Item -ItemType Directory -Path $distDir -Force | Out-Null
     }
 
-    # Setup Visual Studio environment
-    $vsDevCmd = Find-FCLVsDevCmd
-
-    # Verify source files exist
-    $sources = Get-ChildItem -Path $guiSrcDir -Filter *.cpp
-    if ($sources.Count -eq 0) {
-        throw "No .cpp files found in $guiSrcDir"
+    $projectPath = Join-Path $guiSrcDir 'FclGuiDemo.vcxproj'
+    $msbuild = Find-FCLMSBuild
+    & $msbuild $projectPath `
+        "/p:Configuration=$Configuration" `
+        "/p:Platform=x64" `
+        "/m" `
+        "/nologo" `
+        "/v:minimal"
+    if ($LASTEXITCODE -ne 0) {
+        throw "GUI Demo compilation failed"
     }
 
-    Push-Location $buildDir
-    try {
-        # Call VsDevCmd and compile in one step
-        $compileCmd = "call `"$vsDevCmd`" -arch=x64 >nul 2>&1 && cd /d `"$guiSrcDir\build`" && cl /utf-8 /EHsc /std:c++17 /nologo /W4 ..\*.cpp /link /out:fcl_demo.exe"
-        & cmd.exe /c $compileCmd
-
-        if ($LASTEXITCODE -ne 0 -or -not (Test-Path (Join-Path $buildDir 'fcl_demo.exe'))) {
-            throw "GUI Demo compilation failed"
-        }
-
-        # Copy to dist
-        Copy-Item (Join-Path $buildDir 'fcl_demo.exe') -Destination $distDir -Force
+    $outputDir = Join-Path $buildDir $Configuration
+    $outputExe = Join-Path $outputDir 'fcl_gui_demo.exe'
+    if (-not (Test-Path $outputExe)) {
+        throw "GUI demo executable not found: $outputExe"
     }
-    finally {
-        Pop-Location
-    }
+
+    Copy-Item $outputExe -Destination (Join-Path $distDir 'fcl_gui_demo.exe') -Force
 
     # Copy assets
     Write-Host "  Copying assets..." -ForegroundColor Yellow

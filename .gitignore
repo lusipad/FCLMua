@@ -132,6 +132,8 @@ samples/r3_user_demo/*.exe
 tools/*/build/
 tools/*/out/
 !tools/build/
+!tools/build/assets/
+!tools/build/assets/*.obj
 !tools/scripts/
 
 # Keep external dependencies (submodules)
