@@ -28,10 +28,9 @@ jobs:
       - name: Apply FCL patch set
         shell: pwsh
         run: |
-          Write-Host "Skipping patch application - patch file needs to be regenerated" -ForegroundColor Yellow
-          # git -C external/fcl-source reset --hard HEAD
-          # git -C external/fcl-source clean -fd
-          # .\tools\scripts\apply_fcl_patch.ps1
+          git -C external/fcl-source reset --hard HEAD
+          git -C external/fcl-source clean -fd
+          .\tools\scripts\apply_fcl_patch.ps1
 
       - name: Build R3 demo (Release)
         shell: pwsh
