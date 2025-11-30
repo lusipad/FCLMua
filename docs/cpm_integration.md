@@ -21,6 +21,8 @@ CPMAddPackage(
     "FCLMUSA_BUILD_KERNEL_LIB OFF"    # 无 WDK 的纯用户态环境可关闭
     "FCLMUSA_WDK_ROOT C:/Program Files (x86)/Windows Kits/10"  # 内核态需要
     "FCLMUSA_WDK_VERSION 10.0.22621.0"                         # 内核态需要
+  POST_DOWNLOAD_COMMAND               # 自动套用 external/fcl-source 补丁
+    "${CMAKE_COMMAND}" -E chdir <SOURCE_DIR>/tools/scripts pwsh apply_fcl_patch.ps1
 )
 
 # 内核态静态库
@@ -49,3 +51,4 @@ target_link_libraries(my_um_target PRIVATE FclMusa::CoreUser)
 ## 已知限制
 - 驱动 `.sys` 构建未在 CMake 中启用；如果需要，请在 `CMakeLists.txt` 的占位段自行按 WDK/LLVM-MSVC 环境添加。
 - 如果你的项目对警告级别/异常模型有特殊要求，请在上层调整（目前默认 `/EHsc`，未开启警告即错）。 
+- `external/fcl-source` 默认跟随上游 FCL v0.7.0。若直接通过 CPM 拉取，需要在下载完成后执行 `tools/scripts/apply_fcl_patch.ps1`（推荐通过 `POST_DOWNLOAD_COMMAND` 自动完成），或使用已预打补丁的 fork 仓库，否则内核模式补丁不会应用。

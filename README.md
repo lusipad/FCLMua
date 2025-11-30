@@ -83,11 +83,14 @@ include(cmake/CPM.cmake)
 CPMAddPackage(
   NAME FclMusa
   GITHUB_REPOSITORY yourname/FCL+Musa
-  GIT_TAG main  # 或指定版本标签
+  GIT_TAG main  # 建议固定具体 tag
   OPTIONS
-    "FCLMUSA_BUILD_DRIVER OFF"        # 不构建驱动
-    "FCLMUSA_BUILD_USERLIB ON"        # 构建用户态库
-    "FCLMUSA_BUILD_KERNEL_LIB OFF"    # 关闭内核态库（无需WDK）
+    "FCLMUSA_BUILD_DRIVER OFF"
+    "FCLMUSA_BUILD_USERLIB ON"
+    "FCLMUSA_BUILD_KERNEL_LIB OFF"
+  # 可选：拉取后自动套用 external/fcl-source 补丁
+  POST_DOWNLOAD_COMMAND
+    "${CMAKE_COMMAND}" -E chdir <SOURCE_DIR>/tools/scripts pwsh apply_fcl_patch.ps1
 )
 
 add_executable(myapp src/main.cpp)
@@ -174,6 +177,8 @@ CPMAddPackage(
     "FCLMUSA_BUILD_KERNEL_LIB ON"
     "FCLMUSA_WDK_ROOT C:/Program Files (x86)/Windows Kits/10"
     "FCLMUSA_WDK_VERSION 10.0.26100.0"
+  POST_DOWNLOAD_COMMAND
+    "${CMAKE_COMMAND}" -E chdir <SOURCE_DIR>/tools/scripts pwsh apply_fcl_patch.ps1
 )
 
 target_link_libraries(my_driver PRIVATE FclMusa::Core)
