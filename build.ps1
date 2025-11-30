@@ -1,127 +1,239 @@
 <#
 .SYNOPSIS
-    FCL+Musa 顶层交互式构建脚本。
+    FCL+Musa 交互式构建菜单
 
 .DESCRIPTION
-    提供常用构建/测试动作的菜单封装，内部复用 tools/ 目录下的现有脚本。
-    可用于快速执行：
-      1. 驱动 Debug/Release 构建（manual_build.cmd）
-      2. build_all.ps1（Debug 或 Release，同时可触发 BuildRelease、BuildR3）
-      3. 仅构建 R3 Demo（无驱动）
-      4. CMake + ctest 的 R3 smoke test
+    简洁的交互式构建系统,提供编译、测试、文档等功能
 #>
+
 param()
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$scriptRoot = Split-Path -Parent $MyInvocation.MyCommand.Definition
-$repoRoot = $scriptRoot
+$script:RepoRoot = $PSScriptRoot
+$script:BuildDir = Join-Path $script:RepoRoot 'tools\build'
 
-function Invoke-CommandChecked {
-    param(
-        [Parameter(Mandatory = $true)]
-        [string]$FilePath,
-        [string[]]$Arguments = @(),
-        [string]$ErrorMessage = "命令执行失败。"
-    )
+# 导入构建模块
+Import-Module (Join-Path $script:BuildDir 'common.psm1') -Force
 
+function Show-MainMenu {
+    Clear-Host
     Write-Host ""
-    Write-Host ">> $FilePath $($Arguments -join ' ')" -ForegroundColor DarkGray
-    & $FilePath @Arguments
-    $exitCode = $LASTEXITCODE
-    if ($exitCode -ne 0) {
-        throw "$ErrorMessage (ExitCode=$exitCode)"
+    Write-Host "============================================" -ForegroundColor Cyan
+    Write-Host "     FCL+Musa 构建系统" -ForegroundColor Cyan
+    Write-Host "============================================" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "  1. Build         - 编译项目"
+    Write-Host "  2. Test          - 运行测试"
+    Write-Host "  3. Doc           - 生成文档"
+    Write-Host "  4. Check Env     - 检查环境"
+    Write-Host "  5. Check Upstream - 检查上游更新"
+    Write-Host ""
+    Write-Host "  0. Exit          - 退出"
+    Write-Host ""
+    Write-Host "============================================" -ForegroundColor Cyan
+    Write-Host ""
+}
+
+function Show-BuildMenu {
+    Clear-Host
+    Write-Host ""
+    Write-Host "============================================" -ForegroundColor Green
+    Write-Host "     构建菜单" -ForegroundColor Green
+    Write-Host "============================================" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "  1. R0 Debug        - 编译 R0 驱动 (Debug + 签名)"
+    Write-Host "  2. R0 Release      - 编译 R0 驱动 (Release + 签名)"
+    Write-Host "  3. R3 Lib Debug    - 编译 R3 用户态库 (Debug)"
+    Write-Host "  4. R3 Lib Release  - 编译 R3 用户态库 (Release)"
+    Write-Host "  5. R3 Demo Debug   - 编译 R3 Demo (Debug)"
+    Write-Host "  6. R3 Demo Release - 编译 R3 Demo (Release)"
+    Write-Host "  7. CLI Demo        - 编译 CLI Demo"
+    Write-Host "  8. GUI Demo        - 编译 GUI Demo"
+    Write-Host "  9. All             - 编译所有项目"
+    Write-Host ""
+    Write-Host "  0. Back            - 返回主菜单"
+    Write-Host ""
+    Write-Host "============================================" -ForegroundColor Green
+    Write-Host ""
+}
+
+function Show-TestMenu {
+    Clear-Host
+    Write-Host ""
+    Write-Host "============================================" -ForegroundColor Yellow
+    Write-Host "     测试菜单" -ForegroundColor Yellow
+    Write-Host "============================================" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "  1. R0 Demo       - 运行 R0 驱动测试"
+    Write-Host "  2. R3 Demo       - 运行 R3 Demo"
+    Write-Host "  3. GUI Demo      - 运行 GUI Demo"
+    Write-Host ""
+    Write-Host "  0. Back          - 返回主菜单"
+    Write-Host ""
+    Write-Host "============================================" -ForegroundColor Yellow
+    Write-Host ""
+}
+
+function Wait-ForEnter {
+    param([string]$Message = "按 Enter 返回菜单")
+    Write-Host ""
+    Write-Host $Message -ForegroundColor Gray
+    while ($true) {
+        $key = [Console]::ReadKey($true)
+        if ($key.Key -eq 'Enter') {
+            break
+        }
     }
 }
 
-function Invoke-ManualBuild {
-    param([ValidateSet('Debug','Release')][string]$Configuration)
-    Write-Host "`n=== 构建驱动 ($Configuration) ===" -ForegroundColor Cyan
-    $script = Join-Path $repoRoot 'tools\manual_build.cmd'
-    Invoke-CommandChecked -FilePath $script -Arguments @($Configuration) -ErrorMessage "manual_build.cmd 失败"
-    Write-Host "驱动构建完成：$Configuration" -ForegroundColor Green
-}
-
-function Invoke-BuildAll {
-    param(
-        [ValidateSet('Debug','Release')][string]$Configuration,
-        [switch]$IncludeBuildRelease,
-        [switch]$IncludeR3
-    )
-    Write-Host "`n=== build_all.ps1 ($Configuration) ===" -ForegroundColor Cyan
-    $script = Join-Path $repoRoot 'tools\build_all.ps1'
-    $args = @('-Configuration', $Configuration)
-    if ($IncludeBuildRelease) { $args += '-BuildRelease' }
-    if ($IncludeR3) { $args += '-BuildR3' }
-    Invoke-CommandChecked -FilePath $script -Arguments $args -ErrorMessage "build_all.ps1 失败"
-    Write-Host "build_all ($Configuration) 完成" -ForegroundColor Green
-}
-
-function Invoke-BuildR3Only {
-    Write-Host "`n=== 仅构建 R3 Demo ===" -ForegroundColor Cyan
-    $script = Join-Path $repoRoot 'tools\build_all.ps1'
-    $args = @('-SkipDriver', '-SkipCLI', '-SkipGUI', '-BuildR3')
-    Invoke-CommandChecked -FilePath $script -Arguments $args -ErrorMessage "R3 Demo 构建失败"
-    Write-Host "R3 Demo 构建完成" -ForegroundColor Green
-}
-
-function Invoke-R3SmokeTest {
-    Write-Host "`n=== 运行 R3 Smoke Test (cmake + ctest) ===" -ForegroundColor Cyan
-    $buildDir = Join-Path $repoRoot 'build\r3-demo'
-    $cmakeArgs = @('-S', $repoRoot, '-B', $buildDir, '-DFCLMUSA_BUILD_DRIVER=OFF', '-DFCLMUSA_BUILD_KERNEL_LIB=OFF', '-DFCLMUSA_BUILD_USERLIB=ON')
-    Invoke-CommandChecked -FilePath 'cmake' -Arguments $cmakeArgs -ErrorMessage "cmake 配置失败"
-
-    $buildArgs = @('--build', $buildDir, '--config', 'Debug', '--target', 'FclMusaR3Smoke')
-    Invoke-CommandChecked -FilePath 'cmake' -Arguments $buildArgs -ErrorMessage "cmake --build 失败"
-
-    $ctestArgs = @('--test-dir', $buildDir, '--output-on-failure', '-C', 'Debug')
-    Invoke-CommandChecked -FilePath 'ctest' -Arguments $ctestArgs -ErrorMessage "ctest 执行失败"
-
-    Write-Host "R3 smoke test 通过" -ForegroundColor Green
-}
-
-function Show-Menu {
-    Write-Host ""
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host "  FCL+Musa 交互式构建面板" -ForegroundColor Cyan
-    Write-Host "========================================" -ForegroundColor Cyan
-    Write-Host ""
-    Write-Host "构建选项:" -ForegroundColor Yellow
-    Write-Host "[1] 构建驱动 (Debug)"
-    Write-Host "[2] 构建驱动 (Release)"
-    Write-Host "[3] build_all (Debug)"
-    Write-Host "[4] build_all (Release + BuildRelease)"
-    Write-Host "[5] 仅构建 R3 Demo"
-    Write-Host "[6] 运行 R3 Smoke Test (cmake + ctest)"
-    Write-Host ""
-    Write-Host "[0] 退出" -ForegroundColor Gray
-    Write-Host ""
-    Write-Host "提示: 查看 BUILD_GUIDE.md 了解更多构建选项" -ForegroundColor DarkGray
-}
-
-while ($true) {
-    Show-Menu
-    $choice = Read-Host "请选择操作"
+function Invoke-BuildTask {
+    param([string]$Task)
+    
     try {
-        switch ($choice) {
-            '1' { Invoke-ManualBuild -Configuration 'Debug' }
-            '2' { Invoke-ManualBuild -Configuration 'Release' }
-            '3' { Invoke-BuildAll -Configuration 'Debug' }
-            '4' { Invoke-BuildAll -Configuration 'Release' -IncludeBuildRelease }
-            '5' { Invoke-BuildR3Only }
-            '6' { Invoke-R3SmokeTest }
-            '0' { 
-                Write-Host ""
-                Write-Host "正在退出..." -ForegroundColor Gray
-                break 
-            }
-            default { Write-Host "无效选项，请重新输入。" -ForegroundColor Yellow }
+        & (Join-Path $script:BuildDir 'build-tasks.ps1') -Task $Task
+        if ($LASTEXITCODE -ne 0) {
+            throw "Build task failed with exit code $LASTEXITCODE"
         }
     }
     catch {
-        Write-Host "❌ 操作失败：$($_.Exception.Message)" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "============================================" -ForegroundColor Red
+        Write-Host "  ✗ 构建任务失败" -ForegroundColor Red
+        Write-Host "============================================" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "错误: $_" -ForegroundColor Red
+    }
+    finally {
+        Wait-ForEnter
     }
 }
 
-Write-Host "已退出构建面板。" -ForegroundColor Gray
+function Invoke-TestTask {
+    param([string]$Task)
+    
+    try {
+        & (Join-Path $script:BuildDir 'test-tasks.ps1') -Task $Task
+        if ($LASTEXITCODE -ne 0) {
+            throw "Test task failed with exit code $LASTEXITCODE"
+        }
+    }
+    catch {
+        Write-Host ""
+        Write-Host "============================================" -ForegroundColor Red
+        Write-Host "  ✗ 测试任务失败" -ForegroundColor Red
+        Write-Host "============================================" -ForegroundColor Red
+        Write-Host ""
+        Write-Host "错误: $_" -ForegroundColor Red
+    }
+    finally {
+        Wait-ForEnter
+    }
+}
+
+function Invoke-DocTask {
+    try {
+        & (Join-Path $script:BuildDir 'doc-tasks.ps1')
+    }
+    catch {
+        Write-Host ""
+        Write-Host "错误: $_" -ForegroundColor Red
+    }
+    finally {
+        Wait-ForEnter "按 Enter 继续"
+    }
+}
+
+function Invoke-CheckEnv {
+    try {
+        & (Join-Path $script:BuildDir 'check-env.ps1')
+    }
+    catch {
+        Write-Host ""
+        Write-Host "错误: $_" -ForegroundColor Red
+    }
+    finally {
+        Wait-ForEnter "按 Enter 继续"
+    }
+}
+
+function Invoke-CheckUpstream {
+    try {
+        & (Join-Path $script:BuildDir 'check-upstream.ps1')
+    }
+    catch {
+        Write-Host ""
+        Write-Host "错误: $_" -ForegroundColor Red
+    }
+    finally {
+        Wait-ForEnter "按 Enter 继续"
+    }
+}
+
+# 主循环
+while ($true) {
+    Show-MainMenu
+    $choice = Read-Host "请选择"
+    
+    switch ($choice) {
+        '1' {
+            # Build 子菜单
+            while ($true) {
+                Show-BuildMenu
+                $buildChoice = Read-Host "请选择"
+                
+                switch ($buildChoice) {
+                    '1' { Invoke-BuildTask 'R0-Debug' }
+                    '2' { Invoke-BuildTask 'R0-Release' }
+                    '3' { Invoke-BuildTask 'R3-Lib-Debug' }
+                    '4' { Invoke-BuildTask 'R3-Lib-Release' }
+                    '5' { Invoke-BuildTask 'R3-Demo-Debug' }
+                    '6' { Invoke-BuildTask 'R3-Demo-Release' }
+                    '7' { Invoke-BuildTask 'CLI-Demo' }
+                    '8' { Invoke-BuildTask 'GUI-Demo' }
+                    '9' { Invoke-BuildTask 'All' }
+                    '0' { break }
+                    default { 
+                        Write-Host "无效选择" -ForegroundColor Red
+                        Start-Sleep -Seconds 1
+                    }
+                }
+                
+                if ($buildChoice -eq '0') { break }
+            }
+        }
+        '2' {
+            # Test 子菜单
+            while ($true) {
+                Show-TestMenu
+                $testChoice = Read-Host "请选择"
+                
+                switch ($testChoice) {
+                    '1' { Invoke-TestTask 'R0-Demo' }
+                    '2' { Invoke-TestTask 'R3-Demo' }
+                    '3' { Invoke-TestTask 'GUI-Demo' }
+                    '0' { break }
+                    default { 
+                        Write-Host "无效选择" -ForegroundColor Red
+                        Start-Sleep -Seconds 1
+                    }
+                }
+                
+                if ($testChoice -eq '0') { break }
+            }
+        }
+        '3' { Invoke-DocTask }
+        '4' { Invoke-CheckEnv }
+        '5' { Invoke-CheckUpstream }
+        '0' {
+            Write-Host ""
+            Write-Host "再见！" -ForegroundColor Cyan
+            exit 0
+        }
+        default {
+            Write-Host "无效选择" -ForegroundColor Red
+            Start-Sleep -Seconds 1
+        }
+    }
+}

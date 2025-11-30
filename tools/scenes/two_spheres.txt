@@ -1,6 +1,0 @@
-# Two spheres approaching each other
-sphere Left 0.5 -1.0 0.0 0.0
-sphere Right 0.5 1.0 0.0 0.0
-collide Left Right
-simulate Left Right 0.1 0.0 0.0 20 50
-distance Left Right

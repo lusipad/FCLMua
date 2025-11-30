@@ -22,7 +22,7 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
    - 平台无关，同时支持 R0 和 R3 环境
 
 2. **第 1 层：FCL 内核管理模块**（FclCore）
-   - **位置**：`r0/core/src` 下的 `geometry/`、`collision/`、`distance/`、`broadphase/`、`testing/` 等目录
+   - **位置**：`kernel/core/src` 下的 `geometry/`、`collision/`、`distance/`、`broadphase/`、`testing/` 等目录
    - **职责**：
      - 几何对象生命周期管理：`FclCreateGeometry` / `FclDestroyGeometry` / `FclUpdateMeshGeometry` / `FclAcquireGeometryReference` / `FclReleaseGeometryReference`
      - BVH 构建与缓存（`geometry/bvh_model.cpp` 等，仅作为 upstream FCL 的数据准备层）
@@ -37,7 +37,7 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
      - 支持在不同 IRQL 级别调用（大多数 API 要求 PASSIVE_LEVEL，快照 API 可在 DISPATCH_LEVEL）
 
 3. **第 2 层：驱动 / IOCTL 封装层**
-   - **位置**：`r0/driver/src/driver_entry.cpp`、`r0/driver/src/device_control.cpp`
+   - **位置**：`kernel/driver/src/driver_entry.cpp`、`kernel/driver/src/device_control.cpp`
    - **职责**：
      - 处理 `IRP_MJ_CREATE/CLOSE/DEVICE_CONTROL`
      - 校验 IOCTL 输入/输出缓冲区长度与对齐
@@ -46,33 +46,33 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
 
 ## 模块概览（按职能划分）
 
-- 内存系统：`r0/core/src/memory/pool_allocator.cpp`
+- 内存系统：`kernel/core/src/memory/pool_allocator.cpp`
   - 提供 NonPagedPool 上的 RAII 分配器和全局统计，用于 STL/Eigen/libccd 等依赖。
 
-- 几何管理：`r0/core/src/geometry/geometry_manager.cpp` 等
+- 几何管理：`kernel/core/src/geometry/geometry_manager.cpp` 等
   - 负责 Sphere / OBB / Mesh 对象的创建、查找、引用计数和销毁；
-  - Mesh 几何会在必要时构建 BVH（`r0/core/src/geometry/bvh_model.cpp`），作为 upstream FCL 使用的包围体结构。
+  - Mesh 几何会在必要时构建 BVH（`kernel/core/src/geometry/bvh_model.cpp`），作为 upstream FCL 使用的包围体结构。
 
 - 碰撞 / 距离 / CCD：
-  - `r0/core/src/collision/collision.cpp`
-  - `r0/core/src/collision/continuous_collision.cpp`
-  - `r0/core/src/distance/distance.cpp`
+  - `kernel/core/src/collision/collision.cpp`
+  - `kernel/core/src/collision/continuous_collision.cpp`
+  - `kernel/core/src/distance/distance.cpp`
   - 统一从几何管理层获取 `FCL_GEOMETRY_SNAPSHOT`；
   - 对输入变换做基本合法性校验（有限值、正交矩阵等）；
   - 通过 upstream bridge 调用 upstream FCL 的碰撞 / 距离 / 连续碰撞算法；
   - 将结果封装为 `FCL_CONTACT_INFO` / `FCL_DISTANCE_RESULT` / `FCL_CONTINUOUS_COLLISION_RESULT` 结构。
 
-- 宽阶段：`r0/core/src/broadphase/broadphase.cpp`
+- 宽阶段：`kernel/core/src/broadphase/broadphase.cpp`
   - 基于 upstream FCL 的 `DynamicAABBTreeCollisionManagerd` 实现宽阶段对收集；
   - 利用几何管理层提供的快照和绑定信息构造 `fcl::CollisionObjectd`，输出 `FCL_BROADPHASE_PAIR`。
 
-- 周期碰撞调度逻辑：`r0/driver/src/device_control.cpp` 中的 DPC 计时器实现
+- 周期碰撞调度逻辑：`kernel/driver/src/device_control.cpp` 中的 DPC 计时器实现
   - **FCL_PERIODIC_COLLISION_STATE**：在启动 IOCTL（PASSIVE_LEVEL）中获取几何引用、构造 `FCL_GEOMETRY_SNAPSHOT`、配置运动参数，并预分配 NonPaged Scratch 缓冲，随后由 DPC 周期性执行碰撞计算。
   - **DPC 回调**（`FclPeriodicCollisionDpc`）：在 DISPATCH_LEVEL 直接调用 `FclCollisionCoreFromSnapshots`，将结果写入 `LastResult`/`LastStatus`，并使用 `Sequence` 自增 + `KeMemoryBarrier` 形成“双读”快照协议（`FclPeriodicCollisionSnapshotResult`）；可根据 InnerIterations 在一次 DPC 内执行多轮检测。
   - **停止机制**：`IOCTL_FCL_STOP_PERIODIC_COLLISION` 取消计时器、等待 `DpcIdleEvent`，随后在 PASSIVE_LEVEL 释放引用/快照；实时碰撞逻辑始终留在 DPC，满足亚毫秒预算。
   - 适用于实时控制环境，需要周期性碰撞检测的场景；如果只需 PASSIVE 线程查询，可直接复用 Snapshot Core API。
 
-- 自测：`r0/selftest/src/self_test.cpp` 等
+- 自测：`kernel/tests/src/self_test.cpp` 等
   - 组合调用几何 / 碰撞 / 距离 / CCD / 宽阶段等 API
   - 支持完整自检（`FclRunSelfTest`）和场景自检（`FclRunSelfTestScenario`）
   - 验证核心行为和边界条件，并聚合为 `FCL_SELF_TEST_RESULT` 结构
@@ -84,7 +84,7 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
    - Ring3：构造 `FCL_COLLISION_IO_BUFFER`，调用 `IOCTL_FCL_QUERY_COLLISION`；
    - 驱动（第 2 层）：`device_control.cpp:FclDispatchDeviceControl` → `HandleCollisionQuery`；
    - FCL 管理模块（第 1 层）：调用 `FclCollisionDetect`，内部通过几何管理获取快照；
-   - upstream FCL（第 0 层）：通过 `r0/core/src/upstream/upstream_bridge.cpp` 调用 `fcl::collide` 完成实际碰撞计算；
+   - upstream FCL（第 0 层）：通过 `kernel/core/src/upstream/upstream_bridge.cpp` 调用 `fcl::collide` 完成实际碰撞计算；
    - 结果沿相同路径返回，最终写入 `FCL_COLLISION_IO_BUFFER::Result`。
 
 2. Ring0 直接使用 FCL API
@@ -131,7 +131,7 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
 
 ## Upstream FCL 集成说明
 
-- 通过 `r0/core/src/upstream/upstream_bridge.cpp` / `r0/core/src/upstream/geometry_bridge.cpp` 将 upstream FCL（`fcl-source`）的算法适配到内核环境：
+- 通过 `kernel/core/src/upstream/upstream_bridge.cpp` / `kernel/core/src/upstream/geometry_bridge.cpp` 将 upstream FCL（`fcl-source`）的算法适配到内核环境：
   - 屏蔽异常，转换为 NTSTATUS；
   - 统一日志和内存分配路径；
   - 处理内核可接受的浮点精度和数据布局。

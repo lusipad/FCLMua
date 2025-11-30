@@ -92,7 +92,7 @@ void DriverUnload(PDRIVER_OBJECT) {
 }
 ```
 
-常用 API：`FclCreateGeometry` / `FclDestroyGeometry`、`FclCollideObjects`、`FclDistanceCompute`、`FclContinuousCollision` 等，全部在 `r0/core/include/fclmusa/*.h` 中定义。
+常用 API：`FclCreateGeometry` / `FclDestroyGeometry`、`FclCollideObjects`、`FclDistanceCompute`、`FclContinuousCollision` 等，全部在 `kernel/core/include/fclmusa/*.h` 中定义。
 
 ## 5. IOCTL 快速验证
 

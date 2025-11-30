@@ -1,122 +1,146 @@
-# 构建输出
-*.log
-build_output.log
-build_driver.log
-build_run.log
-
-# CMake 构建目录
+# Build directories
 build/
-build-*/
-**/build/
-**/build-*/
+out/
+dist/
+bin/
+obj/
 
-# 临时文件
-temp.txt
-nul
-
-# 驱动输出目录
-r0/**/out/
-r0/**/x64/
-r0/**/Debug/
-r0/**/Release/
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+CTestTestfile.cmake
+*.cmake.in
+install_manifest.txt
 
 # Visual Studio
 .vs/
-**/.vscode/
-*.user
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.VC.db
+*.VC.opendb
 *.suo
-*.sdf
-*.opensdf
-
-# 工具构建输出
-tools/build/
-tools/build_driver_latest.txt
-tools/gui_demo/build/
-tools/gui_demo/release/
-
-# 分发/二进制输出
-dist/
-*.sys
-*.pdb
-*.cer
-*.pfx
-
-# 编译器生成的其他文件
-*.ilk
-*.exp
-*.lib
-*.obj
-*.iobj
-*.ipdb
-*.tlog
-
-# IDE 配置
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-Thumbs.db
-*.code-workspace
-
-# Visual Studio 额外文件
+*.user
+*.userosscache
+*.sln.docstates
+*.ipch
 *.aps
 *.ncb
-*.opendb
+*.opensdf
+*.sdf
 *.cachefile
-*.VC.db
 *.VC.VC.opendb
-ipch/
-*.sln.docstates
 
-# CMake 额外输出
-CMakeFiles/
-cmake_install.cmake
-Makefile
-*.cmake
+# Visual Studio Code
+.vscode/
+*.code-workspace
 
-# 压缩包
-*.zip
-*.tar.gz
-*.rar
-*.7z
+# Build outputs
+*.exe
+*.dll
+*.lib
+*.pdb
+*.ilk
+*.obj
+*.exp
+*.iobj
+*.ipdb
+*.log
+*.tlog
+*.lastbuildstate
+*.recipe
 
-# external/ 目录的编译产物
-external/**/Output/
-external/**/.nuget/
-external/**/obj/
-external/**/bin/
-# external/ 下的依赖作为子模块保留
-!/external/fcl-source/
-!/external/Musa.Runtime/
-!/external/Musa.Core/
-!/external/Eigen/
-!/external/libccd/
+# Driver files
+*.sys
+*.inf
+*.cat
+*.cer
+*.pvk
 
-# 测试输出
+# Test certificates
+FclMusaTestCert.*
+!tools/scripts/FclMusaTestCert.* # Keep certificate generation scripts
+
+# Temporary files
+*.tmp
+*.temp
+*~
+*.swp
+*.swo
+*.bak
+*.orig
+
+# OS files
+Thumbs.db
+.DS_Store
+Desktop.ini
+$RECYCLE.BIN/
+
+# IDE
+*.sublime-*
+*.idea/
+*.iml
+
+# Package managers
+node_modules/
+packages/
+.nuget/
+
+# Test results
 TestResults/
 *.trx
 *.coverage
 *.coveragexml
 
-# 包管理器缓存
-packages/
-.nuget/
+# Documentation build
+docs/_build/
+docs/.doctrees/
 
-# Node.js（如果有前端工具）
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Python 缓存（如果有 Python 工具）
+# Python (if used for scripts)
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
 .Python
-env/
-venv/
-# Local build directories
-/build/
-/build_*/
+*.so
+.pytest_cache/
+.mypy_cache/
+
+# Logs
+*.log
+logs/
+*.txt.log
+
+# Archives
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+
+# Git lock files
+*.lock
+
+# Build artifacts from samples
+samples/*/build/
+samples/cli_demo/*.exe
+samples/gui_demo/*.exe
+samples/r3_user_demo/*.exe
+
+# Tool outputs
+tools/*/build/
+tools/*/out/
+
+# Keep external dependencies (submodules)
+!external/
+
+# CPM downloads
+_deps/
+
+# Ninja
+.ninja_deps
+.ninja_log
+
+# Compilation database
+compile_commands.json

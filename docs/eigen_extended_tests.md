@@ -2,7 +2,7 @@
 
 ## 新增测试文件
 
-已添加 `/r0/selftest/src/eigen_extended_test.cpp`，包含 **12 个额外的 Eigen 测试**：
+已添加 `/kernel/tests/src/eigen_extended_test.cpp`，包含 **12 个额外的 Eigen 测试**：
 
 | # | 测试名称 | 测试内容 | 对应 Eigen 测试 |
 |---|---------|---------|----------------|
@@ -23,7 +23,7 @@
 
 ## 原有测试
 
-`/r0/selftest/src/eigen_self_test.cpp` (已存在):
+`/kernel/tests/src/eigen_self_test.cpp` (已存在):
 - 旋转矩阵和行列式
 - 向量变换
 - 矩阵乘法
@@ -48,7 +48,7 @@ NTSTATUS status2 = FclRunEigenExtendedTest();
 
 ### 方法 2: 添加到自检流程（推荐）
 
-更新 `/r0/selftest/src/self_test.cpp` 的 `FclRunSelfTest` 函数：
+更新 `/kernel/tests/src/self_test.cpp` 的 `FclRunSelfTest` 函数：
 
 ```cpp
 #include "fclmusa/math/self_test.h"

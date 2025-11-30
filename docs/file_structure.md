@@ -52,7 +52,7 @@ FCL+Musa/
 
 ## r0/ - Ring0 内核组件
 
-旧版 `kernel/` 目录全部迁入 `r0/`，统一承载 Ring0 代码：核心逻辑 (core)、驱动适配 (driver) 与内核自测 (selftest)。
+旧版 `kernel/` 目录全部迁入 `kernel/`，统一承载 Ring0 代码：核心逻辑 (core)、驱动适配 (driver) 与内核自测 (selftest)。
 
 ```
 r0/
@@ -71,7 +71,7 @@ r0/
 负责几何管理、碰撞算法桥接、内存管理等，不依赖特定驱动框架，纯 C/C++ 实现。
 
 ```
-r0/core/src/
+kernel/core/src/
 ├── driver_state.cpp           # 全局状态管理（初始化/清理）
 ├── geometry/                  # 几何对象管理 (geometry_manager.cpp, bvh_model.cpp)
 ├── collision/                 # 碰撞检测 (collision.cpp, continuous_collision.cpp)
@@ -86,7 +86,7 @@ r0/core/src/
 包含所有内核自检、回归测试和单元测试逻辑，通过 `IOCTL_FCL_SELF_TEST` 触发。
 
 ```
-r0/selftest/
+r0/tests/
 ├── include/                   # 自测头文件 (self_test.h)
 └── src/                       # 自测实现
     ├── self_test.cpp          # 自测主流程
@@ -100,7 +100,7 @@ r0/selftest/
 负责处理 DriverEntry、IRP 分发、IOCTL 解析。
 
 ```
-r0/driver/
+kernel/driver/
 ├── include/                   # 驱动私有接口、libccd 包装
 └── src/                       # 驱动层实现（driver_entry/device_control 等）
 ```
@@ -110,7 +110,7 @@ r0/driver/
 与旧结构一致，负责 `IOCTL_FCL_SELF_TEST` 场景。
 
 ```
-r0/selftest/
+r0/tests/
 ├── include/                   # 自测头文件 (self_test.h)
 └── src/                       # 自测实现
 ```
