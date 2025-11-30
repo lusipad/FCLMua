@@ -35,7 +35,7 @@ jobs:
       - name: Build R3 demo (Release)
         shell: pwsh
         run: |
-          pwsh -File .\tools\build\build-tasks.ps1 -Task R3-Demo-Release
+          & .\tools\build\build-tasks.ps1 -Task R3-Demo-Release
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
