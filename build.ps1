@@ -17,6 +17,13 @@ $script:BuildDir = Join-Path $script:RepoRoot 'tools\build'
 # 导入构建模块
 Import-Module (Join-Path $script:BuildDir 'common.psm1') -Force
 
+# 自动应用 FCL kernel 模式补丁，确保 R0/R3 构建一致
+try {
+    & (Join-Path $script:RepoRoot 'tools\scripts\apply_fcl_patch.ps1') -Quiet
+} catch {
+    Write-Warning "检测/应用 FCL Kernel 模式补丁失败：$($_.Exception.Message)"
+}
+
 function Show-MainMenu {
     Clear-Host
     Write-Host ""
@@ -29,6 +36,7 @@ function Show-MainMenu {
     Write-Host "  3. Doc           - 生成文档"
     Write-Host "  4. Check Env     - 检查环境"
     Write-Host "  5. Check Upstream - 检查上游更新"
+    Write-Host "  6. FCL Patch      - 管理 external/fcl-source 补丁"
     Write-Host ""
     Write-Host "  0. Exit          - 退出"
     Write-Host ""
@@ -73,6 +81,22 @@ function Show-TestMenu {
     Write-Host "  0. Back          - 返回主菜单"
     Write-Host ""
     Write-Host "============================================" -ForegroundColor Yellow
+    Write-Host ""
+}
+
+function Show-PatchMenu {
+    Clear-Host
+    Write-Host ""
+    Write-Host "============================================" -ForegroundColor Magenta
+    Write-Host "     FCL Patch 工具" -ForegroundColor Magenta
+    Write-Host "============================================" -ForegroundColor Magenta
+    Write-Host ""
+    Write-Host "  1. 应用补丁 (apply_fcl_patch.ps1)"
+    Write-Host "  2. 恢复到上游版本 (git reset --hard + clean)"
+    Write-Host ""
+    Write-Host "  0. Back          - 返回主菜单"
+    Write-Host ""
+    Write-Host "============================================" -ForegroundColor Magenta
     Write-Host ""
 }
 
@@ -171,6 +195,32 @@ function Invoke-CheckUpstream {
     }
 }
 
+function Invoke-FclPatchAction {
+    param(
+        [ValidateSet('Apply','Restore')]
+        [string]$Action
+    )
+
+    try {
+        $patchScript = Join-Path $script:RepoRoot 'tools\scripts\apply_fcl_patch.ps1'
+        $arguments = @()
+        if ($Action -eq 'Restore') {
+            $arguments += '-Restore'
+        }
+        & $patchScript @arguments
+        if ($LASTEXITCODE -ne 0) {
+            throw "apply_fcl_patch.ps1 执行失败 (exit $LASTEXITCODE)"
+        }
+    }
+    catch {
+        Write-Host ""
+        Write-Host "FCL 补丁操作失败: $_" -ForegroundColor Red
+    }
+    finally {
+        Wait-ForEnter
+    }
+}
+
 # 主循环
 while ($true) {
     Show-MainMenu
@@ -226,6 +276,22 @@ while ($true) {
         '3' { Invoke-DocTask }
         '4' { Invoke-CheckEnv }
         '5' { Invoke-CheckUpstream }
+        '6' {
+            while ($true) {
+                Show-PatchMenu
+                $patchChoice = Read-Host "请选择"
+                switch ($patchChoice) {
+                    '1' { Invoke-FclPatchAction -Action 'Apply' }
+                    '2' { Invoke-FclPatchAction -Action 'Restore' }
+                    '0' { break }
+                    default {
+                        Write-Host "无效选择" -ForegroundColor Red
+                        Start-Sleep -Seconds 1
+                    }
+                }
+                if ($patchChoice -eq '0') { break }
+            }
+        }
         '0' {
             Write-Host ""
             Write-Host "再见！" -ForegroundColor Cyan

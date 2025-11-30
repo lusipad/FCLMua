@@ -9,63 +9,35 @@ on:
       - main
 
 jobs:
-  build-user-cli:
-    name: Build user-mode CLI demo (Debug | x64)
+  build-user-demo:
+    name: Build user-mode demo (Release | x64)
     runs-on: windows-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
 
       - name: Setup Visual Studio Dev Environment
         uses: ilammy/msvc-dev-cmd@v1
         with:
           arch: x64
 
-      - name: Verify build environment
+      - name: Apply FCL patch set
         shell: pwsh
         run: |
-          Write-Host "=== Build Environment Information ===" -ForegroundColor Cyan
+          .\tools\scripts\apply_fcl_patch.ps1
 
-          # Visual Studio version
-          if (Test-Path "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\devenv.exe") {
-            $vsVersion = (Get-Item "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\IDE\devenv.exe").VersionInfo.ProductVersion
-            Write-Host "Visual Studio: 2022 Enterprise (v$vsVersion)" -ForegroundColor Green
-          }
-
-          # MSVC compiler version
-          $clVersion = cl 2>&1 | Select-String "Version"
-          Write-Host "MSVC Compiler: $clVersion" -ForegroundColor Green
-
-          # Windows SDK
-          if ($env:WindowsSDKVersion) {
-            Write-Host "Windows SDK: $env:WindowsSDKVersion" -ForegroundColor Green
-          }
-
-          # Architecture
-          Write-Host "Target Architecture: x64" -ForegroundColor Green
-          Write-Host "======================================" -ForegroundColor Cyan
-
-      - name: Build user-mode CLI demo
+      - name: Build R3 demo (Release)
         shell: pwsh
         run: |
-          cd tools
-          if (-not (Test-Path build)) { New-Item -ItemType Directory -Path build }
-          cd build
-
-          Write-Host "Compiling fcl_demo.cpp..."
-          cl /utf-8 /EHsc /std:c++17 /nologo /W4 ..\fcl_demo.cpp /link /out:fcl_demo.exe
-
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to build fcl_demo.exe"
-            exit 1
-          }
-
-          Write-Host "Build succeeded: fcl_demo.exe"
+          .\tools\build\build-tasks.ps1 -Task R3-Demo-Release
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: fcl-demo-cli
-          path: tools/build/fcl_demo.exe
+          name: fclmusa-r3-demo
+          path: build/r3-demo/Release/FclMusaUserDemo.exe
           retention-days: 7

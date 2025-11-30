@@ -37,6 +37,8 @@
 # 克隆仓库
 git clone --recursive https://github.com/yourname/FCL+Musa.git
 cd FCL+Musa
+git submodule update --init --recursive
+pwsh tools/scripts/apply_fcl_patch.ps1
 
 # 配置并构建
 mkdir build && cd build
@@ -191,7 +193,7 @@ FCL+Musa/
 │  └─ r3_user_demo/         # 用户态示例
 ├─ external/                # 外部依赖
 │  ├─ Eigen/                # 线性代数库
-│  ├─ fcl-source/           # FCL上游源码
+│  ├─ fcl-source/           # FCL上游源码（锁定 v0.7.0 发布版，构建前自动套用补丁）
 │  ├─ libccd/               # GJK/EPA算法
 │  └─ Musa.Runtime/         # Musa运行时
 ├─ tools/                   # 构建工具
@@ -218,6 +220,8 @@ pwsh build.ps1
 - **Doc** - 生成文档
 - **Check Env** - 检查构建环境
 - **Check Upstream** - 检查上游更新
+
+> 提示：`external/fcl-source` 仍指向上游 FCL 仓库，内核模式所需的改动保存在 `patches/fcl-kernel-mode.patch`，可通过 `pwsh tools/scripts/apply_fcl_patch.ps1` 一键应用，`build.ps1` 会在构建前自动执行该脚本。
 
 详细说明请参阅 [BUILD_SYSTEM.md](BUILD_SYSTEM.md)。
 

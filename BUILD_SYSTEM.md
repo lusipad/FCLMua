@@ -8,6 +8,12 @@
 pwsh build.ps1
 ```
 
+## 上游补丁管理
+
+- `external/fcl-source` 作为上游 FCL 子模块，固定在 `df2702ca5e703dec98ebd725782ce13862e87fc8`（官方 v0.7.0 发布版）。
+- 内核模式适配集中在 `patches/fcl-kernel-mode.patch`，通过 `pwsh tools/scripts/apply_fcl_patch.ps1` 自动套用，`build.ps1` 启动时也会执行该脚本。
+- 如果需要重新同步子模块，可运行 `git submodule update --init --recursive` 后再次执行补丁脚本；若想清理补丁，使用 `git -C external/fcl-source checkout -- .` 恢复干净目录。
+
 ## 菜单结构
 
 ### 1. Build - 编译项目
