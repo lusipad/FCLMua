@@ -33,7 +33,7 @@ function Invoke-Git {
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0 -and -not $Quiet) {
         Write-Warning "git $($Arguments -join ' ') exited with code $exitCode"
-        if ($output) { Write-Warning $output }
+        if ($output) { Write-Warning ($output -join "`n") }
     }
     return $exitCode
 }
