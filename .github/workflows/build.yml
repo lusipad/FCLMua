@@ -27,6 +27,7 @@ jobs:
 
       - name: Apply FCL patch set
         shell: pwsh
+        working-directory: ${{ github.workspace }}
         run: |
           git -C external/fcl-source reset --hard HEAD
           git -C external/fcl-source clean -fd
@@ -34,8 +35,9 @@ jobs:
 
       - name: Build R3 demo (Release)
         shell: pwsh
+        working-directory: ${{ github.workspace }}
         run: |
-          & .\tools\build\build-tasks.ps1 -Task R3-Demo-Release
+          .\tools\build\build-tasks.ps1 -Task R3-Demo-Release
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
