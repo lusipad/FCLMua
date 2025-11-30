@@ -250,7 +250,7 @@ pwsh tools/scripts/run_all_tests.ps1
 
 同时提供了简单的 GUI demo，用于可视化查看碰撞情况。
 
-![image-20251130203545842](README.assets/image-20251130203545842.png)
+![gui-image](doc.assert/gui-image.png)
 
 
 
