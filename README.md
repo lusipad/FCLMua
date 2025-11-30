@@ -241,7 +241,7 @@ pwsh tools/scripts/run_all_tests.ps1
 
 ## 🤝 贡献
 
-欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情。
+欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情，并阅读 [AGENTS.md](AGENTS.md) 获取面向代理/贡献者的快捷协作指引。
 
 提交 Issue 或 Pull Request 前，请确保：
 - ✅ 代码遵循现有风格
