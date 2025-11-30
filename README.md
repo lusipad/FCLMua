@@ -248,6 +248,12 @@ pwsh tools/scripts/run_all_tests.ps1
 .\build\Release\FclMusaUserDemo.exe  # 用户态示例
 ```
 
+同时提供了简单的 GUI demo，用于可视化查看碰撞情况。
+
+![image-20251130203545842](README.assets/image-20251130203545842.png)
+
+
+
 ## 🤝 贡献
 
 欢迎贡献！请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解详情，并阅读 [AGENTS.md](AGENTS.md) 获取面向代理/贡献者的快捷协作指引。
