@@ -172,3 +172,24 @@ PS> .\fcl_demo.exe
 - `IOCTL_FCL_CREATE_SPHERE` + `IOCTL_FCL_CONVEX_CCD`：先在驱动内创建几何句柄，再提交 InterpMotion，执行连续碰撞。
 
 该示例默认设备名为 `\\.\FclMusa`，请确保驱动已创建相应符号链接并处于运行状态。如需根据实际名称修改，请编辑 `tools/fcl_demo.cpp` 中的 `CreateFileW` 调用。
+
+## 3. 纯 R3 示例（无需驱动）
+
+若只想在用户态直接使用 FCL+Musa 的核心库，可以构建 `r3/samples/user_demo` 中的 `FclMusaUserDemo`。该示例直接链接 `FclMusa::CoreUser`，调用 `FclGeometrySubsystemInitialize` / `FclCreateGeometry` / `FclCollisionDetect` / `FclDistanceCompute` 完成基本几何创建与碰撞、距离查询，全程不依赖 `IOCTL` 或内核驱动。
+
+构建方式一：使用 CMake
+
+```powershell
+# 生成
+cmake -S . -B build/r3-demo -DFCLMUSA_BUILD_DRIVER=OFF -DFCLMUSA_BUILD_KERNEL_LIB=OFF -DFCLMUSA_BUILD_USERLIB=ON
+# 编译
+cmake --build build/r3-demo --config Debug --target FclMusaUserDemo
+```
+
+构建方式二：使用统一脚本
+
+```powershell
+PS> tools\build_all.ps1 -BuildR3
+```
+
+运行可看到控制台打印的碰撞、最近点信息，便于在纯 R3 环境下快速验证算法。

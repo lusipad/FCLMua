@@ -72,7 +72,7 @@ FCL+Musa 在内核侧按三层结构组织，与用户态只通过 IOCTL 交互�
   - **停止机制**：`IOCTL_FCL_STOP_PERIODIC_COLLISION` 取消计时器、等待 `DpcIdleEvent`，随后在 PASSIVE_LEVEL 释放引用/快照；实时碰撞逻辑始终留在 DPC，满足亚毫秒预算。
   - 适用于实时控制环境，需要周期性碰撞检测的场景；如果只需 PASSIVE 线程查询，可直接复用 Snapshot Core API。
 
-- 自测：`kernel/core/src/testing/self_test.cpp` 等
+- 自测：`kernel/tests/src/self_test.cpp` 等
   - 组合调用几何 / 碰撞 / 距离 / CCD / 宽阶段等 API
   - 支持完整自检（`FclRunSelfTest`）和场景自检（`FclRunSelfTestScenario`）
   - 验证核心行为和边界条件，并聚合为 `FCL_SELF_TEST_RESULT` 结构

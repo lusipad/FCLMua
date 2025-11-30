@@ -62,30 +62,45 @@ if(FCLMUSA_BUILD_KERNEL_LIB AND (NOT FCLMUSA_WDK_ROOT OR NOT FCLMUSA_WDK_VERSION
 endif()
 
 set(FCLMUSA_ROOT ${CMAKE_CURRENT_LIST_DIR})
-set(FCLMUSA_INCLUDE_DIR ${FCLMUSA_ROOT}/src/kernel/core/include)
-set(FCLMUSA_DRIVER_INCLUDE_DIR ${FCLMUSA_ROOT}/src/kernel/driver/include)
+set(FCLMUSA_INCLUDE_DIR ${FCLMUSA_ROOT}/kernel/core/include)
+set(FCLMUSA_DRIVER_INCLUDE_DIR ${FCLMUSA_ROOT}/kernel/driver/src/include)
 set(FCLMUSA_EIGEN_DIR ${FCLMUSA_ROOT}/external/Eigen)
 set(FCLMUSA_FCL_DIR ${FCLMUSA_ROOT}/external/fcl-source)
+set(FCLMUSA_FCL_COMPAT_DIR ${FCLMUSA_ROOT}/cmake/fcl_compat)
+set(FCLMUSA_FCL_INCLUDE_DIRS
+  ${FCLMUSA_FCL_COMPAT_DIR}
+  ${FCLMUSA_FCL_DIR}/include
+)
 set(FCLMUSA_LIBCCD_DIR ${FCLMUSA_ROOT}/external/libccd)
 
+# Configure libccd's config.h
+set(CCD_SINGLE true)
+configure_file(
+  "${FCLMUSA_LIBCCD_DIR}/src/ccd/config.h.cmake.in"
+  "${CMAKE_CURRENT_BINARY_DIR}/ccd/config.h"
+  @ONLY
+)
+
+
 set(FCLMUSA_COMMON_SOURCES
-  ${FCLMUSA_ROOT}/src/kernel/core/src/broadphase/broadphase.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/collision/collision.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/collision/continuous_collision.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/distance/distance.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/geometry/geometry_manager.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/geometry/bvh_model.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/geometry/obbrss.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/memory/pool_allocator.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/upstream/geometry_bridge.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/upstream/upstream_bridge.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/narrowphase/libccd_memory.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/broadphase/broadphase.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/collision/collision.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/collision/continuous_collision.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/distance/distance.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/geometry/geometry_manager.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/geometry/bvh_model.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/geometry/obbrss.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/memory/pool_allocator.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/upstream/geometry_bridge.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/upstream/upstream_bridge.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/narrowphase/libccd_memory.cpp
 )
 
 set(FCLMUSA_KERNEL_ONLY_SOURCES
-  ${FCLMUSA_ROOT}/src/kernel/core/src/driver_state.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/runtime/c_runtime_stubs.cpp
-  ${FCLMUSA_ROOT}/src/kernel/core/src/runtime/nonpaged_new.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/driver_state.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/runtime/c_runtime_stubs.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/runtime/nonpaged_new.cpp
+  ${FCLMUSA_ROOT}/kernel/core/src/runtime/stdio_stubs.cpp
 )
 
 set(FCLMUSA_LIBCCD_SOURCES
@@ -99,6 +114,22 @@ set(FCLMUSA_LIBCCD_SOURCES
 file(GLOB_RECURSE FCLMUSA_FCL_SOURCES CONFIGURE_DEPENDS
   "${FCLMUSA_FCL_DIR}/src/*.cpp"
 )
+set(_fclmusa_fcl_sources_normalized "")
+foreach(_src IN LISTS FCLMUSA_FCL_SOURCES)
+  file(TO_CMAKE_PATH "${_src}" _norm_src)
+  list(APPEND _fclmusa_fcl_sources_normalized "${_norm_src}")
+endforeach()
+set(FCLMUSA_FCL_SOURCES ${_fclmusa_fcl_sources_normalized})
+
+set(FCLMUSA_FCL_KERNEL_SOURCES ${FCLMUSA_FCL_SOURCES})
+set(_fclmusa_kernel_excludes
+  "${FCLMUSA_FCL_DIR}/src/narrowphase/detail/failed_at_this_configuration.cpp"
+  "${FCLMUSA_FCL_DIR}/src/common/detail/profiler.cpp"
+)
+foreach(_src IN LISTS _fclmusa_kernel_excludes)
+  file(TO_CMAKE_PATH "${_src}" _src_norm)
+  list(REMOVE_ITEM FCLMUSA_FCL_KERNEL_SOURCES "${_src_norm}")
+endforeach()
 
 function(fclmusa_common_target_setup target)
   target_include_directories(${target}
@@ -108,8 +139,8 @@ function(fclmusa_common_target_setup target)
       ${FCLMUSA_DRIVER_INCLUDE_DIR}
       ${FCLMUSA_EIGEN_DIR}
       ${FCLMUSA_LIBCCD_DIR}/src
-      ${FCLMUSA_LIBCCD_DIR}/src/ccd
-      ${FCLMUSA_FCL_DIR}/include
+      ${CMAKE_CURRENT_BINARY_DIR}
+      ${FCLMUSA_FCL_INCLUDE_DIRS}
   )
   target_compile_features(${target} PRIVATE cxx_std_17)
   target_compile_definitions(${target}
@@ -130,7 +161,7 @@ if(FCLMUSA_BUILD_KERNEL_LIB)
     ${FCLMUSA_COMMON_SOURCES}
     ${FCLMUSA_KERNEL_ONLY_SOURCES}
     ${FCLMUSA_LIBCCD_SOURCES}
-    ${FCLMUSA_FCL_SOURCES}
+    ${FCLMUSA_FCL_KERNEL_SOURCES}
   )
   add_library(FclMusa::Core ALIAS FclMusaCore)
 
@@ -185,9 +216,13 @@ endif()
 enable_testing()
 
 if(FCLMUSA_BUILD_USERLIB)
-  add_executable(FclMusaR3Smoke src/tests/r3_smoke.cpp)
+  add_executable(FclMusaR3Smoke tests/r3_smoke.cpp)
   target_link_libraries(FclMusaR3Smoke PRIVATE FclMusa::CoreUser)
   add_test(NAME fclmusa_r3_smoke COMMAND FclMusaR3Smoke)
+
+  add_executable(FclMusaUserDemo samples/r3_user_demo/main.cpp)
+  target_link_libraries(FclMusaUserDemo PRIVATE FclMusa::CoreUser)
+  target_compile_features(FclMusaUserDemo PRIVATE cxx_std_17)
 else()
   message(STATUS "User-mode library disabled; skipping R3 smoke test target.")
 endif()

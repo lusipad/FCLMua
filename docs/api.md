@@ -673,6 +673,6 @@ DeviceIoControl(
 - **几何类型**: `kernel/core/include/fclmusa/geometry.h`
 - **碰撞 API**: `kernel/core/include/fclmusa/collision.h`
 - **距离 API**: `kernel/core/include/fclmusa/distance.h`
-- **自测 API**: `kernel/selftest/include/fclmusa/self_test.h`
+- **自测 API**: `kernel/tests/include/fclmusa/self_test.h`
 - **架构说明**: `docs/architecture.md`
 - **使用指南**: `docs/usage.md`
