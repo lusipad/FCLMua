@@ -131,6 +131,8 @@ samples/r3_user_demo/*.exe
 # Tool outputs
 tools/*/build/
 tools/*/out/
+!tools/build/
+!tools/scripts/
 
 # Keep external dependencies (submodules)
 !external/
