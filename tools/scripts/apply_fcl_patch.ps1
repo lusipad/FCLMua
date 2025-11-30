@@ -29,8 +29,13 @@ if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
 
 function Invoke-Git {
     param([string[]]$Arguments)
-    & git -C $submodulePath @Arguments 2>$null | Out-Null
-    return $LASTEXITCODE
+    $output = & git -C $submodulePath @Arguments 2>&1
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0 -and -not $Quiet) {
+        Write-Warning "git $($Arguments -join ' ') exited with code $exitCode"
+        if ($output) { Write-Warning $output }
+    }
+    return $exitCode
 }
 
 if ($Restore) {
@@ -47,12 +52,25 @@ if ($Restore) {
 }
 
 $needsApply = $false
-if ((Invoke-Git -Arguments @('apply', '--check', $patchPath)) -eq 0) {
+$checkResult = Invoke-Git -Arguments @('apply', '--check', $patchPath)
+if ($checkResult -eq 0) {
     $needsApply = $true
 } elseif ((Invoke-Git -Arguments @('apply', '--check', '--reverse', $patchPath)) -eq 0) {
     $needsApply = $false
 } else {
-    throw "无法应用补丁，请先运行 `git -C external/fcl-source checkout -- .` 或重新同步子模块后重试。"
+    if (-not $Quiet) {
+        Write-Host "检查补丁状态失败，尝试先重置 fcl-source..." -ForegroundColor Yellow
+    }
+    if ((Invoke-Git -Arguments @('reset', '--hard')) -eq 0) {
+        $checkResult = Invoke-Git -Arguments @('apply', '--check', $patchPath)
+        if ($checkResult -eq 0) {
+            $needsApply = $true
+        } else {
+            throw "无法应用补丁，即使在重置后。补丁文件可能不匹配当前的 FCL 版本。"
+        }
+    } else {
+        throw "无法应用补丁，请先运行 `git -C external/fcl-source checkout -- .` 或重新同步子模块后重试。"
+    }
 }
 
 if ($needsApply) {
