@@ -230,30 +230,40 @@ function Setup-FCLDependencies {
     try {
         $response = Invoke-RestMethod 'https://api.nuget.org/v3/registration5-gz-semver2/musa.runtime/index.json' -TimeoutSec 5
         $latest = $response.items[-1].upper
+        Write-Host "  Latest Musa.Runtime version: $latest" -ForegroundColor Gray
     }
     catch {
-        Write-Host "  Using cached version" -ForegroundColor Gray
+        Write-Host "  Could not fetch latest version (using cached if available)" -ForegroundColor Yellow
     }
     
     $installed = $null
     if (Test-Path $versionFile) {
         $installed = Get-Content $versionFile -Raw -ErrorAction SilentlyContinue
         $installed = $installed.Trim()
+        Write-Host "  Installed Musa.Runtime version: $installed" -ForegroundColor Gray
+    }
+    else {
+        Write-Host "  No Musa.Runtime installation found" -ForegroundColor Yellow
     }
     
-    if ($installed -and $installed -eq $latest) {
+    if ($installed -and $latest -and $installed -eq $latest) {
         Write-Host "  Musa.Runtime $installed is up-to-date" -ForegroundColor Green
         return
     }
     
     # Run setup_dependencies.ps1
     $setupScript = Join-Path $RepoRoot 'tools\scripts\setup_dependencies.ps1'
-    if (Test-Path $setupScript) {
-        & pwsh -NoProfile -ExecutionPolicy Bypass -File $setupScript
-        if ($LASTEXITCODE -ne 0) {
-            throw "setup_dependencies.ps1 failed"
-        }
+    if (-not (Test-Path $setupScript)) {
+        throw "setup_dependencies.ps1 not found at $setupScript"
     }
+    
+    Write-Host "  Running setup_dependencies.ps1..." -ForegroundColor Cyan
+    & pwsh -NoProfile -ExecutionPolicy Bypass -File $setupScript
+    if ($LASTEXITCODE -ne 0) {
+        throw "setup_dependencies.ps1 failed with exit code $LASTEXITCODE"
+    }
+    
+    Write-Host "  Musa.Runtime setup completed" -ForegroundColor Green
 }
 
 function Invoke-FCLMsBuild {
