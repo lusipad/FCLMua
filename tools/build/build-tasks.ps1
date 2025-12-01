@@ -11,8 +11,13 @@ param(
 
 $ErrorActionPreference = 'Stop'
 
+Write-Host "Loading common module..." -ForegroundColor Cyan
 Import-Module (Join-Path $PSScriptRoot 'common.psm1') -Force
+Write-Host "  Module loaded successfully" -ForegroundColor Green
+
+Write-Host "Finding repository root..." -ForegroundColor Cyan
 $script:RepoRoot = Get-FCLRepoRoot
+Write-Host "  Repository root: $script:RepoRoot" -ForegroundColor Green
 
 function Ensure-FCLDriverSolution {
     $solutionPath = Join-Path $script:RepoRoot 'kernel\driver\msbuild\FclMusaDriver.sln'
