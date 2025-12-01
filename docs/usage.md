@@ -17,7 +17,7 @@
 ### 2.1 推荐：一键构建所有组件
 
 ```powershell
-PS> tools\build_all.ps1 -Configuration Release
+PS> build.ps1 -Configuration Release
 ```
 
 - 自动构建驱动、CLI Demo、GUI Demo
@@ -46,14 +46,14 @@ PS> tools\manual_build.cmd
 # 管理员 PowerShell
 
 # 安装并启动（默认使用 dist\driver\x64\Release\FclMusaDriver.sys）
-PS> tools\manage_driver.ps1 -Action Install
-PS> tools\manage_driver.ps1 -Action Start
+PS> tools\scripts\manage_driver.ps1 -Action Install
+PS> tools\scripts\manage_driver.ps1 -Action Start
 
 # 或直接重启（会自动创建服务）
-PS> tools\manage_driver.ps1 -Action Restart
+PS> tools\scripts\manage_driver.ps1 -Action Restart
 
 # 卸载
-PS> tools\manage_driver.ps1 -Action Uninstall
+PS> tools\scripts\manage_driver.ps1 -Action Uninstall
 ```
 
 ### 方法二：手动部署
@@ -96,7 +96,7 @@ void DriverUnload(PDRIVER_OBJECT) {
 
 ## 5. IOCTL 快速验证
 
-1. 运行 `tools\build\fcl_demo.exe`（先 `tools\build_demo.cmd` 编译）
+1. 运行 `tools\build\fcl_demo.exe`（先 `.\tools\build_demo.ps1 -Target CLI` 编译）
 2. 典型操作：
    ```text
    > sphere a 0.5 0 0 0

@@ -7,7 +7,7 @@
 ## 目录
 
 - [项目根目录](#项目根目录)
-- [r0/ - Ring0 内核组件](#r0---ring0-内核组件)
+- [kernel/ - Ring0 内核组件](#r0---ring0-内核组件)
   - [core/ - FCL 核心模块](#core---fcl-核心模块)
   - [driver/ - 驱动封装层](#driver---驱动封装层)
   - [selftest/ - 自测模块](#selftest---自测模块)
@@ -30,7 +30,11 @@ FCL+Musa/
 ├── .gitignore                 # Git 忽略规则
 ├── .github/                   # GitHub Actions CI/CD 配置
 ├── dist/                      # 构建产物输出目录
-├── r0/                        # Ring0（核心+驱动+自测）
+├── samples/                # 示例程序
+│   ├── cli_demo/           # CLI 命令行演示
+│   ├── gui_demo/           # GUI 可视化演示
+│   └── r3_user_demo/       # R3 用户态演示
+├── kernel/                   # Ring0 内核组件（核心+驱动+自测）
 ├── r3/                        # Ring3（用户态库与 Demo）
 ├── fcl-source/                # FCL 上游库源码
 ├── tools/                     # 开发工具与测试程序
@@ -50,13 +54,13 @@ FCL+Musa/
 
 ---
 
-## r0/ - Ring0 内核组件
+## kernel/ - Ring0 内核组件
 
 旧版 `kernel/` 目录全部迁入 `kernel/`，统一承载 Ring0 代码：核心逻辑 (core)、驱动适配 (driver) 与内核自测 (selftest)。
 
 ```
-r0/
-├── core/                      # FCL 核心逻辑库（支持 R0/R3 双模式构建）
+kernel/
+├── core/                      # FCL 核心逻辑库（支持 kernel/R3 双模式构建）
 │   ├── include/               # 核心头文件
 │   └── src/                   # 平台无关实现
 ├── driver/                    # Ring0 驱动入口与 WDK 解决方案
@@ -86,7 +90,7 @@ kernel/core/src/
 包含所有内核自检、回归测试和单元测试逻辑，通过 `IOCTL_FCL_SELF_TEST` 触发。
 
 ```
-r0/tests/
+kernel/tests/
 ├── include/                   # 自测头文件 (self_test.h)
 └── src/                       # 自测实现
     ├── self_test.cpp          # 自测主流程
@@ -110,7 +114,7 @@ kernel/driver/
 与旧结构一致，负责 `IOCTL_FCL_SELF_TEST` 场景。
 
 ```
-r0/tests/
+kernel/tests/
 ├── include/                   # 自测头文件 (self_test.h)
 └── src/                       # 自测实现
 ```
@@ -126,18 +130,22 @@ r0/tests/
 构建、测试、部署脚本。
 
 ```
-tools/
-├── build_all.ps1              # [核心] 一键构建驱动、CLI、GUI 并打包
-├── manual_build.cmd           # 驱动构建脚本（被 build_all.ps1 调用）
-├── build_demo.cmd             # CLI Demo 构建脚本
-├── sign_driver.ps1            # 驱动签名脚本
-├── manage_driver.ps1          # 驱动安装/卸载/启停管理
-├── fcl-self-test.ps1          # 驱动自测脚本
-├── verify_upstream.ps1        # 上游一致性验证脚本
-├── fcl_demo.cpp               # CLI 演示程序源码
-└── gui_demo/                  # GUI 演示程序目录
 ```
-
+tools/
+├── build.ps1               # [核心] 交互式构建菜单入口
+├── build_demo.ps1          # Demo 构建脚本
+├── build/                  # 构建任务模块
+│   ├── build-tasks.ps1     # 构建任务实现 (R0/R3/GUI/CLI/All)
+│   ├── common.psm1         # 公共函数模块
+│   ├── check-env.ps1       # 环境检查
+│   ├── check-upstream.ps1  # 上游一致性检查
+│   ├── doc-tasks.ps1       # 文档生成任务
+│   └── test-tasks.ps1      # 测试任务
+└── scripts/                # 辅助脚本
+    ├── sign_driver.ps1     # 驱动签名脚本
+    ├── manage_driver.ps1   # 驱动管理脚本
+    └── apply_fcl_patch.ps1 # FCL 补丁应用
+```
 ---
 
 ## docs/ - 文档

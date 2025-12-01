@@ -4,11 +4,10 @@
 
 ### 1. 编译程序
 
-在命令提示符中运行：
+在项目根目录运行：
 
-```cmd
-cd tools\gui_demo
-build_gui_demo.cmd
+```powershell
+pwsh tools/build/build-tasks.ps1 -Task GUI-Demo
 ```
 
 ### 2. 启动驱动（可选）

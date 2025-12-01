@@ -343,7 +343,7 @@ tools/gui_demo/
 │   └── ui/
 │       ├── wizard.h          (20行)  - 向导框架
 │       └── wizard.cpp        (165行) - 向导实现
-├── build_gui_demo.cmd        - 编译脚本
+├── run.cmd                 - 快速运行脚本
 ├── README.md                 - 项目说明
 ├── USAGE.md                  - 使用指南
 └── OVERVIEW.md               - 本文档

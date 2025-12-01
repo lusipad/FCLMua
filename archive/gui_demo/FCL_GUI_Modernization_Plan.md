@@ -9,7 +9,7 @@
 ## 建议的更改
 
 ### UI 美化与现代化设计
-![UI Mockup](docs/images/ui_mockup.png)
+![UI Mockup](../../docs/samples/gui_demo/images/ui_mockup.png)
 
 #### [MODIFY] [window.cpp](src/window.cpp)
 - **暗色主题**：将窗口背景设置为深灰色 (RGB 30, 30, 30)，文字设置为浅灰色/白色。
@@ -42,7 +42,7 @@
 - 在 `Render` 中调用 `RenderContacts`。
 
 ### 车辆模型美化
-![Vehicle Concepts](docs/images/vehicle_concepts.png)
+![Vehicle Concepts](../../docs/samples/gui_demo/images/vehicle_concepts.png)
 
 #### [MODIFY] [scene.cpp](src/scene.cpp)
 - 重写 `CreateVehicleMesh` 函数，不再使用简单的 Box 堆叠。

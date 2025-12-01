@@ -4,7 +4,7 @@
 
 ## 1. 构建与部署
 
-1. 运行 `tools/build_all.ps1` 或 `tools/build_and_sign_driver.ps1` 生成 Debug|x64 驱动
+1. 运行 `tools/build/build-tasks.ps1 -Task R0-Debug` 或 `tools/build/build-tasks.ps1` 生成 Debug|x64 驱动
    产物：`dist/driver/x64/Debug/FclMusaDriver.sys`
 2. 按 `docs/deployment.md` 将驱动加载到目标测试机
 3. 确认设备名 `\\.\FclMusa` 可被打开
@@ -76,7 +76,7 @@ PS> tools\verify_upstream.ps1 -DevicePath \\.\FclMusa -Tolerance 1e-4
 
 每次合入前建议至少完成：
 
-- `tools\build_all.ps1` 或 `tools\build_and_sign_driver.ps1` 构建成功
+- `tools\build\build-tasks.ps1 -Task R0-Debug` 或 `tools\build\build-tasks.ps1` 构建成功
 - `tools\fcl-self-test.ps1` 全部通过
 - `tools\verify_upstream.ps1` 无偏差
 - 关键 IOCTL（Create/Destroy/Collide/Distance/CCD/Periodic）在 CLI 或脚本中验证
