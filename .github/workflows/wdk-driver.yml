@@ -88,10 +88,6 @@ jobs:
           git -C external/fcl-source clean -fd
           .\tools\scripts\apply_fcl_patch.ps1
 
-      - name: Prepare driver solution
-        shell: pwsh
-        run: .\tools\scripts\init_driver_solution.ps1
-
       - name: Build R0 driver (Release)
         shell: pwsh
         run: .\tools\build\build-tasks.ps1 -Task R0-Release

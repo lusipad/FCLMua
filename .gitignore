@@ -32,8 +32,6 @@ install_manifest.txt
 *.sdf
 *.cachefile
 *.VC.VC.opendb
-!tools/templates/driver/*.sln
-!tools/templates/driver/*.vcxproj*
 !kernel/driver/msbuild/*.vcxproj
 !kernel/driver/msbuild/*.sln
 
