@@ -247,7 +247,7 @@ function Setup-FCLDependencies {
     }
     
     # Run setup_dependencies.ps1
-    $setupScript = Join-Path $RepoRoot 'tools\setup_dependencies.ps1'
+    $setupScript = Join-Path $RepoRoot 'tools\scripts\setup_dependencies.ps1'
     if (Test-Path $setupScript) {
         & pwsh -NoProfile -ExecutionPolicy Bypass -File $setupScript
         if ($LASTEXITCODE -ne 0) {
