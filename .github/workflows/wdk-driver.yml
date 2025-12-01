@@ -1,10 +1,20 @@
 name: Build Kernel Driver (WDK Matrix)
 
-# NuGet 包 restoration 已工作 ✅
-# 剩余问题：FCL 库链接错误（ThrowFailedAtThisConfiguration 符号未定义）
-# TODO: 检查 FclMusaCoreLib 项目文件中的源文件列表
-
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - kernel/**
+      - tools/**
+      - .github/workflows/wdk-driver.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - kernel/**
+      - tools/**
+      - .github/workflows/wdk-driver.yml
   workflow_dispatch: {}
 
 jobs:

@@ -5,6 +5,9 @@
 [![C++](https://img.shields.io/badge/C++-17-blue.svg)](https://isocpp.org/)
 [![Platform](https://img.shields.io/badge/Platform-Windows-blue.svg)](https://www.microsoft.com/windows)
 
+[![User-mode Build](https://github.com/lusipad/FCLMua/actions/workflows/build.yml/badge.svg)](https://github.com/lusipad/FCLMua/actions/workflows/build.yml)
+[![Kernel Driver Build](https://github.com/lusipad/FCLMua/actions/workflows/wdk-driver.yml/badge.svg)](https://github.com/lusipad/FCLMua/actions/workflows/wdk-driver.yml)
+
 **FCL+Musa** 是一个将 [FCL (Flexible Collision Library)](https://github.com/flexible-collision-library/fcl) 移植到 Windows 内核态和用户态的项目，提供高性能的碰撞检测能力。
 
 ## ✨ 特性
