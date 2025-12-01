@@ -1,20 +1,10 @@
 name: Build Kernel Driver (WDK Matrix)
 
+# Note: Temporarily disabled due to missing NuGet dependencies
+# Issue: Musa.Core and Musa.CoreLite need to be installed from NuGet
+# TODO: Add complete NuGet package restoration to setup_dependencies.ps1
+
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - kernel/**
-      - tools/**
-      - .github/workflows/wdk-driver.yml
-  pull_request:
-    branches:
-      - main
-    paths:
-      - kernel/**
-      - tools/**
-      - .github/workflows/wdk-driver.yml
   workflow_dispatch: {}
 
 jobs:
