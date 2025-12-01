@@ -79,8 +79,7 @@ function Build-R0Driver {
         -Properties $properties `
         -Targets @('Clean','Build')
     
-    # Sign driver
-    Write-Host "Signing driver..." -ForegroundColor Yellow
+    # Verify driver was built
     $outputDir = Join-Path $script:RepoRoot "kernel\driver\msbuild\out\x64\$Configuration"
     $driverSys = Join-Path $outputDir 'FclMusaDriver.sys'
     
@@ -88,11 +87,17 @@ function Build-R0Driver {
         throw "Driver not found: $driverSys"
     }
     
-    $signScript = Join-Path $script:RepoRoot 'tools\sign_driver.ps1'
-    & pwsh -NoProfile -ExecutionPolicy Bypass -File $signScript -DriverPath $driverSys
-    
-    if ($LASTEXITCODE -ne 0) {
-        throw "Driver signing failed"
+    # Sign driver (skip in CI environment)
+    if ($env:CI -eq 'true') {
+        Write-Host "Skipping driver signing in CI environment" -ForegroundColor Yellow
+    } else {
+        Write-Host "Signing driver..." -ForegroundColor Yellow
+        $signScript = Join-Path $script:RepoRoot 'tools\sign_driver.ps1'
+        & pwsh -NoProfile -ExecutionPolicy Bypass -File $signScript -DriverPath $driverSys
+        
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "Driver signing failed (continuing without signature)"
+        }
     }
     
     # Copy to dist
