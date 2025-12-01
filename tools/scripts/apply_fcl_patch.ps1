@@ -8,10 +8,15 @@ $repoRoot = Split-Path -Parent (
     Split-Path -Parent (
         Split-Path -Parent $MyInvocation.MyCommand.Path))
 $submodulePath = Join-Path $repoRoot 'external/fcl-source'
+
+# 优先使用最小化补丁
+$minimalPatchPath = Join-Path $repoRoot 'patches/fcl-kernel-mode-minimal.patch'
 $patchPath = Join-Path $repoRoot 'patches/fcl-kernel-mode.patch'
 
-if (-not (Test-Path $patchPath)) {
-    throw "未找到补丁文件: $patchPath"
+if (Test-Path $minimalPatchPath) {
+    $patchPath = $minimalPatchPath
+} elseif (-not (Test-Path $patchPath)) {
+    throw "未找到补丁文件：$minimalPatchPath 或 $patchPath"
 }
 
 if (-not (Test-Path $submodulePath)) {
