@@ -8,6 +8,35 @@ function Get-FCLRepoRoot {
     return Split-Path -Parent $buildDir
 }
 
+function Get-FCLBuildConfig {
+    $configPath = Join-Path (Get-FCLRepoRoot) 'tools\build.config'
+    $config = @{}
+    
+    if (-not (Test-Path $configPath -PathType Leaf)) {
+        return $config
+    }
+    
+    foreach ($line in Get-Content -Path $configPath -ErrorAction SilentlyContinue) {
+        $trimmed = $line.Trim()
+        if (-not $trimmed -or $trimmed.StartsWith('#')) {
+            continue
+        }
+        
+        $parts = $trimmed -split '=', 2
+        if ($parts.Length -ne 2) {
+            continue
+        }
+        
+        $key = $parts[0].Trim()
+        $value = $parts[1].Trim()
+        if ($key) {
+            $config[$key] = $value
+        }
+    }
+    
+    return $config
+}
+
 function Write-FCLHeader {
     param([string]$Title)
     Write-Host ""
@@ -108,16 +137,73 @@ function Find-FCLWDK {
     }
     
     $includePath = Join-Path $wdkRoot 'Include'
-    $versions = Get-ChildItem -Path $includePath -Directory | 
-        Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
-        Sort-Object Name -Descending
+    $versions = @(
+        Get-ChildItem -Path $includePath -Directory | 
+            Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+            ForEach-Object {
+                $includeVersionPath = $_.FullName
+                $kmPath = Join-Path $includeVersionPath 'km'
+                [PSCustomObject]@{
+                    Name = $_.Name
+                    Version = [version]$_.Name
+                    IncludePath = $includeVersionPath
+                    KmPath = $kmPath
+                    HasKernelHeaders = Test-Path $kmPath
+                }
+            } |
+            Sort-Object -Property Version -Descending
+    )
     
     if ($versions.Count -eq 0) {
         throw "No WDK versions found in $includePath"
     }
     
-    $version = $versions[0].Name
-    $kmPath = Join-Path $includePath "$version\km"
+    $versionsWithHeaders = @($versions | Where-Object { $_.HasKernelHeaders })
+    
+    $requestedVersion = $env:FCL_MUSA_WDK_VERSION
+    if ($requestedVersion) {
+        $requestedVersion = $requestedVersion.Trim()
+    }
+    
+    if (-not $requestedVersion) {
+        $config = Get-FCLBuildConfig
+        if ($config.ContainsKey('WdkVersion')) {
+            $value = $config['WdkVersion']
+            if ($value) {
+                $requestedVersion = $value.Trim()
+            }
+        }
+    }
+    
+    $selected = $null
+    if ($requestedVersion) {
+        $selected = $versions | Where-Object { $_.Name -eq $requestedVersion } | Select-Object -First 1
+        if (-not $selected) {
+            $available = $versions.Name -join ', '
+            throw "Requested WDK version $requestedVersion not found under $includePath. Installed versions: $available"
+        }
+    }
+    else {
+        if ($versionsWithHeaders.Count -eq 0) {
+            throw "No WDK installations with kernel mode headers found in $includePath"
+        }
+        
+        $preferredVersions = @('10.0.22621.0', '10.0.26100.0', '10.0.22000.0')
+        foreach ($preferred in $preferredVersions) {
+            $match = $versionsWithHeaders | Where-Object { $_.Name -eq $preferred } | Select-Object -First 1
+            if ($match) {
+                $selected = $match
+                break
+            }
+        }
+        
+        if (-not $selected) {
+            $selected = $versionsWithHeaders[0]
+        }
+    }
+    
+    $version = $selected.Name
+    $kmPath = $selected.KmPath
     
     if (-not (Test-Path $kmPath)) {
         throw "WDK kernel mode headers not found at $kmPath"
@@ -126,7 +212,7 @@ function Find-FCLWDK {
     return @{
         Root = $wdkRoot
         Version = $version
-        IncludePath = Join-Path $includePath $version
+        IncludePath = $selected.IncludePath
         LibPath = Join-Path $wdkRoot "Lib\$version"
     }
 }

@@ -32,6 +32,8 @@ install_manifest.txt
 *.sdf
 *.cachefile
 *.VC.VC.opendb
+!tools/templates/driver/*.sln
+!tools/templates/driver/*.vcxproj*
 
 # Visual Studio Code
 .vscode/

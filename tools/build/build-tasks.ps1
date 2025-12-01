@@ -14,6 +14,30 @@ $ErrorActionPreference = 'Stop'
 Import-Module (Join-Path $PSScriptRoot 'common.psm1') -Force
 $script:RepoRoot = Get-FCLRepoRoot
 
+function Ensure-FCLDriverSolution {
+    $solutionPath = Join-Path $script:RepoRoot 'kernel\driver\msbuild\FclMusaDriver.sln'
+    if (Test-Path $solutionPath) {
+        return $solutionPath
+    }
+
+    $initScript = Join-Path $script:RepoRoot 'tools\scripts\init_driver_solution.ps1'
+    if (-not (Test-Path $initScript)) {
+        throw "找不到 VS 解决方案，也找不到初始化脚本：$initScript"
+    }
+
+    Write-Host "检测到 kernel/driver/msbuild 为空，正在生成默认 VS 工程..." -ForegroundColor Yellow
+    & pwsh -NoProfile -ExecutionPolicy Bypass -File $initScript
+    if ($LASTEXITCODE -ne 0) {
+        throw "init_driver_solution.ps1 执行失败 (exit $LASTEXITCODE)"
+    }
+
+    if (-not (Test-Path $solutionPath)) {
+        throw "init_driver_solution.ps1 执行后仍未找到 $solutionPath"
+    }
+
+    return $solutionPath
+}
+
 function Build-R0Driver {
     param(
         [string]$Configuration
@@ -30,7 +54,7 @@ function Build-R0Driver {
     Write-Host "  WDK Version: $($wdk.Version)" -ForegroundColor Green
     
     # Build driver
-    $solutionPath = Join-Path $script:RepoRoot 'kernel\driver\msbuild\FclMusaDriver.sln'
+    $solutionPath = Ensure-FCLDriverSolution
     $properties = @{
         WindowsTargetPlatformVersion = $wdk.Version
     }

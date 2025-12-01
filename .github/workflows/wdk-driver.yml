@@ -1,0 +1,79 @@
+name: Build Kernel Driver (WDK Matrix)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - kernel/**
+      - tools/**
+      - .github/workflows/wdk-driver.yml
+  pull_request:
+    branches:
+      - main
+    paths:
+      - kernel/**
+      - tools/**
+      - .github/workflows/wdk-driver.yml
+  workflow_dispatch: {}
+
+jobs:
+  build-driver:
+    name: R0 Driver (WDK ${{ matrix.wdk_version }})
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wdk_version: "10.0.22621.0"
+            download_url_var: WDK_22621_URL
+          - wdk_version: "10.0.26100.0"
+            download_url_var: WDK_26100_URL
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Visual Studio dev environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Install WDK ${{ matrix.wdk_version }}
+        shell: pwsh
+        env:
+          DOWNLOAD_URL: ${{ vars[matrix.download_url_var] }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:DOWNLOAD_URL)) {
+              throw "Repository variable `${{ matrix.download_url_var }}` 未配置。请在 Settings > Variables 中填入对应的 wdksetup.exe 下载链接。"
+          }
+          .\tools\scripts\install_wdk.ps1 `
+            -Version '${{ matrix.wdk_version }}' `
+            -DownloadUrl $env:DOWNLOAD_URL
+
+      - name: Apply FCL patch set
+        shell: pwsh
+        run: |
+          git -C external/fcl-source reset --hard HEAD
+          git -C external/fcl-source clean -fd
+          .\tools\scripts\apply_fcl_patch.ps1
+
+      - name: Prepare driver solution
+        shell: pwsh
+        run: .\tools\scripts\init_driver_solution.ps1
+
+      - name: Build R0 driver (Release)
+        shell: pwsh
+        run: .\tools\build\build-tasks.ps1 -Task R0-Release
+
+      - name: Upload driver artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fclmusa-driver-${{ matrix.wdk_version }}
+          path: |
+            kernel/driver/msbuild/out/x64/Release/**
+            dist/driver/x64/Release/**
+          retention-days: 7
