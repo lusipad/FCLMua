@@ -169,16 +169,22 @@ function Build-R3Demo {
 function Build-CLIDemo {
     Write-FCLHeader "编译 CLI Demo (Release)"
     
-    # Build using the new build_demo.ps1
-    $demoScript = Join-Path $script:RepoRoot 'tools\build_demo.ps1'
-    if (-not (Test-Path $demoScript)) {
-        throw "build_demo.ps1 not found"
+    $cliDemoDir = Join-Path $script:RepoRoot 'samples\cli_demo'
+    $compileCmd = Join-Path $cliDemoDir 'compile.cmd'
+    
+    if (-not (Test-Path $compileCmd)) {
+        throw "compile.cmd not found in $cliDemoDir"
     }
     
-    & pwsh -NoProfile -ExecutionPolicy Bypass -File $demoScript -Target CLI -Configuration Release
-    
-    if ($LASTEXITCODE -ne 0) {
-        throw "CLI Demo build failed"
+    Push-Location $cliDemoDir
+    try {
+        & cmd /c compile.cmd
+        if ($LASTEXITCODE -ne 0) {
+            throw "CLI Demo build failed"
+        }
+    }
+    finally {
+        Pop-Location
     }
     
     Write-FCLSuccess "CLI Demo 编译成功 (Release)"
@@ -187,17 +193,18 @@ function Build-CLIDemo {
 function Build-GUIDemo {
     Write-FCLHeader "编译 GUI Demo (Release)"
     
-    # Build using the new build_demo.ps1
-    $demoScript = Join-Path $script:RepoRoot 'tools\build_demo.ps1'
-    if (-not (Test-Path $demoScript)) {
-        throw "build_demo.ps1 not found"
+    $guiDemoDir = Join-Path $script:RepoRoot 'samples\gui_demo'
+    $vcxproj = Join-Path $guiDemoDir 'FclGuiDemo.vcxproj'
+    
+    if (-not (Test-Path $vcxproj)) {
+        throw "FclGuiDemo.vcxproj not found in $guiDemoDir"
     }
     
-    & pwsh -NoProfile -ExecutionPolicy Bypass -File $demoScript -Target GUI -Configuration Release
-    
-    if ($LASTEXITCODE -ne 0) {
-        throw "GUI Demo build failed"
-    }
+    # Build using MSBuild
+    Invoke-FCLMsBuild -SolutionPath $vcxproj `
+        -Configuration 'Release' `
+        -Platform 'x64' `
+        -Targets @('Build')
     
     Write-FCLSuccess "GUI Demo 编译成功 (Release)"
 }
