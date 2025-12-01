@@ -9,8 +9,8 @@ on:
       - main
 
 jobs:
-  build-user-demo:
-    name: Build user-mode demo (Release | x64)
+  build-r3-lib:
+    name: Build R3 Library (Release)
     runs-on: windows-latest
 
     steps:
@@ -39,11 +39,66 @@ jobs:
         run: |
           .\tools\build\build-tasks.ps1 -Task R3-Lib-Release
 
+  build-r3-demo:
+    name: Build R3 Demo (Release)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Visual Studio Dev Environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Apply FCL patch set
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: |
+          git -C external/fcl-source reset --hard HEAD
+          git -C external/fcl-source clean -fd
+          .\tools\scripts\apply_fcl_patch.ps1
+
       - name: Build R3 demo (Release)
         shell: pwsh
         working-directory: ${{ github.workspace }}
         run: |
           .\tools\build\build-tasks.ps1 -Task R3-Demo-Release
+
+      - name: Upload R3 demo artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: fclmusa-r3-demo
+          path: build/r3-demo/Release/FclMusaUserDemo.exe
+          retention-days: 7
+
+  build-gui-demo:
+    name: Build GUI Demo (Release)
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Setup Visual Studio Dev Environment
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Apply FCL patch set
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: |
+          git -C external/fcl-source reset --hard HEAD
+          git -C external/fcl-source clean -fd
+          .\tools\scripts\apply_fcl_patch.ps1
 
       - name: Build GUI demo (Release, user-mode)
         shell: pwsh
@@ -51,11 +106,9 @@ jobs:
         run: |
           .\tools\build\build-tasks.ps1 -Task GUI-Demo
 
-      - name: Upload build artifacts
+      - name: Upload GUI demo artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fclmusa-user-demos
-          path: |
-            build/r3-demo/Release/FclMusaUserDemo.exe
-            dist/gui_demo/**
+          name: fclmusa-gui-demo
+          path: dist/gui_demo/**
           retention-days: 7
