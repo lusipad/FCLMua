@@ -53,6 +53,16 @@ function Build-R0Driver {
         $properties['MUSA_RUNTIME_LIBRARY_CONFIGURATION'] = 'Release'
     }
     
+    # Verify Musa.Runtime is installed before building
+    $musaRuntimeCheck = Join-Path $script:RepoRoot 'external\Musa.Runtime\Publish\.version'
+    if (-not (Test-Path $musaRuntimeCheck)) {
+        Write-Error "ERROR: Musa.Runtime not installed! File not found: $musaRuntimeCheck"
+        Write-Error "Setup-FCLDependencies should have installed it."
+        throw "Musa.Runtime is required but not installed"
+    }
+    $musaVersion = Get-Content $musaRuntimeCheck -Raw
+    Write-Host "Using Musa.Runtime version: $($musaVersion.Trim())" -ForegroundColor Cyan
+    
     Invoke-FCLMsBuild -SolutionPath $solutionPath `
         -Configuration $Configuration `
         -Platform 'x64' `
