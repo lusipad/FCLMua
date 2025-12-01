@@ -1,21 +1,28 @@
 name: Build Kernel Driver (WDK Matrix)
 
+# Note: WDK driver builds are disabled in CI because:
+# 1. GitHub Actions runners don't have winget on windows-2022
+# 2. Full WDK with kernel headers (km/) is not pre-installed
+# 3. WDK installation in CI is complex and time-consuming
+# Use manual workflow_dispatch or build locally
+
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - kernel/**
-      - tools/**
-      - .github/workflows/wdk-driver.yml
-  pull_request:
-    branches:
-      - main
-    paths:
-      - kernel/**
-      - tools/**
-      - .github/workflows/wdk-driver.yml
   workflow_dispatch: {}
+  # Disabled automatic triggers:
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - kernel/**
+  #     - tools/**
+  #     - .github/workflows/wdk-driver.yml
+  # pull_request:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - kernel/**
+  #     - tools/**
+  #     - .github/workflows/wdk-driver.yml
 
 jobs:
   build-driver:
@@ -47,7 +54,7 @@ jobs:
         run: |
           Write-Host "Installing WDK ${{ matrix.wdk_version }}..." -ForegroundColor Cyan
           
-          # Map WDK version to WinGet package ID
+          # Map WDK version to WinGet package ID  
           $wdkVersion = "${{ matrix.wdk_version }}"
           $packageId = switch ($wdkVersion) {
               "10.0.22621.0" { "Microsoft.WindowsWDK.10.0.22621" }
