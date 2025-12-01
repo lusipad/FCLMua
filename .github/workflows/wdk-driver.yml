@@ -54,21 +54,48 @@ jobs:
         run: |
           Write-Host "Installing WDK ${{ matrix.wdk_version }}..." -ForegroundColor Cyan
           
-          # Map WDK version to WinGet package ID  
           $wdkVersion = "${{ matrix.wdk_version }}"
-          $packageId = switch ($wdkVersion) {
-              "10.0.22621.0" { "Microsoft.WindowsWDK.10.0.22621" }
-              "10.0.26100.0" { "Microsoft.WindowsWDK.10.0.26100" }
-              default { throw "Unsupported WDK version: $wdkVersion" }
-          }
-          
-          Write-Host "Installing package: $packageId" -ForegroundColor Yellow
-          winget install --id $packageId --silent --accept-package-agreements --accept-source-agreements
-          
-          # Verify installation
           $wdkRoot = "${env:ProgramFiles(x86)}\Windows Kits\10"
           $kmPath = Join-Path $wdkRoot "Include\$wdkVersion\km"
           
+          # Try winget first (available on windows-latest)
+          $wingetAvailable = Get-Command winget -ErrorAction SilentlyContinue
+          
+          if ($wingetAvailable) {
+              Write-Host "Using winget to install WDK..." -ForegroundColor Yellow
+              $packageId = switch ($wdkVersion) {
+                  "10.0.22621.0" { "Microsoft.WindowsWDK.10.0.22621" }
+                  "10.0.26100.0" { "Microsoft.WindowsWDK.10.0.26100" }
+                  default { throw "Unsupported WDK version: $wdkVersion" }
+              }
+              
+              winget install --id $packageId --silent --accept-package-agreements --accept-source-agreements
+          }
+          else {
+              # Fallback: Download and install manually (for windows-2022)
+              Write-Host "winget not available, downloading WDK installer..." -ForegroundColor Yellow
+              
+              $installerUrl = switch ($wdkVersion) {
+                  "10.0.22621.0" { "https://go.microsoft.com/fwlink/?linkid=2196230" }
+                  "10.0.26100.0" { "https://go.microsoft.com/fwlink/?linkid=2272782" }
+                  default { throw "No installer URL for WDK version: $wdkVersion" }
+              }
+              
+              $installerPath = Join-Path $env:TEMP "wdksetup.exe"
+              Write-Host "Downloading from $installerUrl..." -ForegroundColor Gray
+              Invoke-WebRequest -Uri $installerUrl -OutFile $installerPath -UseBasicParsing
+              
+              Write-Host "Installing WDK (this may take 5-10 minutes)..." -ForegroundColor Yellow
+              $process = Start-Process -FilePath $installerPath -ArgumentList "/quiet", "/norestart", "/features", "+" -Wait -PassThru
+              
+              if ($process.ExitCode -ne 0) {
+                  throw "WDK installer failed with exit code $($process.ExitCode)"
+              }
+              
+              Remove-Item $installerPath -Force -ErrorAction SilentlyContinue
+          }
+          
+          # Verify installation
           if (-not (Test-Path $kmPath)) {
               throw "WDK kernel headers not found at $kmPath after installation"
           }
