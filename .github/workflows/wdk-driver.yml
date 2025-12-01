@@ -20,15 +20,15 @@ on:
 jobs:
   build-driver:
     name: R0 Driver (WDK ${{ matrix.wdk_version }})
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         include:
           - wdk_version: "10.0.22621.0"
-            download_url_var: WDK_22621_URL
+            os: windows-2022
           - wdk_version: "10.0.26100.0"
-            download_url_var: WDK_26100_URL
+            os: windows-latest
 
     steps:
       - name: Checkout repository
@@ -42,17 +42,34 @@ jobs:
         with:
           arch: x64
 
-      - name: Install WDK ${{ matrix.wdk_version }}
+      - name: Detect and configure WDK
         shell: pwsh
-        env:
-          DOWNLOAD_URL: ${{ vars[matrix.download_url_var] }}
         run: |
-          if ([string]::IsNullOrWhiteSpace($env:DOWNLOAD_URL)) {
-              throw "Repository variable `${{ matrix.download_url_var }}` 未配置。请在 Settings > Variables 中填入对应的 wdksetup.exe 下载链接。"
+          $wdkRoot = "${env:ProgramFiles(x86)}\Windows Kits\10"
+          if (-not (Test-Path $wdkRoot)) {
+              throw "WDK not found at $wdkRoot"
           }
-          .\tools\scripts\install_wdk.ps1 `
-            -Version '${{ matrix.wdk_version }}' `
-            -DownloadUrl $env:DOWNLOAD_URL
+          
+          $includePath = Join-Path $wdkRoot "Include"
+          $versions = Get-ChildItem -Path $includePath -Directory | 
+              Where-Object { $_.Name -match '^\d+\.\d+\.\d+\.\d+$' } |
+              Sort-Object Name -Descending
+          
+          $targetVersion = "${{ matrix.wdk_version }}"
+          $installedVersion = $versions | Where-Object { $_.Name -eq $targetVersion } | Select-Object -First 1
+          
+          if (-not $installedVersion) {
+              Write-Host "Target WDK $targetVersion not found, using latest available: $($versions[0].Name)" -ForegroundColor Yellow
+              $installedVersion = $versions[0]
+          }
+          
+          $env:WDKContentRoot = $wdkRoot
+          $env:FCL_MUSA_WDK_VERSION = $installedVersion.Name
+          
+          "WDKContentRoot=$wdkRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          "FCL_MUSA_WDK_VERSION=$($installedVersion.Name)" | Out-File -FilePath $env:GITHUB_ENV -Append
+          
+          Write-Host "✓ Using WDK $($installedVersion.Name) at $wdkRoot" -ForegroundColor Green
 
       - name: Apply FCL patch set
         shell: pwsh
