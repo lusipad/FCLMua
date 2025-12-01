@@ -63,6 +63,16 @@ function Build-R0Driver {
     $musaVersion = Get-Content $musaRuntimeCheck -Raw
     Write-Host "Using Musa.Runtime version: $($musaVersion.Trim())" -ForegroundColor Cyan
     
+    # Verify critical Musa.Runtime files
+    $musaConfigProps = Join-Path $script:RepoRoot 'external\Musa.Runtime\Publish\Config\Musa.Runtime.Config.props'
+    if (-not (Test-Path $musaConfigProps)) {
+        Write-Error "ERROR: Musa.Runtime.Config.props not found at $musaConfigProps"
+        Write-Host "Contents of Publish directory:" -ForegroundColor Yellow
+        Get-ChildItem (Join-Path $script:RepoRoot 'external\Musa.Runtime\Publish') -Recurse | ForEach-Object { Write-Host "  $($_.FullName)" }
+        throw "Musa.Runtime.Config.props is missing"
+    }
+    Write-Host "✓ Musa.Runtime.Config.props found" -ForegroundColor Green
+    
     Invoke-FCLMsBuild -SolutionPath $solutionPath `
         -Configuration $Configuration `
         -Platform 'x64' `
