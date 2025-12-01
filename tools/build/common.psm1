@@ -264,6 +264,19 @@ function Setup-FCLDependencies {
     }
     
     Write-Host "  Musa.Runtime setup completed" -ForegroundColor Green
+    
+    # Restore kernel driver NuGet packages (Musa.Core, CoreLite, Veil)
+    $restoreScript = Join-Path $RepoRoot 'tools\scripts\restore_kernel_packages.ps1'
+    if (Test-Path $restoreScript) {
+        Write-Host "  Restoring kernel driver NuGet packages..." -ForegroundColor Cyan
+        & pwsh -NoProfile -ExecutionPolicy Bypass -File $restoreScript
+        if ($LASTEXITCODE -ne 0) {
+            throw "restore_kernel_packages.ps1 failed with exit code $LASTEXITCODE"
+        }
+        Write-Host "  Kernel packages restored" -ForegroundColor Green
+    } else {
+        Write-Warning "restore_kernel_packages.ps1 not found, skipping kernel NuGet restore"
+    }
 }
 
 function Invoke-FCLMsBuild {
