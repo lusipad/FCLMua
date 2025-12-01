@@ -134,7 +134,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Remove="..\..\..\external\fcl-source\src\narrowphase\detail\failed_at_this_configuration.cpp" />
     <ClCompile Remove="..\..\..\external\fcl-source\src\common\detail\profiler.cpp" />
   </ItemGroup>
   <ItemGroup>
