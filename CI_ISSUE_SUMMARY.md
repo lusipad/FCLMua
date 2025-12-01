@@ -1,5 +1,14 @@
 # CI 构建问题诊断总结
 
+## 🎉 **所有 CI 问题已解决！**
+
+| Workflow | 自动触发 | 状态 | 最新运行 |
+|----------|----------|------|---------|
+| User-mode Build | ✅ 启用 | ✅ **通过** | Run #19821418259 |
+| WDK Driver Build | ✅ 启用 | ✅ **通过** | Run #19823392687 |
+
+---
+
 ## ✅ 已修复的问题
 
 ### 1. User-mode Build Parallelization
@@ -28,68 +37,37 @@
 **修复**: 更正项目文件路径  
 **状态**: ✅ 已解决
 
+### 6. WDK Driver Build - NuGet 依赖缺失
+**问题**: Musa.Core, Musa.CoreLite, Musa.Veil 未安装  
+**修复**: 创建 packages.config + restore_kernel_packages.ps1  
+**状态**: ✅ 已解决
+
+### 7. ThrowFailedAtThisConfiguration 符号未定义
+**问题**: FclMusaCoreLib.vcxproj 排除了 failed_at_this_configuration.cpp  
+**修复**: 移除 ClCompile Remove 条目  
+**状态**: ✅ 已解决
+
+### 8. 驱动签名失败
+**问题**: CI 环境没有代码签名证书  
+**修复**: 检测 CI 环境跳过签名步骤  
+**状态**: ✅ 已解决
+
+---
+
 ## ❌ 待解决的问题
 
-### WDK Driver Build - NuGet 依赖缺失
+**无** - 所有问题已解决！
 
-**症状**: 链接错误，30+ 未定义符号
-```
-- MusaCoreStartup / MusaCoreShutdown  
-- __imp_TlsAlloc / __imp_GetLastError / __imp_SetLastError
-- __imp_HeapAlloc / __imp_HeapFree
-- 等等...
-```
+---
 
-**根本原因**: 项目依赖三个 NuGet 包，但 CI 中只安装了一个
-
-| 包名 | 版本 | 安装位置 | CI 状态 |
-|------|------|----------|---------|
-| Musa.Runtime | 0.5.1 | `external/Musa.Runtime/Publish/` | ✅ 已安装 |
-| Musa.Core | 0.4.1 | `$(USERPROFILE)\.nuget\packages\` | ❌ 缺失 |
-| Musa.CoreLite | 1.0.3 | `$(USERPROFILE)\.nuget\packages\` | ❌ 缺失 |
-
-**影响**:
-- `MusaCoreStartup` 和 `MusaCoreShutdown` 在 `Musa.Core.lib` 中
-- 所有 Windows API (`TlsAlloc`, `HeapAlloc` 等) 的内核模式实现在 Musa.Core/CoreLite 中
-- 缺少这些包导致链接器找不到符号定义
-
-**vcxproj 中的导入**:
-```xml
-<Import Project="$(USERPROFILE)\.nuget\packages\musa.corelite\1.0.3\build\native\Config\Musa.CoreLite.Config.props" 
-        Condition="exists(...)" />
-<Import Project="$(USERPROFILE)\.nuget\packages\musa.core\0.4.1\build\native\Config\Musa.Core.Config.props" 
-        Condition="exists(...)" />
-```
-由于 `Condition="exists(...)"` 检查失败，导入被跳过，链接器配置不完整。
-
-**解决方案选项**:
-
-1. **扩展 setup_dependencies.ps1** (推荐)
-   - 支持安装多个 NuGet 包
-   - 统一管理所有依赖项
-   - 保持与本地开发一致
-
-2. **使用 NuGet restore**
-   - 创建 `packages.config`
-   - 使用 `nuget restore` 恢复所有包
-   - 标准化的 NuGet 工作流
-
-3. **将所有依赖项放入 external/**
-   - 类似 Musa.Runtime 的方式
-   - 完全控制依赖版本
-   - 不依赖用户 NuGet 缓存
-
-**当前状态**: 
-- WDK workflow 禁用了自动触发
-- 保留手动触发选项用于测试
-- 需要实现完整的 NuGet 依赖管理
+---
 
 ## CI 工作流当前状态
 
 | Workflow | 自动触发 | 状态 | 最新运行 |
 |----------|----------|------|---------|
-| User-mode Build | ✅ 启用 | ✅ **通过** | Run #19821418259 |
-| WDK Driver Build | ❌ 禁用 (仅手动) | ❌ NuGet 依赖缺失 | - |
+| User-mode Build | ✅ 启用 | ✅ **通过** | [Run #19821418259](https://github.com/lusipad/FCLMua/actions/runs/19821418259) |
+| WDK Driver Build | ✅ 启用 | ✅ **通过** | [Run #19823392687](https://github.com/lusipad/FCLMua/actions/runs/19823392687) |
 
 ### User-mode Build 成功详情
 - **Run**: https://github.com/lusipad/FCLMua/actions/runs/19821418259
@@ -98,13 +76,51 @@
 - **耗时**: ~3.5 分钟
 - **并行优化**: 生效（两个 jobs 同时运行）
 
+### WDK Driver Build 成功详情
+- **Run**: https://github.com/lusipad/FCLMua/actions/runs/19823392687
+- **Job 1**: R0 Driver (WDK 10.0.22621.0) ✅ Success
+- **Job 2**: R0 Driver (WDK 10.0.26100.0) ✅ Success
+- **耗时**: ~12 分钟
+- **Matrix 构建**: 两个 WDK 版本并行
+
+---
+
+## 技术实现细节
+
+### NuGet Packages Restoration
+使用标准 NuGet 工作流安装内核驱动依赖：
+
+**文件结构**:
+```
+kernel/driver/msbuild/
+  └── packages.config          # 声明依赖：Musa.Core, CoreLite, Veil
+
+tools/scripts/
+  └── restore_kernel_packages.ps1  # 安装到全局缓存
+
+tools/build/
+  └── common.psm1              # Setup-FCLDependencies 集成
+```
+
+**安装流程**:
+1. `setup_dependencies.ps1` → Musa.Runtime (external/)
+2. `restore_kernel_packages.ps1` → Musa.Core, CoreLite, Veil ($(USERPROFILE)\.nuget\packages\)
+3. MSBuild 自动导入 .props/.targets 文件
+
+### CI 环境适配
+- **WDK 安装**: winget + 手动下载回退
+- **驱动签名**: 检测 `$env:CI` 跳过签名
+- **依赖缓存**: NuGet 全局缓存自动复用
+
+---
+
 ## 后续行动
 
-1. **短期**: 保持 WDK workflow 手动触发状态
-2. **中期**: 实现完整的 NuGet 依赖管理
-3. **长期**: 考虑将所有依赖项统一到 `external/` 目录，简化 CI 配置
+1. ✅ **完成** - 所有 CI workflows 正常工作
+2. ✅ **完成** - 添加 CI 徽章到 README
+3. 🎯 **建议** - 监控 CI 稳定性，优化构建时间
 
-## 相关文件
+---
 
 - `.github/workflows/build.yml` - User-mode 构建 (✅ 工作)
 - `.github/workflows/wdk-driver.yml` - Driver 构建 (❌ 禁用)
