@@ -77,6 +77,7 @@ function Show-TestMenu {
     Write-Host "  1. R0 Demo       - 运行 R0 驱动测试"
     Write-Host "  2. R3 Demo       - 运行 R3 Demo"
     Write-Host "  3. GUI Demo      - 运行 GUI Demo"
+    Write-Host "  4. All Tests     - 运行所有测试（完整测试套件）"
     Write-Host ""
     Write-Host "  0. Back          - 返回主菜单"
     Write-Host ""
@@ -263,6 +264,18 @@ while ($true) {
                     '1' { Invoke-TestTask 'R0-Demo' }
                     '2' { Invoke-TestTask 'R3-Demo' }
                     '3' { Invoke-TestTask 'GUI-Demo' }
+                    '4' { 
+                        try {
+                            & (Join-Path $script:RepoRoot 'tools\scripts\run_all_tests.ps1')
+                        }
+                        catch {
+                            Write-Host ""
+                            Write-Host "错误: $_" -ForegroundColor Red
+                        }
+                        finally {
+                            Wait-ForEnter
+                        }
+                    }
                     '0' { break }
                     default { 
                         Write-Host "无效选择" -ForegroundColor Red
