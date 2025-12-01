@@ -114,60 +114,30 @@ try {
     }
 
     # 生成最小化补丁
-    Write-Host "正在从原补丁筛选文件..." -ForegroundColor Yellow
+    Write-Host "正在生成最小化补丁（包含新文件）..." -ForegroundColor Yellow
 
-    # 读取原补丁内容
+    # 使用 git add -N 标记新文件，然后生成 diff
+    # 这样可以同时包含修改的文件和新增的文件
+    & git add -N include/ src/ 2>&1 | Out-Null
+    $patchContent = & git diff HEAD include/ src/ 2>&1
+
     Pop-Location
-    $originalPatch = Get-Content $patchPath -Raw -Encoding UTF8
 
-    # 分割补丁为单个文件的 diff
-    $diffBlocks = @()
-    $currentBlock = ""
-    $currentFile = ""
-
-    foreach ($line in $originalPatch -split "`n") {
-        if ($line -match '^diff --git a/(.+) b/') {
-            # 保存前一个块
-            if ($currentBlock -and $currentFile) {
-                $shouldInclude = $false
-                foreach ($file in $filteredFiles) {
-                    if ($currentFile -eq $file) {
-                        $shouldInclude = $true
-                        break
-                    }
-                }
-                if ($shouldInclude) {
-                    $diffBlocks += $currentBlock
-                }
-            }
-            # 开始新块
-            $currentFile = $matches[1]
-            $currentBlock = $line + "`n"
-        } else {
-            $currentBlock += $line + "`n"
-        }
+    if (-not $patchContent) {
+        throw "生成补丁内容为空"
     }
-
-    # 处理最后一个块
-    if ($currentBlock -and $currentFile) {
-        $shouldInclude = $false
-        foreach ($file in $filteredFiles) {
-            if ($currentFile -eq $file) {
-                $shouldInclude = $true
-                break
-            }
-        }
-        if ($shouldInclude) {
-            $diffBlocks += $currentBlock
-        }
-    }
-
-    # 合并所有块
-    $patchContent = $diffBlocks -join ""
 
     # 写入补丁文件
     $patchContent | Out-File -FilePath $minimalPatchPath -Encoding utf8 -NoNewline -Force
     Push-Location $fclSourcePath
+
+    # 注释掉旧的从原补丁筛选的方法
+    <# 旧方法：从原补丁筛选
+    Pop-Location
+    $originalPatch = Get-Content $patchPath -Raw -Encoding UTF8
+
+    #>
+    # 旧方法代码已移除
 
     # 显示统计信息
     $originalSize = if (Test-Path $patchPath) { (Get-Item $patchPath).Length } else { 0 }
