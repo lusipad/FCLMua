@@ -34,6 +34,8 @@ install_manifest.txt
 *.VC.VC.opendb
 !tools/templates/driver/*.sln
 !tools/templates/driver/*.vcxproj*
+!kernel/driver/msbuild/*.vcxproj
+!kernel/driver/msbuild/*.sln
 
 # Visual Studio Code
 .vscode/
