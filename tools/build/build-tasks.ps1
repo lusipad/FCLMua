@@ -30,7 +30,7 @@ function Build-R0Driver {
     Write-Host "  WDK Version: $($wdk.Version)" -ForegroundColor Green
     
     # Build driver
-    $solutionPath = Join-Path $script:RepoRoot 'r0\driver\msbuild\FclMusaDriver.sln'
+    $solutionPath = Join-Path $script:RepoRoot 'kernel\driver\msbuild\FclMusaDriver.sln'
     $properties = @{
         WindowsTargetPlatformVersion = $wdk.Version
     }
@@ -48,7 +48,7 @@ function Build-R0Driver {
     
     # Sign driver
     Write-Host "Signing driver..." -ForegroundColor Yellow
-    $outputDir = Join-Path $script:RepoRoot "r0\driver\msbuild\out\x64\$Configuration"
+    $outputDir = Join-Path $script:RepoRoot "kernel\driver\msbuild\out\x64\$Configuration"
     $driverSys = Join-Path $outputDir 'FclMusaDriver.sys'
     
     if (-not (Test-Path $driverSys)) {
