@@ -86,10 +86,17 @@
 
 ## CI 工作流当前状态
 
-| Workflow | 自动触发 | 状态 |
-|----------|----------|------|
-| User-mode Build | ✅ 启用 | ✅ 通过 |
-| WDK Driver Build | ❌ 禁用 (仅手动) | ❌ NuGet 依赖缺失 |
+| Workflow | 自动触发 | 状态 | 最新运行 |
+|----------|----------|------|---------|
+| User-mode Build | ✅ 启用 | ✅ **通过** | Run #19821418259 |
+| WDK Driver Build | ❌ 禁用 (仅手动) | ❌ NuGet 依赖缺失 | - |
+
+### User-mode Build 成功详情
+- **Run**: https://github.com/lusipad/FCLMua/actions/runs/19821418259
+- **Job 1**: Build R3 Library + GUI Demo ✅ Success
+- **Job 2**: Build R3 Demo (Release) ✅ Success  
+- **耗时**: ~3.5 分钟
+- **并行优化**: 生效（两个 jobs 同时运行）
 
 ## 后续行动
 
