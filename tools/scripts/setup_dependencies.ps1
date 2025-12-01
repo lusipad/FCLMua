@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 $scriptDir = $PSScriptRoot
 
 # Define paths
-$repoRoot = (Resolve-Path (Join-Path $scriptDir '..')).ProviderPath
+$repoRoot = (Resolve-Path (Join-Path $scriptDir '../..')).ProviderPath
 $musaRuntimeDir = Join-Path $repoRoot 'external/Musa.Runtime'
 $publishDir = Join-Path $musaRuntimeDir 'Publish'
 $versionFile = Join-Path $publishDir '.version'
