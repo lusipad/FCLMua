@@ -41,8 +41,8 @@
 1. **Fork 仓库** - 在 GitHub 上 Fork 本项目
 2. **克隆仓库** - 克隆到本地
    ```bash
-   git clone --recursive https://github.com/your-username/FCL+Musa.git
-   cd FCL+Musa
+   git clone --recursive https://github.com/your-username/FCLMua.git
+   cd FCLMua
    ```
 3. **创建分支** - 为你的改动创建一个新分支
    ```bash
@@ -301,8 +301,8 @@ git push origin feature/your-feature-name
 
 如果你有任何问题：
 
-- 💬 [GitHub Discussions](https://github.com/yourname/FCL+Musa/discussions) - 一般讨论
-- 🐛 [GitHub Issues](https://github.com/yourname/FCL+Musa/issues) - Bug 报告和功能请求
+- 💬 [GitHub Discussions](https://github.com/lusipad/FCLMua/discussions) - 一般讨论
+- 🐛 [GitHub Issues](https://github.com/lusipad/FCLMua/issues) - Bug 报告和功能请求
 
 ## 🙏 致谢
 

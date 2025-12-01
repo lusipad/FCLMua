@@ -35,8 +35,8 @@
 
 ```bash
 # 克隆仓库
-git clone --recursive https://github.com/yourname/FCL+Musa.git
-cd FCL+Musa
+git clone --recursive https://github.com/lusipad/FCLMua.git
+cd FCLMua
 git submodule update --init --recursive
 pwsh tools/scripts/apply_fcl_patch.ps1
 
@@ -100,7 +100,7 @@ target_link_libraries(myapp PRIVATE FclMusa::CoreUser)
 ### 方法2: Git Submodule
 
 ```bash
-git submodule add https://github.com/yourname/FCL+Musa.git external/fclmusa
+git submodule add https://github.com/lusipad/FCLMua.git external/fclmusa
 git submodule update --init --recursive
 ```
 
@@ -283,8 +283,8 @@ pwsh tools/scripts/run_all_tests.ps1
 
 ## 📞 联系方式
 
-- **Issues**: [GitHub Issues](https://github.com/yourname/FCL+Musa/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourname/FCL+Musa/discussions)
+- **Issues**: [GitHub Issues](https://github.com/lusipad/FCLMua/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/lusipad/FCLMua/discussions)
 
 ## 🗺️ 路线图
 

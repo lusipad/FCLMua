@@ -98,7 +98,7 @@
 
 ```bash
 # 1. 添加远程仓库
-git remote add origin https://github.com/yourusername/FCL-Musa.git
+git remote add origin https://github.com/lusipad/FCLMua.git
 
 # 2. 查看当前状态
 git status
