@@ -113,10 +113,19 @@ if ($exitCode -ne 0) {
 }
 
 # Find the extracted package
-$packageDir = Get-ChildItem -Path $packagesDir -Directory | Where-Object { $_.Name -like "Musa.Runtime.*" } | Select-Object -First 1
-
-if (-not $packageDir) {
-    throw "Package not found after restore"
+# dotnet restore uses lowercase package names: musa.runtime/version
+# nuget.exe uses mixed case: Musa.Runtime.version
+if ($useDotnet) {
+    $packageDir = Join-Path $packagesDir "musa.runtime\$versionToInstall"
+    if (-not (Test-Path $packageDir)) {
+        throw "Package not found after restore. Expected path: $packageDir"
+    }
+} else {
+    $packageDir = Get-ChildItem -Path $packagesDir -Directory | Where-Object { $_.Name -like "Musa.Runtime.*" } | Select-Object -First 1
+    if (-not $packageDir) {
+        throw "Package not found after restore"
+    }
+    $packageDir = $packageDir.FullName
 }
 
 Write-Host "Installing to $publishDir..."
@@ -125,11 +134,11 @@ if (-not (Test-Path $publishDir)) {
 }
 
 # Copy build/native/* to Publish/
-$source = Join-Path $packageDir.FullName 'build/native'
+$source = Join-Path $packageDir 'build/native'
 if (Test-Path $source) {
     Copy-Item -Path "$source\*" -Destination $publishDir -Recurse -Force
 } else {
-    throw "Package structure not as expected. Expected build/native directory."
+    throw "Package structure not as expected. Expected build/native directory at $source"
 }
 
 # Save version info
