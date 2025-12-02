@@ -21,28 +21,20 @@ if (-not (Test-Path $packagesConfig)) {
     exit 1
 }
 
-# Check if dotnet is available, prefer it over nuget.exe
-$useDotnet = $null -ne (Get-Command dotnet -ErrorAction SilentlyContinue)
-
-if ($useDotnet) {
-    Write-Host "Using dotnet restore..." -ForegroundColor Gray
-    dotnet restore $packagesConfig --packages "$env:USERPROFILE\.nuget\packages"
-    $exitCode = $LASTEXITCODE
+# packages.config format ONLY works with nuget.exe, not with dotnet CLI
+# So we must use nuget.exe for this script
+$nugetExe = Join-Path $scriptDir 'nuget.exe'
+if (Test-Path $nugetExe) {
+    Write-Host "Using existing nuget.exe" -ForegroundColor Gray
 } else {
-    # Fallback to nuget.exe
-    $nugetExe = Join-Path $scriptDir 'nuget.exe'
-    if (Test-Path $nugetExe) {
-        Write-Host "Using existing nuget.exe" -ForegroundColor Gray
-    } else {
-        Write-Host "Downloading nuget.exe..." -ForegroundColor Yellow
-        Invoke-WebRequest -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile $nugetExe
-        Write-Host "✓ nuget.exe downloaded successfully" -ForegroundColor Green
-    }
-    
-    Write-Host "Running nuget restore..."
-    & $nugetExe restore $packagesConfig -PackagesDirectory "$env:USERPROFILE\.nuget\packages" -NonInteractive
-    $exitCode = $LASTEXITCODE
+    Write-Host "Downloading nuget.exe..." -ForegroundColor Yellow
+    Invoke-WebRequest -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile $nugetExe
+    Write-Host "✓ nuget.exe downloaded successfully" -ForegroundColor Green
 }
+
+Write-Host "Running nuget restore..."
+& $nugetExe restore $packagesConfig -PackagesDirectory "$env:USERPROFILE\.nuget\packages" -NonInteractive
+$exitCode = $LASTEXITCODE
 
 if ($null -eq $exitCode) { $exitCode = 0 }
 
