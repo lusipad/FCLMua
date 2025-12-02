@@ -31,6 +31,110 @@ target_link_libraries(my_km_target PRIVATE FclMusa::Core)
 target_link_libraries(my_um_target PRIVATE FclMusa::CoreUser)
 ```
 
+## 开箱即用模板
+
+仓库提供了一个可直接复用的模板：[`cmake/FclMusaCPMTemplate.cmake`](../cmake/FclMusaCPMTemplate.cmake)。
+
+使用步骤：
+
+1. 将该文件拷贝到你的工程（例如 `cmake/FclMusaCPMTemplate.cmake`）。
+2. 在顶层 `CMakeLists.txt` 中，根据需要设置模板变量（下表）；
+3. `include(cmake/FclMusaCPMTemplate.cmake)`；
+4. 像平常一样 `target_link_libraries(my_target PRIVATE FclMusa::Core)` 或 `FclMusa::CoreUser`。
+
+模板会自动：
+
+- 如果 `FCLMUSA_CPM_ENABLE_R0=ON`，运行 `tools/scripts/setup_dependencies.ps1` 恢复 Musa.Runtime；
+- 每次拉取时执行 `apply_fcl_patch.ps1`，确保内核补丁到位；
+- 通过 CPM 暴露 `FclMusa::Core` / `FclMusa::CoreUser` 目标。
+
+> ⚠️ 该模板需要可用的 PowerShell 7 (`pwsh`). 若在 CI 中运行，请提前安装 PowerShell 并将其加入 PATH。
+
+### 模板变量速查
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `FCLMUSA_CPM_VERSION` | `v0.1.0` | 指定要拉取的 tag/commit，生产环境建议固定具体版本 |
+| `FCLMUSA_CPM_ENABLE_R3` | `ON` | 是否构建用户态静态库 `FclMusa::CoreUser` |
+| `FCLMUSA_CPM_ENABLE_R0` | `OFF` | 是否构建内核态静态库 `FclMusa::Core`（需要 WDK + Musa.Runtime） |
+| `FCLMUSA_CPM_ENABLE_DRIVER` | `OFF` | 预留给 `.sys` 构建（目前仍通过 msbuild，模板里保持关闭） |
+| `FCLMUSA_CPM_WDK_ROOT` | `C:/Program Files (x86)/Windows Kits/10` | 仅在 `ENABLE_R0=ON` 时使用；可指向自定义 WDK 安装目录 |
+| `FCLMUSA_CPM_WDK_VERSION` | `10.0.22621.0` | 仅在 `ENABLE_R0=ON` 时使用；指定 `Include/<version>/km` 子目录名 |
+
+> **提示**：若你的工程目录已经存在 FCL+Musa 仓库，可以在顶层 CMakeLists.txt 中设置 `set(FclMusa_SOURCE "D:/Repos/FCL+Musa")`（或对应的绝对路径），模板会直接复用该源码目录，避免 CPM 重新克隆并触发 git stash 冲突。
+>
+> **WDK 版本**：请确认 `FCLMUSA_CPM_WDK_VERSION` 与本机 `C:/PROGRA~2/Windows Kits/10/Include/<version>/km` 中实际存在的版本一致，可用 `dir "C:/PROGRA~2/Windows Kits/10/Include"` 检查；版本不匹配时会出现 `ntddk.h` 找不到。
+
+变量全部是 Cache 变量，可在命令行（`-DVAR=value`）或 `cmake-gui` 中覆盖。
+
+### 场景示例
+
+#### 1. 仅用户态（R3）SDK
+
+```cmake
+# CMakeLists.txt (节选)
+set(FCLMUSA_CPM_VERSION "v0.1.0")
+set(FCLMUSA_CPM_ENABLE_R3 ON)
+set(FCLMUSA_CPM_ENABLE_R0 OFF)
+
+include(cmake/FclMusaCPMTemplate.cmake)
+
+add_executable(my_app src/main.cpp)
+target_link_libraries(my_app PRIVATE FclMusa::CoreUser)
+```
+
+适用：桌面/服务程序只需要用户态碰撞检测，无 WDK 依赖。
+
+#### 2. 仅内核态（R0）静态库/驱动
+
+```cmake
+set(FCLMUSA_CPM_ENABLE_R3 OFF)
+set(FCLMUSA_CPM_ENABLE_R0 ON)
+set(FCLMUSA_CPM_WDK_ROOT "C:/Program Files (x86)/Windows Kits/10")
+set(FCLMUSA_CPM_WDK_VERSION "10.0.22621.0")
+
+include(cmake/FclMusaCPMTemplate.cmake)
+
+add_library(MyDriverCore STATIC driver_core.cpp)
+target_link_libraries(MyDriverCore PRIVATE FclMusa::Core)
+```
+
+模板会自动恢复 Musa.Runtime，MyDriverCore 便能在 R0 中使用 STL/异常并直接调用 Fcl API。
+
+#### 3. 双模（R0 + R3）同时构建
+
+```cmake
+set(FCLMUSA_CPM_ENABLE_R3 ON)
+set(FCLMUSA_CPM_ENABLE_R0 ON)
+
+include(cmake/FclMusaCPMTemplate.cmake)
+
+add_executable(my_gui samples/gui_app.cpp)
+target_link_libraries(my_gui PRIVATE FclMusa::CoreUser)
+
+add_library(my_kmdf STATIC kmdf_entry.cpp)
+target_link_libraries(my_kmdf PRIVATE FclMusa::Core)
+```
+
+适用：需要在同一工程里编译用户态工具和配套内核模块，保证两侧使用同一版本。
+
+> **建议**：把自定义算法/数据结构放在一个公共静态库（如 `add_library(CollisionCommon ...)`）中，源码里统一 `#include <fclmusa/platform.h>` 并使用 `FCL_MUSA_KERNEL_MODE` 做最小的条件编译。该库在 R3 构建时链接 `FclMusa::CoreUser`，R0 构建时链接 `FclMusa::Core`，从而在两侧都可以使用 `std::vector`、`std::unique_ptr` 等标准库类型——内核态由模板自动恢复的 Musa.Runtime 提供实现，用户态则走 MSVC CRT。入口层再各自处理 IOCTL/IRQL 差异即可。
+
+#### 4. 仅拉取核心头文件以做接口扫描/定制构建
+
+```cmake
+set(FCLMUSA_CPM_ENABLE_R3 OFF)
+set(FCLMUSA_CPM_ENABLE_R0 OFF)
+set(FCLMUSA_CPM_ENABLE_DRIVER OFF)
+
+include(cmake/FclMusaCPMTemplate.cmake)
+
+# 仅使用头文件（例如做代码生成或接口校验）
+target_include_directories(my_tool PRIVATE "${FclMusa_SOURCE_DIR}/kernel/core/include")
+```
+
+适用：CI 中只想借用头文件或做静态分析，不需要构建任何库。
+
 ## 关键变量
 - `FCLMUSA_WDK_ROOT`：WDK 根目录，默认读取环境变量 `WDKContentRoot`（若存在）。仅内核态库需要。
 - `FCLMUSA_WDK_VERSION`：WDK Include 目录中的版本号（如 `10.0.22621.0`）。如果使用 VS 生成器，默认会尝试使用 `CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION`。仅内核态库需要。
