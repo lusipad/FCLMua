@@ -70,12 +70,37 @@ $packages = @(
 Write-Host "`nVerifying installed packages:" -ForegroundColor Cyan
 $allInstalled = $true
 
+$nugetRoot = Join-Path $env:USERPROFILE '.nuget\packages'
+
 foreach ($pkg in $packages) {
-    $pkgPath = Join-Path "$env:USERPROFILE\.nuget\packages" "$($pkg.Name.ToLower())\$($pkg.Version)"
-    if (Test-Path $pkgPath) {
+    # NuGet package directories can exist in multiple formats:
+    # 1. PackageName/Version (standard)
+    # 2. packagename/Version (lowercase name)
+    # 3. PackageName.Version (flat, used by some restore methods)
+    
+    $possiblePaths = @(
+        (Join-Path $nugetRoot "$($pkg.Name)\$($pkg.Version)"),           # Standard: Musa.Core/0.4.1
+        (Join-Path $nugetRoot "$($pkg.Name.ToLower())\$($pkg.Version)"), # Lowercase: musa.core/0.4.1
+        (Join-Path $nugetRoot "$($pkg.Name).$($pkg.Version)"),           # Flat: Musa.Core.0.4.1
+        (Join-Path $nugetRoot "$($pkg.Name.ToLower()).$($pkg.Version)")  # Lowercase flat: musa.core.0.4.1
+    )
+    
+    $found = $false
+    foreach ($path in $possiblePaths) {
+        if (Test-Path $path) {
+            $found = $true
+            break
+        }
+    }
+    
+    if ($found) {
         Write-Host "  ✓ $($pkg.Name) $($pkg.Version)" -ForegroundColor Green
     } else {
         Write-Host "  ✗ $($pkg.Name) $($pkg.Version) - Not found" -ForegroundColor Red
+        Write-Host "    Searched in:" -ForegroundColor Gray
+        foreach ($path in $possiblePaths) {
+            Write-Host "      - $path" -ForegroundColor Gray
+        }
         $allInstalled = $false
     }
 }
