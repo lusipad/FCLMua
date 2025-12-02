@@ -23,13 +23,30 @@ if (-not (Test-Path $packagesConfig)) {
 
 # packages.config format ONLY works with nuget.exe, not with dotnet CLI
 # So we must use nuget.exe for this script
-$nugetExe = Join-Path $scriptDir 'nuget.exe'
-if (Test-Path $nugetExe) {
-    Write-Host "Using existing nuget.exe" -ForegroundColor Gray
+
+# First check if nuget.exe is in PATH (system-wide installation)
+$nugetExe = $null
+$nugetInPath = Get-Command nuget.exe -ErrorAction SilentlyContinue
+if ($nugetInPath) {
+    $nugetExe = $nugetInPath.Source
+    Write-Host "Using system nuget.exe from PATH: $nugetExe" -ForegroundColor Green
 } else {
-    Write-Host "Downloading nuget.exe..." -ForegroundColor Yellow
-    Invoke-WebRequest -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile $nugetExe
-    Write-Host "✓ nuget.exe downloaded successfully" -ForegroundColor Green
+    # Check local nuget.exe
+    $localNuget = Join-Path $scriptDir 'nuget.exe'
+    if (Test-Path $localNuget) {
+        $nugetExe = $localNuget
+        Write-Host "Using local nuget.exe: $nugetExe" -ForegroundColor Gray
+    } else {
+        # Download as last resort
+        Write-Host "nuget.exe not found in PATH or locally, downloading..." -ForegroundColor Yellow
+        try {
+            Invoke-WebRequest -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile $localNuget -TimeoutSec 30
+            $nugetExe = $localNuget
+            Write-Host "✓ nuget.exe downloaded successfully" -ForegroundColor Green
+        } catch {
+            throw "Failed to download nuget.exe and it's not available in PATH. Please install NuGet CLI or .NET SDK. Error: $($_.Exception.Message)"
+        }
+    }
 }
 
 Write-Host "Running nuget restore..."
