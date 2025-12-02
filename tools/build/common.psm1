@@ -63,22 +63,27 @@ function Write-FCLError {
 }
 
 function Find-FCLMSBuild {
+    # Force Visual Studio 2022 to avoid conflicts with other versions
     $vsWherePath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
     
     if (Test-Path $vsWherePath) {
-        $vsPath = & $vsWherePath -latest `
+        # Use -version parameter to specifically request VS 2022 (version 17.x)
+        $vsPath = & $vsWherePath -version '[17.0,18.0)' `
             -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
             -property installationPath `
-            -format value 2>$null
+            -format value `
+            -latest 2>$null
         
         if ($vsPath) {
             $msbuild = Join-Path $vsPath 'MSBuild\Current\Bin\MSBuild.exe'
             if (Test-Path $msbuild) {
+                Write-Host "  Found Visual Studio 2022 at: $vsPath" -ForegroundColor Gray
                 return $msbuild
             }
         }
     }
     
+    # Fallback: Direct path checking for VS 2022 only
     $candidates = @(
         'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\MSBuild\Current\Bin\MSBuild.exe',
         'C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe',
@@ -87,30 +92,37 @@ function Find-FCLMSBuild {
     
     foreach ($path in $candidates) {
         if (Test-Path $path) {
+            $vsPath = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $path)))
+            Write-Host "  Found Visual Studio 2022 at: $vsPath" -ForegroundColor Gray
             return $path
         }
     }
     
-    throw "MSBuild not found. Please install Visual Studio 2022."
+    throw "Visual Studio 2022 not found. This project requires Visual Studio 2022. Please install it from https://visualstudio.microsoft.com/"
 }
 
 function Find-FCLVsDevCmd {
+    # Force Visual Studio 2022 to avoid conflicts with other versions
     $vsWherePath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
     
     if (Test-Path $vsWherePath) {
-        $vsPath = & $vsWherePath -latest `
+        # Use -version parameter to specifically request VS 2022 (version 17.x)
+        $vsPath = & $vsWherePath -version '[17.0,18.0)' `
             -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
             -property installationPath `
-            -format value 2>$null
+            -format value `
+            -latest 2>$null
         
         if ($vsPath) {
             $vsDevCmd = Join-Path $vsPath 'Common7\Tools\VsDevCmd.bat'
             if (Test-Path $vsDevCmd) {
+                Write-Host "  Found Visual Studio 2022 at: $vsPath" -ForegroundColor Gray
                 return $vsDevCmd
             }
         }
     }
     
+    # Fallback: Direct path checking for VS 2022 only
     $candidates = @(
         'C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat',
         'C:\Program Files\Microsoft Visual Studio\2022\Professional\Common7\Tools\VsDevCmd.bat',
@@ -119,11 +131,13 @@ function Find-FCLVsDevCmd {
     
     foreach ($path in $candidates) {
         if (Test-Path $path) {
+            $vsPath = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $path))
+            Write-Host "  Found Visual Studio 2022 at: $vsPath" -ForegroundColor Gray
             return $path
         }
     }
     
-    throw "Visual Studio not found. Please install Visual Studio 2022."
+    throw "Visual Studio 2022 not found. This project requires Visual Studio 2022. Please install it from https://visualstudio.microsoft.com/"
 }
 
 function Find-FCLWDK {
