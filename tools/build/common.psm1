@@ -288,9 +288,11 @@ function Invoke-FCLMsBuild {
         [string[]]$Targets = @('Build')
     )
     
-    $msbuild = Find-FCLMSBuild
+    # Find VsDevCmd.bat to setup environment
+    $vsDevCmd = Find-FCLVsDevCmd
     
-    $args = @(
+    # Build MSBuild arguments
+    $msbuildArgs = @(
         $SolutionPath,
         "/p:Configuration=$Configuration",
         "/p:Platform=$Platform",
@@ -300,16 +302,31 @@ function Invoke-FCLMsBuild {
     )
     
     foreach ($key in $Properties.Keys) {
-        $args += "/p:$key=$($Properties[$key])"
+        $msbuildArgs += "/p:$key=$($Properties[$key])"
     }
     
     if ($Targets.Count -gt 0) {
         $targetStr = $Targets -join ';'
-        $args += "/t:$targetStr"
+        $msbuildArgs += "/t:$targetStr"
     }
     
-    Write-Host "  Running MSBuild..." -ForegroundColor Yellow
-    & $msbuild @args
+    # Escape arguments for cmd.exe
+    $escapedArgs = $msbuildArgs | ForEach-Object {
+        if ($_ -match '\s') {
+            "`"$_`""
+        } else {
+            $_
+        }
+    }
+    
+    # Create command that sets up VS environment and runs MSBuild
+    $arch = if ($Platform -eq 'x64') { 'amd64' } else { $Platform }
+    $command = "`"$vsDevCmd`" -arch=$arch && msbuild $($escapedArgs -join ' ')"
+    
+    Write-Host "  Running MSBuild with VS environment ($arch)..." -ForegroundColor Yellow
+    
+    # Execute in cmd.exe with VS environment
+    & cmd.exe /c $command
     
     if ($LASTEXITCODE -ne 0) {
         throw "MSBuild failed with exit code $LASTEXITCODE"

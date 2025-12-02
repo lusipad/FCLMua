@@ -60,13 +60,12 @@ $versionToInstall = if ($latestVersion) { $latestVersion } else { "0.5.1" }
 
 # Restore package to temp directory
 $packagesDir = Join-Path $tempDir 'packages'
-Write-Host "Restoring package from NuGet cache or downloading..."
 
 # Check if dotnet is available, prefer it over nuget.exe
 $useDotnet = $null -ne (Get-Command dotnet -ErrorAction SilentlyContinue)
 
 if ($useDotnet) {
-    Write-Host "Using dotnet add package..." -ForegroundColor Gray
+    Write-Host "Restoring Musa.Runtime using dotnet CLI..." -ForegroundColor Cyan
     # Create a temporary project to install the package
     $tempCsproj = Join-Path $tempDir 'temp.csproj'
     $csprojContent = @"
@@ -83,6 +82,7 @@ if ($useDotnet) {
     dotnet restore $tempCsproj --packages $packagesDir | Out-Null
     $exitCode = $LASTEXITCODE
 } else {
+    Write-Host "Restoring Musa.Runtime using nuget.exe..." -ForegroundColor Cyan
     # Fallback to nuget.exe
     $packagesConfig = @"
 <?xml version="1.0" encoding="utf-8"?>
@@ -95,11 +95,11 @@ if ($useDotnet) {
     
     $nugetExe = Join-Path $scriptDir 'nuget.exe'
     if (Test-Path $nugetExe) {
-        Write-Host "Using existing nuget.exe" -ForegroundColor Gray
+        Write-Host "  Using existing nuget.exe" -ForegroundColor Gray
     } else {
-        Write-Host "Downloading nuget.exe..." -ForegroundColor Yellow
+        Write-Host "  Downloading nuget.exe..." -ForegroundColor Yellow
         Invoke-WebRequest -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile $nugetExe
-        Write-Host "✓ nuget.exe downloaded successfully" -ForegroundColor Green
+        Write-Host "  ✓ nuget.exe downloaded successfully" -ForegroundColor Green
     }
     
     & $nugetExe restore $packagesConfigPath -PackagesDirectory $packagesDir -NonInteractive | Out-Null
