@@ -12,13 +12,6 @@ $scriptDir = $PSScriptRoot
 
 Write-Host "Restoring kernel driver NuGet packages..." -ForegroundColor Cyan
 
-# Download nuget.exe if not exists
-$nugetExe = Join-Path $scriptDir 'nuget.exe'
-if (-not (Test-Path $nugetExe)) {
-    Write-Host "Downloading nuget.exe..."
-    Invoke-WebRequest -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile $nugetExe
-}
-
 # Path to packages.config
 $repoRoot = (Resolve-Path (Join-Path $scriptDir '../..')).ProviderPath
 $packagesConfig = Join-Path $repoRoot 'kernel\driver\msbuild\packages.config'
@@ -28,11 +21,29 @@ if (-not (Test-Path $packagesConfig)) {
     exit 1
 }
 
-# Restore packages to global cache
-Write-Host "Running nuget restore..."
-& $nugetExe restore $packagesConfig -PackagesDirectory "$env:USERPROFILE\.nuget\packages" -NonInteractive
+# Check if dotnet is available, prefer it over nuget.exe
+$useDotnet = $null -ne (Get-Command dotnet -ErrorAction SilentlyContinue)
 
-$exitCode = $LASTEXITCODE
+if ($useDotnet) {
+    Write-Host "Using dotnet restore..." -ForegroundColor Gray
+    dotnet restore $packagesConfig --packages "$env:USERPROFILE\.nuget\packages"
+    $exitCode = $LASTEXITCODE
+} else {
+    # Fallback to nuget.exe
+    $nugetExe = Join-Path $scriptDir 'nuget.exe'
+    if (Test-Path $nugetExe) {
+        Write-Host "Using existing nuget.exe" -ForegroundColor Gray
+    } else {
+        Write-Host "Downloading nuget.exe..." -ForegroundColor Yellow
+        Invoke-WebRequest -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile $nugetExe
+        Write-Host "✓ nuget.exe downloaded successfully" -ForegroundColor Green
+    }
+    
+    Write-Host "Running nuget restore..."
+    & $nugetExe restore $packagesConfig -PackagesDirectory "$env:USERPROFILE\.nuget\packages" -NonInteractive
+    $exitCode = $LASTEXITCODE
+}
+
 if ($null -eq $exitCode) { $exitCode = 0 }
 
 if ($exitCode -ne 0) {

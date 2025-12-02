@@ -58,32 +58,54 @@ New-Item -ItemType Directory -Path $tempDir | Out-Null
 # Determine version to install
 $versionToInstall = if ($latestVersion) { $latestVersion } else { "0.5.1" }
 
-# Create a minimal packages.config file
-$packagesConfig = @"
+# Restore package to temp directory
+$packagesDir = Join-Path $tempDir 'packages'
+Write-Host "Restoring package from NuGet cache or downloading..."
+
+# Check if dotnet is available, prefer it over nuget.exe
+$useDotnet = $null -ne (Get-Command dotnet -ErrorAction SilentlyContinue)
+
+if ($useDotnet) {
+    Write-Host "Using dotnet add package..." -ForegroundColor Gray
+    # Create a temporary project to install the package
+    $tempCsproj = Join-Path $tempDir 'temp.csproj'
+    $csprojContent = @"
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Musa.Runtime" Version="$versionToInstall" />
+  </ItemGroup>
+</Project>
+"@
+    Set-Content -Path $tempCsproj -Value $csprojContent -Encoding UTF8
+    dotnet restore $tempCsproj --packages $packagesDir | Out-Null
+    $exitCode = $LASTEXITCODE
+} else {
+    # Fallback to nuget.exe
+    $packagesConfig = @"
 <?xml version="1.0" encoding="utf-8"?>
 <packages>
   <package id="Musa.Runtime" version="$versionToInstall" targetFramework="native" />
 </packages>
 "@
-
-$packagesConfigPath = Join-Path $tempDir 'packages.config'
-Set-Content -Path $packagesConfigPath -Value $packagesConfig -Encoding UTF8
-
-# Use nuget.exe to restore (uses cache automatically)
-Write-Host "Restoring package from NuGet cache or downloading..."
-
-# Download nuget.exe if not exists
-$nugetExe = Join-Path $scriptDir 'nuget.exe'
-if (-not (Test-Path $nugetExe)) {
-    Write-Host "Downloading nuget.exe..."
-    Invoke-WebRequest -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile $nugetExe
+    $packagesConfigPath = Join-Path $tempDir 'packages.config'
+    Set-Content -Path $packagesConfigPath -Value $packagesConfig -Encoding UTF8
+    
+    $nugetExe = Join-Path $scriptDir 'nuget.exe'
+    if (Test-Path $nugetExe) {
+        Write-Host "Using existing nuget.exe" -ForegroundColor Gray
+    } else {
+        Write-Host "Downloading nuget.exe..." -ForegroundColor Yellow
+        Invoke-WebRequest -Uri 'https://dist.nuget.org/win-x86-commandline/latest/nuget.exe' -OutFile $nugetExe
+        Write-Host "✓ nuget.exe downloaded successfully" -ForegroundColor Green
+    }
+    
+    & $nugetExe restore $packagesConfigPath -PackagesDirectory $packagesDir -NonInteractive | Out-Null
+    $exitCode = $LASTEXITCODE
 }
 
-# Restore package to temp directory
-$packagesDir = Join-Path $tempDir 'packages'
-& $nugetExe restore $packagesConfigPath -PackagesDirectory $packagesDir -NonInteractive | Out-Null
-
-$exitCode = $LASTEXITCODE
 if ($null -eq $exitCode) { $exitCode = 0 }
 
 if ($exitCode -ne 0) {
