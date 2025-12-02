@@ -9,8 +9,16 @@
 #include "fclmusa/driver.h"
 #include "fclmusa/geometry.h"
 #include "fclmusa/geometry/math_utils.h"
+#include "fclmusa/geometry/geometry_tests.h"
+#include "fclmusa/broadphase/broadphase_tests.h"
+#include "fclmusa/upstream/upstream_tests.h"
+#include "fclmusa/driver/ioctl_tests.h"
+#include "fclmusa/collision/collision_core_tests.h"
+#include "fclmusa/collision/ccd_core_tests.h"
+#include "fclmusa/distance/distance_core_tests.h"
 #include "fclmusa/logging.h"
 #include "fclmusa/memory/pool_allocator.h"
+#include "fclmusa/memory/pool_test.h"
 #include "fclmusa/runtime/musa_runtime_adapter.h"
 #include "fclmusa/self_test.h"
 
@@ -351,6 +359,30 @@ FclRunSelfTestScenario(
             scenarioStatus = FclRunMusaRuntimeSmokeTests();
             break;
         }
+        case FCL_SELF_TEST_SCENARIO_MEMORY: {
+            scenarioStatus = FclRunMemoryPoolTests();
+            break;
+        }
+        case FCL_SELF_TEST_SCENARIO_GEOMETRY: {
+            scenarioStatus = FclRunGeometryManagerTests();
+            break;
+        }
+        case FCL_SELF_TEST_SCENARIO_COLLISION_CORE: {
+            scenarioStatus = FclRunCollisionCoreTests();
+            break;
+        }
+        case FCL_SELF_TEST_SCENARIO_DISTANCE: {
+            scenarioStatus = FclRunDistanceCoreTests();
+            break;
+        }
+        case FCL_SELF_TEST_SCENARIO_UPSTREAM: {
+            scenarioStatus = FclRunUpstreamBridgeTests();
+            break;
+        }
+        case FCL_SELF_TEST_SCENARIO_DRIVER: {
+            scenarioStatus = FclRunDriverIoctlTests();
+            break;
+        }
         case FCL_SELF_TEST_SCENARIO_SPHERE_COLLISION: {
             BOOLEAN collisionDetected = FALSE;
             FCL_CONTACT_SUMMARY summary = {};
@@ -362,8 +394,11 @@ FclRunSelfTestScenario(
             break;
         }
         case FCL_SELF_TEST_SCENARIO_BROADPHASE: {
-            ULONG broadphasePairCount = 0;
-            scenarioStatus = RunBroadphaseScenario(&broadphasePairCount);
+            scenarioStatus = FclRunBroadphaseCoreTests();
+            if (NT_SUCCESS(scenarioStatus)) {
+                ULONG broadphasePairCount = 0;
+                scenarioStatus = RunBroadphaseScenario(&broadphasePairCount);
+            }
             break;
         }
         case FCL_SELF_TEST_SCENARIO_MESH_COLLISION: {
@@ -371,7 +406,10 @@ FclRunSelfTestScenario(
             break;
         }
         case FCL_SELF_TEST_SCENARIO_CCD: {
-            scenarioStatus = RunCcdScenario();
+            scenarioStatus = FclRunCcdCoreTests();
+            if (NT_SUCCESS(scenarioStatus)) {
+                scenarioStatus = RunCcdScenario();
+            }
             break;
         }
         default:
@@ -419,6 +457,31 @@ FclRunSelfTest(
     result->InitializeStatus = FclRunMusaRuntimeSmokeTests();
     overallStatus = accumulateOverall(overallStatus, result->InitializeStatus);
 
+    // 1.5 Pool allocator / leak checks
+    result->LeakTestStatus = FclRunMemoryPoolTests();
+    overallStatus = accumulateOverall(overallStatus, result->LeakTestStatus);
+
+    // 1.75 Geometry manager
+    result->GeometryCreateStatus = FclRunGeometryManagerTests();
+    result->GeometryUpdateStatus = result->GeometryCreateStatus;
+    overallStatus = accumulateOverall(overallStatus, result->GeometryCreateStatus);
+
+    // 1.8 Collision input validation
+    result->SphereObbStatus = FclRunCollisionCoreTests();
+    overallStatus = accumulateOverall(overallStatus, result->SphereObbStatus);
+
+    // 1.85 Distance validation
+    result->DistanceStatus = FclRunDistanceCoreTests();
+    overallStatus = accumulateOverall(overallStatus, result->DistanceStatus);
+
+    // 1.9 Upstream bridge smoke
+    result->MeshBroadphaseStatus = FclRunUpstreamBridgeTests();
+    overallStatus = accumulateOverall(overallStatus, result->MeshBroadphaseStatus);
+
+    // 1.95 Driver IOCTL smoke
+    result->SphereMeshStatus = FclRunDriverIoctlTests();
+    overallStatus = accumulateOverall(overallStatus, result->SphereMeshStatus);
+
     // 2. ��ײ������
     BOOLEAN collisionDetected = FALSE;
     FCL_CONTACT_SUMMARY summary = {};
@@ -432,9 +495,12 @@ FclRunSelfTest(
 
     // 3. Broadphase �۲�
     ULONG broadphasePairCount = 0;
-    result->BroadphaseStatus = RunBroadphaseScenario(&broadphasePairCount);
+    result->BroadphaseStatus = FclRunBroadphaseCoreTests();
     if (NT_SUCCESS(result->BroadphaseStatus)) {
-        result->BroadphasePairCount = broadphasePairCount;
+        result->BroadphaseStatus = RunBroadphaseScenario(&broadphasePairCount);
+        if (NT_SUCCESS(result->BroadphaseStatus)) {
+            result->BroadphasePairCount = broadphasePairCount;
+        }
     }
     overallStatus = accumulateOverall(overallStatus, result->BroadphaseStatus);
 
@@ -443,7 +509,10 @@ FclRunSelfTest(
     overallStatus = accumulateOverall(overallStatus, result->MeshGjkStatus);
 
     // 5. CCD ����
-    result->ContinuousCollisionStatus = RunCcdScenario();
+    result->ContinuousCollisionStatus = FclRunCcdCoreTests();
+    if (NT_SUCCESS(result->ContinuousCollisionStatus)) {
+        result->ContinuousCollisionStatus = RunCcdScenario();
+    }
     overallStatus = accumulateOverall(overallStatus, result->ContinuousCollisionStatus);
 
     const auto poolAfter = fclmusa::memory::QueryStats();

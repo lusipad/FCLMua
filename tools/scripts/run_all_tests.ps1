@@ -261,6 +261,77 @@ function Test-LibCCD {
 }
 
 # =============================================================================
+# 4. 测试 FCL+Musa R3 用例
+# =============================================================================
+function Test-R3Collision {
+    Write-Info "开始构建并测试 FCL+Musa R3 碰撞/距离场景..."
+
+    $R3BuildDir = Join-Path $ProjectRoot "build_r3_tests"
+    $R3Log = Join-Path $LogDir "r3_collision_test.log"
+
+    if (-not (Test-Path $R3BuildDir)) {
+        New-Item -ItemType Directory -Force -Path $R3BuildDir | Out-Null
+    }
+
+    cmake -S $ProjectRoot `
+        -B $R3BuildDir `
+        -DFCLMUSA_BUILD_USERLIB=ON `
+        -DFCLMUSA_BUILD_KERNEL_LIB=OFF `
+        -DFCLMUSA_BUILD_DRIVER=OFF `
+        > $R3Log 2>&1
+
+    if ($LASTEXITCODE -ne 0) {
+        Write-ErrorMsg "配置 FCL+Musa R3 测试工程失败，查看日志: $R3Log"
+        return $false
+    }
+
+    cmake --build $R3BuildDir --config Release --target FclMusaR3Collision >> $R3Log 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-ErrorMsg "构建 FclMusaR3Collision 失败，查看日志: $R3Log"
+        return $false
+    }
+
+    Push-Location $R3BuildDir
+    try {
+        $ctestOutput = ctest -C Release -R fclmusa_r3_collision --output-on-failure 2>&1 |
+            Tee-Object -FilePath $R3Log -Append
+
+        $outputText = $ctestOutput -join [Environment]::NewLine
+        $testsFailed = 0
+        $testsTotal = 0
+
+        if ($outputText -match "(\d+)% tests passed, (\d+) tests failed out of (\d+)") {
+            $testsFailed = [int]$Matches[2]
+            $testsTotal = [int]$Matches[3]
+        } elseif ($outputText -match "(\d+) tests failed out of (\d+)") {
+            $testsFailed = [int]$Matches[1]
+            $testsTotal = [int]$Matches[2]
+        }
+
+        if ($testsTotal -eq 0 -and $outputText -match "Test #[0-9]+") {
+            $testsTotal = 1
+        }
+
+        if ($testsTotal -gt 0) {
+            $script:TotalTests += $testsTotal
+            $script:FailedTests += $testsFailed
+            $script:PassedTests += ($testsTotal - $testsFailed)
+        }
+
+        if ($testsFailed -gt 0 -or $LASTEXITCODE -ne 0) {
+            Write-ErrorMsg "FCL+Musa R3 测试失败，查看日志: $R3Log"
+            return $false
+        }
+
+        Write-Success "FCL+Musa R3 测试通过"
+        return $true
+    }
+    finally {
+        Pop-Location
+    }
+}
+
+# =============================================================================
 # 生成测试报告
 # =============================================================================
 function Generate-Report {
@@ -296,6 +367,7 @@ function Generate-Report {
 FCL 测试日志:      $LogDir\fcl_test_results.txt
 Eigen 测试日志:    $LogDir\eigen_test_results.txt
 libccd 测试日志:   $LogDir\libccd_test_results.txt
+R3 测试日志:       $LogDir\r3_collision_test.log
 
 构建日志:
   - FCL:    $LogDir\fcl_test.log
@@ -337,6 +409,15 @@ function Main {
         Write-Success "libccd 测试阶段完成"
     } else {
         Write-Warning "libccd 测试未完全完成"
+    }
+
+    Write-Host ""
+
+    # 测试 FCL+Musa R3
+    if (Test-R3Collision) {
+        Write-Success "FCL+Musa R3 测试阶段完成"
+    } else {
+        Write-Warning "FCL+Musa R3 测试失败或未完成"
     }
 
     Write-Host ""

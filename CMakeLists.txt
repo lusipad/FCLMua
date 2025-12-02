@@ -220,6 +220,11 @@ if(FCLMUSA_BUILD_USERLIB)
   target_link_libraries(FclMusaR3Smoke PRIVATE FclMusa::CoreUser)
   add_test(NAME fclmusa_r3_smoke COMMAND FclMusaR3Smoke)
 
+  add_executable(FclMusaR3Collision tests/r3_collision_tests.cpp)
+  target_link_libraries(FclMusaR3Collision PRIVATE FclMusa::CoreUser)
+  target_compile_features(FclMusaR3Collision PRIVATE cxx_std_17)
+  add_test(NAME fclmusa_r3_collision COMMAND FclMusaR3Collision)
+
   add_executable(FclMusaUserDemo samples/r3_user_demo/main.cpp)
   target_link_libraries(FclMusaUserDemo PRIVATE FclMusa::CoreUser)
   target_compile_features(FclMusaUserDemo PRIVATE cxx_std_17)

@@ -91,6 +91,14 @@ jobs:
         run: |
           .\tools\build\build-tasks.ps1 -Task GUI-Demo
 
+      - name: Run R3 collision ctest
+        shell: pwsh
+        working-directory: ${{ github.workspace }}
+        run: |
+          cmake -S . -B build -DFCLMUSA_BUILD_USERLIB=ON
+          cmake --build build --config Release --target FclMusaR3Collision
+          ctest -C Release -R fclmusa_r3_collision --output-on-failure
+
       - name: Upload GUI demo artifact
         uses: actions/upload-artifact@v4
         with:

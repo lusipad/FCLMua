@@ -92,16 +92,32 @@
     </ClCompile>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\tests\src\self_test.cpp" />
-    <ClCompile Include="..\..\tests\src\collision_self_test.cpp" />
-    <ClCompile Include="..\..\tests\src\eigen_self_test.cpp" />
-    <ClCompile Include="..\..\tests\src\runtime\musa_runtime_adapter.cpp" />
-  </ItemGroup>
-  <ItemGroup>
+    <ClInclude Include="..\..\tests\include\fclmusa\broadphase\broadphase_tests.h" />
+    <ClInclude Include="..\..\tests\include\fclmusa\collision\ccd_core_tests.h" />
+    <ClInclude Include="..\..\tests\include\fclmusa\collision\collision_core_tests.h" />
+    <ClInclude Include="..\..\tests\include\fclmusa\driver\ioctl_tests.h" />
+    <ClInclude Include="..\..\tests\include\fclmusa\geometry\geometry_tests.h" />
+    <ClInclude Include="..\..\tests\include\fclmusa\distance\distance_core_tests.h" />
+    <ClInclude Include="..\..\tests\include\fclmusa\memory\pool_test.h" />
+    <ClInclude Include="..\..\tests\include\fclmusa\test\assertions.h" />
     <ClInclude Include="..\..\tests\include\fclmusa\self_test.h" />
     <ClInclude Include="..\..\tests\include\fclmusa\collision\self_test.h" />
     <ClInclude Include="..\..\tests\include\fclmusa\math\self_test.h" />
     <ClInclude Include="..\..\tests\include\fclmusa\runtime\musa_runtime_adapter.h" />
+    <ClInclude Include="..\..\tests\include\fclmusa\upstream\upstream_tests.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\tests\src\broadphase\broadphase_tests.cpp" />
+    <ClCompile Include="..\..\tests\src\collision\ccd_core_tests.cpp" />
+    <ClCompile Include="..\..\tests\src\collision\collision_core_tests.cpp" />
+    <ClCompile Include="..\..\tests\src\driver\ioctl_tests.cpp" />
+    <ClCompile Include="..\..\tests\src\geometry\geometry_manager_tests.cpp" />
+    <ClCompile Include="..\..\tests\src\memory\pool_allocator_tests.cpp" />
+    <ClCompile Include="..\..\tests\src\self_test.cpp" />
+    <ClCompile Include="..\..\tests\src\collision_self_test.cpp" />
+    <ClCompile Include="..\..\tests\src\eigen_self_test.cpp" />
+    <ClCompile Include="..\..\tests\src\runtime\musa_runtime_adapter.cpp" />
+    <ClCompile Include="..\..\tests\src\upstream\upstream_bridge_tests.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="FclMusaCoreLib.vcxproj">
