@@ -4,9 +4,18 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'openspec/**'
   pull_request:
     branches:
       - main
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - 'openspec/**'
+  workflow_dispatch: {}
 
 jobs:
   build-r3-demo:
