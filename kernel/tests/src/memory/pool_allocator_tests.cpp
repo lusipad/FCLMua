@@ -133,19 +133,93 @@ NTSTATUS RunZeroSizeReallocateTest() noexcept {
     return STATUS_SUCCESS;
 }
 
-NTSTATUS RunHighIrqlGuardTest() noexcept {
+/// @brief Test that allocation works correctly at DISPATCH_LEVEL (DPC context).
+///
+/// This test verifies that the memory allocator using Musa.Runtime's kmalloc
+/// can successfully allocate and free memory at DISPATCH_LEVEL. This is
+/// critical for DPC callback support.
+NTSTATUS RunDispatchLevelAllocationTest() noexcept {
     const auto before = fclmusa::memory::QueryStats();
 
     KIRQL oldIrql = PASSIVE_LEVEL;
     KeRaiseIrql(DISPATCH_LEVEL, &oldIrql);
+
+    // Allocation should succeed at DISPATCH_LEVEL with NonPagedPool
     void* buffer = fclmusa::memory::Allocate(16, kTestPoolTag);
+
+    // Write to buffer to verify it's valid memory
+    if (buffer != nullptr) {
+        RtlZeroMemory(buffer, 16);
+    }
+
+    // Free should also work at DISPATCH_LEVEL
+    fclmusa::memory::Free(buffer, kTestPoolTag);
+
     KeLowerIrql(oldIrql);
 
-    FCL_TEST_EXPECT_NULL(buffer, STATUS_DATA_ERROR);
+    // Verify allocation succeeded
+    FCL_TEST_EXPECT_NOT_NULL(buffer, STATUS_UNSUCCESSFUL);
 
+    // Verify stats are properly updated (using lock-free atomics)
     const auto after = fclmusa::memory::QueryStats();
-    FCL_TEST_EXPECT_TRUE(after.AllocationCount == before.AllocationCount, STATUS_DATA_ERROR);
-    FCL_TEST_EXPECT_TRUE(after.BytesAllocated == before.BytesAllocated, STATUS_DATA_ERROR);
+    FCL_TEST_EXPECT_TRUE(after.AllocationCount > before.AllocationCount, STATUS_DATA_ERROR);
+    FCL_TEST_EXPECT_TRUE(after.FreeCount > before.FreeCount, STATUS_DATA_ERROR);
+    FCL_TEST_EXPECT_TRUE(after.BytesInUse == before.BytesInUse, STATUS_DATA_ERROR);
+
+    return STATUS_SUCCESS;
+}
+
+/// @brief Test multiple allocations and frees at DISPATCH_LEVEL.
+NTSTATUS RunDispatchLevelMultipleAllocationsTest() noexcept {
+    constexpr size_t kNumAllocations = 5;
+    constexpr size_t kAllocationSize = 32;
+
+    void* buffers[kNumAllocations] = {};
+    const auto before = fclmusa::memory::QueryStats();
+
+    KIRQL oldIrql = PASSIVE_LEVEL;
+    KeRaiseIrql(DISPATCH_LEVEL, &oldIrql);
+
+    // Allocate multiple buffers
+    for (size_t i = 0; i < kNumAllocations; ++i) {
+        buffers[i] = fclmusa::memory::Allocate(kAllocationSize, kTestPoolTag);
+        if (buffers[i] != nullptr) {
+            // Write pattern to verify memory is valid
+            RtlFillMemory(buffers[i], kAllocationSize, static_cast<UCHAR>(i));
+        }
+    }
+
+    // Verify all patterns before freeing
+    bool allValid = true;
+    for (size_t i = 0; i < kNumAllocations; ++i) {
+        if (buffers[i] != nullptr) {
+            auto* bytes = static_cast<UCHAR*>(buffers[i]);
+            for (size_t j = 0; j < kAllocationSize; ++j) {
+                if (bytes[j] != static_cast<UCHAR>(i)) {
+                    allValid = false;
+                    break;
+                }
+            }
+        }
+    }
+
+    // Free all buffers
+    for (size_t i = 0; i < kNumAllocations; ++i) {
+        fclmusa::memory::Free(buffers[i], kTestPoolTag);
+    }
+
+    KeLowerIrql(oldIrql);
+
+    // Verify all allocations succeeded
+    for (size_t i = 0; i < kNumAllocations; ++i) {
+        FCL_TEST_EXPECT_NOT_NULL(buffers[i], STATUS_UNSUCCESSFUL);
+    }
+    FCL_TEST_EXPECT_TRUE(allValid, STATUS_DATA_ERROR);
+
+    // Verify stats
+    const auto after = fclmusa::memory::QueryStats();
+    FCL_TEST_EXPECT_TRUE(after.AllocationCount >= before.AllocationCount + kNumAllocations, STATUS_DATA_ERROR);
+    FCL_TEST_EXPECT_TRUE(after.FreeCount >= before.FreeCount + kNumAllocations, STATUS_DATA_ERROR);
     FCL_TEST_EXPECT_TRUE(after.BytesInUse == before.BytesInUse, STATUS_DATA_ERROR);
 
     return STATUS_SUCCESS;
@@ -163,7 +237,8 @@ FclRunMemoryPoolTests() noexcept {
     FCL_TEST_EXPECT_NT_SUCCESS(RunAllocationAccountingTest());
     FCL_TEST_EXPECT_NT_SUCCESS(RunReallocatePreservesContentTest());
     FCL_TEST_EXPECT_NT_SUCCESS(RunZeroSizeReallocateTest());
-    FCL_TEST_EXPECT_NT_SUCCESS(RunHighIrqlGuardTest());
+    FCL_TEST_EXPECT_NT_SUCCESS(RunDispatchLevelAllocationTest());
+    FCL_TEST_EXPECT_NT_SUCCESS(RunDispatchLevelMultipleAllocationsTest());
 
     const auto finalStats = fclmusa::memory::QueryStats();
     FCL_TEST_EXPECT_TRUE(finalStats.BytesInUse == baseline.BytesInUse, STATUS_DATA_ERROR);
@@ -175,4 +250,3 @@ FclRunMemoryPoolTests() noexcept {
 
     return STATUS_SUCCESS;
 }
-
